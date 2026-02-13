@@ -34,11 +34,11 @@ const FEEDS = {
     // "Okta": "https://www.oktaportal.com/api/v2/summary.json",
     // Paylocity
     // "Couchdrop": "https://status.couchdrop.io/status.json",
-    // FreshDesk / FreshService
-    // Qualtrics - https://status.qualtrics.com/
-    // DSI - https://www.datasolutionsinc.com 
-    // QuantumWorkplace
-    // gPanel
+    // "FreshDesk / FreshService": "https://status.freshworks.com/api/v2/summary.json",
+    "Qualtrics": "https://status.qualtrics.com/api/v2/summary.json",
+    // "DSI": "https://www.datasolutionsinc.com",
+    // "QuantumWorkplace": "https://status.quantumworkplace.com",
+    // "gPanel": "https://status.promevo.com"
 };
 
 const FILTERS = {
