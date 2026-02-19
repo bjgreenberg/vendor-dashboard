@@ -1,7 +1,7 @@
 
-const SHEET_NAME = "Vendor System Status";
+const SHEET_NAME = "Vendor System Status"; 
 
-// Only including vendors that typically allow API access
+// Only including vendors that typically allow API access  
 const FEEDS = {
     "Microsoft": "https://portal.office.com/api/servicestatus/index",
     "Google": "https://www.google.com/appsstatus/dashboard/incidents.json",

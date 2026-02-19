@@ -12,5 +12,8 @@
   "type": "commonjs",
   "devDependencies": {
     "@types/google-apps-script": "^2.0.8"
+  },
+  "dependencies": {
+    "node": "^25.6.1"
   }
 }
