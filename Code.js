@@ -23,7 +23,7 @@ const FEEDS = {
     "GitHub": "https://www.githubstatus.com/api/v2/summary.json",
     "Docusign": "https://status.docusign.com/api/v2/summary.json",
     "SendGrid": "https://status.sendgrid.com/api/v2/summary.json",
-    "NetSuite": "https://status.netsuite.com",
+    "NetSuite": "https://status.netsuite.com/api/v2/summary.json",
     "Apple": "https://www.apple.com/support/systemstatus/data/system_status_en_US.js",
     "Alteryx": "https://status.alteryxcloud.com/api/v2/summary.json",
     "Concur": "https://open.concur.com",
@@ -38,6 +38,7 @@ const FEEDS = {
     // "DSI": "https://www.datasolutionsinc.com",
     "QuantumWorkplace": "https://status.quantumworkplace.com/api/v2/summary.json",
     // "gPanel": "https://status.promevo.com"
+    "1Password": "https://status.1password.com/api/v2/summary.json"
 };
 
 const FILTERS = {
@@ -64,11 +65,11 @@ function refreshVendorStatus() {
   // 2. Microsoft
   try { rows.push(...fetchMicrosoftStatus_("Microsoft", FEEDS["Microsoft"], nowIso)); } catch(e) { Logger.log("MS error: " + e); }
   
-  // 3. NetSuite
+  // 3. NetSuite (Atlassian Statuspage JSON)
   try { 
-    const nsData = fetchNetSuiteStatus_("NetSuite", FEEDS["NetSuite"], nowIso);
-    if (nsData) rows.push(nsData); 
-  } catch(e) { Logger.log("NS error: " + e); }
+    const nsData = fetchStatuspageSummary_("NetSuite", FEEDS["NetSuite"], nowIso);
+    if (nsData && nsData.length > 0) rows.push(...nsData); 
+  } catch(e) { Logger.log("NetSuite error: " + e); }
 
   // 4. Apple
   try { 
@@ -79,7 +80,7 @@ function refreshVendorStatus() {
   // 5. Concur (Added Custom Handler)
   try {
     const concurData = fetchConcurStatus_("Concur", FEEDS["Concur"], nowIso);
-    if (concurData) rows.push(concurData);
+    if (concurData && concurData.length > 0) rows.push(...concurData);
   } catch(e) { Logger.log("Concur error: " + e); }
 
   // 6. Tableau (Salesforce Status API)
@@ -225,7 +226,13 @@ function fetchStatuspageSummary_(vendor, url, nowIso, allowedComponents) {
   if (!data || !data.components) return [];
 
   const generalUrl = (data.page.url || url).replace(/\/$/, "").trim();
-  const activeIncidents = (data.incidents || []).filter(i => i.status !== "resolved");
+  const activeIncidents = (data.incidents || []).filter(i => {
+    const isResolved = i.status === "resolved";
+    const isMetadata = (i.name || "").startsWith("_") || 
+                       (i.incident_updates && i.incident_updates.length > 0 && (i.incident_updates[0].body || "").startsWith("_"));
+    const hasImpact = i.impact && i.impact !== "none";
+    return !isResolved && !isMetadata && hasImpact;
+  });
   
   if (activeIncidents.length === 0) {
     return [[vendor, vendor, "Operational", "n/a", "Systems operational.", "none", "", "", generalUrl, nowIso]];
@@ -347,15 +354,6 @@ function stripHtml_(text) {
   return cleaned.trim();
 }
 
-function fetchNetSuiteStatus_(vendor, url, nowIso) {
-  try {
-    const html = UrlFetchApp.fetch(url, { "muteHttpExceptions": true }).getContentText();
-    const hasSuccessIcons = html.includes("is-success") || html.includes("Normal");
-    const hasMajorAlert = html.includes("status-critical-bg") || html.includes("current-status-major");
-    let status = (hasMajorAlert || !hasSuccessIcons) ? "Down" : "Operational";
-    return [vendor, "NetSuite ERP", status, status === "Operational" ? "n/a" : "Service Alert", status === "Operational" ? "All systems normal." : "NetSuite reports a Major Outage.", status === "Operational" ? "none" : "minor", "", "", url, nowIso];
-  } catch(e) { return null; }
-}
 
 function fetchAppleStatus_(vendor, url, nowIso) {
   try {
@@ -442,38 +440,54 @@ function fetchTableauStatus_(vendor, url, nowIso) {
   }
 }
 
-// --- Concur Custom Scraper (Negative Check) ---
+// --- Concur Custom Scraper (Improved Logic) ---
 function fetchConcurStatus_(vendor, url, nowIso) {
   try {
     const targetUrl = "https://open.concur.com/?data-center=us2"; 
-    const html = UrlFetchApp.fetch(targetUrl).getContentText();
+    const html = UrlFetchApp.fetch(targetUrl, { "muteHttpExceptions": true }).getContentText();
 
     // 1. Sanity Check: Ensure we actually fetched the Concur page
     if (!html.includes("Concur")) {
-      return [vendor, "Concur", "Degraded", "Error", "Could not verify page content.", "minor", "", "", targetUrl, nowIso];
+      return [[vendor, "Concur", "Degraded", "Error", "Could not verify page content (Scrape Failed).", "minor", "", "", targetUrl, nowIso]];
     }
 
-    // 2. Negative Check: Look for bad words instead of good words
-    // If we find "Disruption" or "Degradation", we flag it. Otherwise, assume Operational.
-    // We strictly check for the status labels used in their legend.
-    const hasIssue = html.includes("Disruption") || html.includes("Degradation");
+    // 2. Legend Check: Look for specific status classes/text
+    // Concur Open uses "Disruption" for Major and "Degradation" for Minor.
+    const hasDisruption = html.includes("Disruption") || html.includes("status-disruption");
+    const hasDegradation = html.includes("Degradation") || html.includes("status-degradation");
+    
+    let status = "Operational";
+    let incidentName = "n/a";
+    let description = "All systems operational.";
+    let impact = "none";
 
-    return [
+    if (hasDisruption) {
+        status = "Down"; // Map disruption to Down for clarity in Looker
+        incidentName = "Service Disruption";
+        description = "Service is experiencing a disruption at the US2 Data Center.";
+        impact = "major";
+    } else if (hasDegradation) {
+        status = "Degraded";
+        incidentName = "Performance Degradation";
+        description = "Service is experiencing a performance degradation at the US2 Data Center.";
+        impact = "minor";
+    }
+
+    return [[
       vendor,
-      "Concur Expense/Travel",
-      hasIssue ? "Degraded" : "Operational",
-      hasIssue ? "Possible Service Disruption" : "n/a",
-      hasIssue ? "Check open.concur.com for details." : "Systems operational.",
-      hasIssue ? "minor" : "none",
+      "Concur Expense/Travel (US2)",
+      status,
+      incidentName,
+      description,
+      impact,
       "",
       "",
       targetUrl,
       nowIso
-    ];
+    ]];
   } catch(e) {
-    // If the fetch completely fails (e.g. timeout), log it but don't panic the dashboard
     Logger.log("Concur Scrape Error: " + e);
-    return [vendor, "Concur", "Operational", "n/a", "Status check failed (HTML change?)", "none", "", "", "https://open.concur.com", nowIso];
+    return [[vendor, "Concur", "Operational", "n/a", "Status check unavailable (Network Error).", "none", "", "", "https://open.concur.com", nowIso]];
   }
 }
 
