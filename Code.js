@@ -27,11 +27,10 @@ const FEEDS = {
     "Apple": "https://www.apple.com/support/systemstatus/data/system_status_en_US.js",
     "Alteryx": "https://status.alteryxcloud.com/api/v2/summary.json",
     "Concur": "https://open.concur.com",
-    // Temporarily disabled Tableau feed until revisit/fix
-    // "Tableau": "https://status.salesforce.com/products/Tableau"
+    "Tableau": "https://api.status.salesforce.com/v1/products/Tableau",
     "Stormboard": "https://status.stormboard.com/api/v2/summary.json",
-    // "iorad": "https://status.iorad.com/api/v2/summary.json"
-    // "Okta": "https://www.oktaportal.com/api/v2/summary.json",
+    "Iorad": "https://status.iorad.com/api/v1/status.json",
+    "Okta": "http://feeds.feedburner.com/OktaTrustRSS",
     // Paylocity
     // "Couchdrop": "https://status.couchdrop.io/status.json",
     // "FreshDesk / FreshService": "https://status.freshworks.com/api/v2/summary.json",
@@ -83,24 +82,33 @@ function refreshVendorStatus() {
     if (concurData) rows.push(concurData);
   } catch(e) { Logger.log("Concur error: " + e); }
 
-  // 6. Tableau handler temporarily disabled — feed commented out for later revisit
-  /*
+  // 6. Tableau (Salesforce Status API)
   try {
-    const tableauData = fetchTableauStatus_("Tableau", FEEDS["Tableau"], nowIso);
+    const tableauData = fetchSalesforceStatus_("Tableau", FEEDS["Tableau"], nowIso);
     if (tableauData && tableauData.length > 0) rows.push(...tableauData);
   } catch(e) { Logger.log("Tableau error: " + e); }
-  */
 
-  // Stormboard (custom handler - some sites return HTML rather than JSON)
   try {
     const stormData = fetchStormboardStatus_("Stormboard", FEEDS["Stormboard"], nowIso);
     if (stormData && stormData.length > 0) rows.push(...stormData);
   } catch(e) { Logger.log("Stormboard error: " + e); }
 
-  // 6. Automated Loop
+  // 6. Iorad (SorryApp)
+  try {
+    const ioradData = fetchSorryAppStatus_("Iorad", FEEDS["Iorad"], nowIso);
+    if (ioradData && ioradData.length > 0) rows.push(...ioradData);
+  } catch(e) { Logger.log("Iorad error: " + e); }
+
+  // 7. Okta (RSS Feed)
+  try {
+    const oktaData = fetchOktaStatus_("Okta", FEEDS["Okta"], nowIso);
+    if (oktaData && oktaData.length > 0) rows.push(...oktaData);
+  } catch(e) { Logger.log("Okta error: " + e); }
+
+  // 8. Automated Loop
   Object.keys(FEEDS).forEach(vendor => {
     // IMPORTANT: Added "Concur" and "Tableau" to this ignore list so the loop skips them
-    if (["Google", "Microsoft", "NetSuite", "Apple", "Concur", "Tableau", "Stormboard"].includes(vendor)) return;
+    if (["Google", "Microsoft", "NetSuite", "Apple", "Concur", "Tableau", "Stormboard", "Iorad", "Okta"].includes(vendor)) return;
     
     try {
       const statusData = fetchStatuspageSummary_(vendor, FEEDS[vendor], nowIso, FILTERS[vendor]);
@@ -467,4 +475,163 @@ function fetchConcurStatus_(vendor, url, nowIso) {
     Logger.log("Concur Scrape Error: " + e);
     return [vendor, "Concur", "Operational", "n/a", "Status check failed (HTML change?)", "none", "", "", "https://open.concur.com", nowIso];
   }
+}
+
+/**
+ * Custom handler for SorryApp engine (e.g. iorad)
+ */
+function fetchSorryAppStatus_(vendor, url, nowIso) {
+  const rawResponse = UrlFetchApp.fetch(url).getContentText();
+  const data = JSON.parse(rawResponse);
+  
+  const page = data.page || {};
+  const statusLabel = (page.state === "operational") ? "Operational" : "Degraded";
+  const sourceUrl = page.url || url.split('/api')[0];
+
+  // If operational, return standard row
+  if (statusLabel === "Operational") {
+    return [[vendor, vendor, "Operational", "n/a", "Systems operational.", "none", "", "", sourceUrl, nowIso]];
+  }
+
+  // If not operational, fetch active notices
+  const noticesUrl = url.replace("status.json", "notices");
+  const noticesResponse = UrlFetchApp.fetch(noticesUrl).getContentText();
+  const noticesData = JSON.parse(noticesResponse);
+  
+  const activeNotices = (noticesData.notices || []).filter(n => n.state !== "resolved" && n.state !== "complete");
+
+  if (activeNotices.length === 0) {
+    return [[vendor, vendor, "Degraded", "Multiple Issues", "Ongoing issues reported by vendor.", "minor", "", "", sourceUrl, nowIso]];
+  }
+
+  return activeNotices.map(n => {
+    const latest = n.latest_update || {};
+    const description = stripHtml_(latest.content || n.subject || "No details provided.");
+    
+    return [
+      vendor,
+      vendor,
+      "Degraded",
+      n.subject || "Incident",
+      description,
+      (n.impact || (n.type === "unplanned" ? "major" : "minor")),
+      n.began_at || "",
+      n.updated_at || "",
+      n.url || sourceUrl,
+      nowIso
+    ];
+  });
+}
+
+/**
+ * Custom handler for Okta (RSS/Atom Feed)
+ */
+function fetchOktaStatus_(vendor, url, nowIso) {
+  const rawResponse = UrlFetchApp.fetch(url).getContentText();
+  const document = XmlService.parse(rawResponse);
+  const root = document.getRootElement();
+  const atom = XmlService.getNamespace('http://www.w3.org/2005/Atom');
+  
+  const entries = root.getChildren('entry', atom);
+  
+  // Find active incidents (those that don't start with "Resolved")
+  const activeEntries = entries.filter(entry => {
+    const title = entry.getChildText('title', atom) || "";
+    return !title.toLowerCase().startsWith("resolved");
+  });
+
+  if (activeEntries.length === 0) {
+    return [[vendor, vendor, "Operational", "n/a", "All systems operational.", "none", "", "", "https://status.okta.com", nowIso]];
+  }
+
+  return activeEntries.map(entry => {
+    const title = entry.getChildText('title', atom);
+    const content = entry.getChildText('content', atom);
+    const updated = entry.getChildText('updated', atom);
+    const link = entry.getChild('link', atom) ? entry.getChild('link', atom).getAttribute('href').getValue() : "https://status.okta.com";
+    
+    let impact = "minor";
+    if (title.toLowerCase().includes("disruption") || title.toLowerCase().includes("outage")) {
+      impact = "major";
+    }
+
+    return [
+      vendor,
+      vendor,
+      "Degraded",
+      title,
+      stripHtml_(content || "No details provided."),
+      impact,
+      updated,
+      updated,
+      link,
+      nowIso
+    ];
+  });
+}
+
+/**
+ * Custom handler for Salesforce Status (Tableau)
+ */
+function fetchSalesforceStatus_(vendor, url, nowIso) {
+  const rawResponse = UrlFetchApp.fetch(url).getContentText();
+  const data = JSON.parse(rawResponse);
+  
+  // Salesforce Status returns an object with "Instances" and "Incidents" arrays
+  const instances = data.Instances || [];
+  
+  // Filter for active production instances
+  // We want to skip environments like "preview" or "qa"
+  const productionInstances = instances.filter(inst => {
+    return inst.environment === "production" && inst.isActive === true;
+  });
+
+  if (productionInstances.length === 0) {
+    return [[vendor, "All Regions", "Operational", "n/a", "No active production instances found.", "none", "", "", "https://status.salesforce.com/products/Tableau", nowIso]];
+  }
+
+  // Check if ANY production instance is not "OK"
+  const degradedInstances = productionInstances.filter(inst => inst.status !== "OK");
+
+  if (degradedInstances.length === 0) {
+    return [[vendor, "All Regions", "Operational", "n/a", "All production instances are operational.", "none", "", "", "https://status.salesforce.com/products/Tableau", nowIso]];
+  }
+
+  // If there are degraded instances, we need to map them to rows
+  // We'll also try to attach active incidents if they exist in the product payload
+  const activeIncidents = data.Incidents || [];
+
+  return degradedInstances.map(inst => {
+    // Find incidents that affect this specific instance key
+    const relatedIncidents = activeIncidents.filter(inc => inc.instanceKeys && inc.instanceKeys.includes(inst.key));
+    
+    let description = `Instance ${inst.key} status is ${inst.status}.`;
+    let incidentName = "Issue reported";
+    let impact = "minor";
+    let sourceUrl = `https://status.salesforce.com/instances/${inst.key}`;
+
+    if (relatedIncidents.length > 0) {
+      const inc = relatedIncidents[0]; // Take the most recent/relevant
+      incidentName = inc.type || "Incident";
+      impact = inc.status === "Resolved" ? "none" : "major";
+      
+      // Get the latest timeline event if available
+      if (inc.timeline && inc.timeline.length > 0) {
+        description = stripHtml_(inc.timeline[0].content || description);
+      }
+    }
+
+    return [
+      vendor,
+      `Region: ${inst.location} (${inst.key})`,
+      "Degraded",
+      incidentName,
+      description,
+      impact,
+      inst.createdAt || "",
+      inst.updatedAt || "",
+      sourceUrl,
+      nowIso
+    ];
+  });
 }
