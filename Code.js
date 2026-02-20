@@ -3,50 +3,49 @@ const SHEET_NAME = "Vendor System Status";
 
 // Only including vendors that typically allow API access  
 const FEEDS = {
-    "Microsoft": "https://portal.office.com/api/servicestatus/index",
-    "Google": "https://www.google.com/appsstatus/dashboard/incidents.json",
-    "OpenAI": "https://status.openai.com/api/v2/summary.json",
-    "Cloudflare": "https://www.cloudflarestatus.com/api/v2/summary.json",
+    "1Password": "https://status.1password.com/api/v2/summary.json",
+    "Alteryx": "https://status.alteryxcloud.com/api/v2/summary.json",
+    "Apple": "https://www.apple.com/support/systemstatus/data/system_status_en_US.js",
     "Calendly": "https://www.calendlystatus.com/api/v2/summary.json",
-    "Zoom": "https://status.zoom.us/api/v2/summary.json",
+    "Celigo": "https://status.celigo.com/api/v2/summary.json",
+    "Centage": "https://status.centage.com/api/v2/summary.json",
+    "Cloudflare": "https://www.cloudflarestatus.com/api/v2/summary.json",
+    "Concur": "https://open.concur.com",
+    "Couchdrop": "https://couchdropstatus.statuspage.io/api/v2/summary.json",
+    "Docusign": "https://status.docusign.com/api/v2/summary.json",
+    // "DSI": "https://www.datasolutionsinc.com",
+    "Freshdesk": "https://statusgator.com/services/freshdesk",
+    "Freshservice": "https://statusgator.com/services/freshservice",
+    "GitHub": "https://www.githubstatus.com/api/v2/summary.json",
+    "Google": "https://www.google.com/appsstatus/dashboard/incidents.json",
+    // "gPanel": "https://status.promevo.com",
     "HubSpot": "https://status.hubspot.com/api/v2/summary.json",
-    "Monday.com": "https://status.monday.com/api/v2/summary.json",
-    "Lucid": "https://status.lucid.co/api/v2/summary.json",
+    "Iorad": "https://status.iorad.com/api/v1/status.json",
     "Jamf": "https://status.jamf.com/api/v2/summary.json",
     "KnowBe4": "https://status.knowbe4.com/api/v2/summary.json",
-    "Seismic": "https://status.seismic.com/api/v2/summary.json",
-    "Navan": "https://status.navan.com/api/v2/summary.json",
     "Loopio": "https://www.loopiostatus.com/api/v2/summary.json",
-    "Centage": "https://status.centage.com/api/v2/summary.json",
-    "Celigo": "https://status.celigo.com/api/v2/summary.json",
-    "Zapier": "https://status.zapier.com/api/v2/summary.json",
-    "GitHub": "https://www.githubstatus.com/api/v2/summary.json",
-    "Docusign": "https://status.docusign.com/api/v2/summary.json",
-    "SendGrid": "https://status.sendgrid.com/api/v2/summary.json",
+    "Lucid": "https://status.lucid.co/api/v2/summary.json",
+    "Microsoft": "https://portal.office.com/api/servicestatus/index",
+    "Monday.com": "https://status.monday.com/api/v2/summary.json",
+    "Navan": "https://status.navan.com/api/v2/summary.json",
     "NetSuite": "https://status.netsuite.com/api/v2/summary.json",
-    "Apple": "https://www.apple.com/support/systemstatus/data/system_status_en_US.js",
-    "Alteryx": "https://status.alteryxcloud.com/api/v2/summary.json",
-    "Concur": "https://open.concur.com",
-    "Tableau": "https://api.status.salesforce.com/v1/products/Tableau",
-    "Stormboard": "https://status.stormboard.com/api/v2/summary.json",
-    "Iorad": "https://status.iorad.com/api/v1/status.json",
     "Okta": "http://feeds.feedburner.com/OktaTrustRSS",
-    // Paylocity
-    // "Couchdrop": "https://status.couchdrop.io/status.json",
-    // "FreshDesk / FreshService": "https://status.freshworks.com/api/v2/summary.json",
+    "OpenAI": "https://status.openai.com/api/v2/summary.json",
+    "Paylocity": "https://statusgator.com/services/paylocity",
     "Qualtrics": "https://status.qualtrics.com/api/v2/summary.json",
-    // "DSI": "https://www.datasolutionsinc.com",
     "QuantumWorkplace": "https://status.quantumworkplace.com/api/v2/summary.json",
-    // "gPanel": "https://status.promevo.com"
-    "1Password": "https://status.1password.com/api/v2/summary.json"
+    "Seismic": "https://status.seismic.com/api/v2/summary.json",
+    "SendGrid": "https://status.sendgrid.com/api/v2/summary.json",
+    "Stormboard": "https://status.stormboard.com/api/v2/summary.json",
+    "Tableau": "https://api.status.salesforce.com/v1/products/Tableau",
+    "Zapier": "https://status.zapier.com/api/v2/summary.json",
+    "Zoom": "https://status.zoom.us/api/v2/summary.json"
 };
 
 const FILTERS = {
   "OpenAI": ["ChatGPT", "API"],
   "Cloudflare": ["Dashboard", "DNS", "Workers"],
   "Zoom": ["Zoom Meetings", "Zoom Phone"]
-  // Tableau filter temporarily disabled while feed is commented out
-  // "Tableau": ["Tableau Cloud"]
 };
 
 const HEADERS = ["vendor","service","status","incident_name","description","impact","started_at","updated_at","source_url","last_checked"];
@@ -108,8 +107,16 @@ function refreshVendorStatus() {
 
   // 8. Automated Loop
   Object.keys(FEEDS).forEach(vendor => {
-    // IMPORTANT: Added "Concur" and "Tableau" to this ignore list so the loop skips them
-    if (["Google", "Microsoft", "NetSuite", "Apple", "Concur", "Tableau", "Stormboard", "Iorad", "Okta"].includes(vendor)) return;
+    // IMPORTANT: Avoid parsing custom handlers with the standard generic parser
+    if (["Google", "Microsoft", "NetSuite", "Apple", "Concur", "Tableau", "Stormboard", "Iorad", "Okta", "Freshdesk", "Freshservice", "Paylocity"].includes(vendor)) {
+      if (vendor === "Freshdesk" || vendor === "Freshservice" || vendor === "Paylocity") {
+        try {
+          const statusGatorData = fetchStatusGator_(vendor, FEEDS[vendor], nowIso);
+          if (statusGatorData && statusGatorData.length > 0) rows.push(...statusGatorData);
+        } catch(e) { Logger.log(vendor + " StatusGator error: " + e); }
+      }
+      return;
+    }
     
     try {
       const statusData = fetchStatuspageSummary_(vendor, FEEDS[vendor], nowIso, FILTERS[vendor]);
@@ -119,6 +126,16 @@ function refreshVendorStatus() {
 
   // Final Writing Logic
   if (rows.length > 0) {
+    
+    // DEBUGGING: Find the row that is causing the column mismatch
+    const badRows = rows.filter(r => !Array.isArray(r) || r.length !== HEADERS.length);
+    if (badRows.length > 0) {
+      Logger.log("CRITICAL ERROR: Found rows with invalid column counts!");
+      Logger.log("Bad rows: " + JSON.stringify(badRows));
+      // Filter them out to prevent crash, allowing remaining good rows to write
+      rows = rows.filter(r => Array.isArray(r) && r.length === HEADERS.length);
+    }
+    
     if (sheet.getLastRow() > 1) {
       sheet.getRange(2, 1, sheet.getLastRow() - 1, HEADERS.length).clearContent();
     }
@@ -648,4 +665,73 @@ function fetchSalesforceStatus_(vendor, url, nowIso) {
       nowIso
     ];
   });
+}
+
+function fetchStatusGator_(vendor, url, nowIso) {
+  try {
+    const html = UrlFetchApp.fetch(url, {
+      "muteHttpExceptions": true,
+      "headers": {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+      }
+    }).getContentText();
+
+    let status = "Operational";
+    let message = "All systems operational (Unofficial Source via StatusGator).";
+
+    const regex = /<script\s+type=(["'])application\/ld\+json\1>([\s\S]*?)<\/script>/gi;
+    let match;
+    let blocks = [];
+    while ((match = regex.exec(html)) !== null) {
+      blocks.push(match[2]);
+    }
+
+    if (blocks.length > 0) {
+      let found = false;
+      for (let jsonStr of blocks) {
+        if (jsonStr.includes(`Is ${vendor} down today?`)) {
+          try {
+            const ldJson = JSON.parse(jsonStr);
+            const answers = ldJson.mainEntity;
+            if (answers && answers.length > 0) {
+              const downQuestion = answers.find(a => (a.name || "").includes("down today"));
+              if (downQuestion && downQuestion.acceptedAnswer) {
+                found = true;
+                const answerText = (downQuestion.acceptedAnswer.text || "").toLowerCase();
+                
+                if (answerText.includes("<strong>up</strong>")) {
+                  status = "Operational";
+                } else {
+                  status = "Degraded";
+                  message = "Potential issues detected by StatusGator.";
+                }
+              }
+            }
+          } catch(e) { Logger.log(`${vendor} JSON Parse error: ` + e); }
+        }
+      }
+      if (!found) {
+        Logger.log(`${vendor}: Could not find target specific question in JSON-LD.`);
+      }
+    } else {
+      Logger.log(`${vendor}: Could not find application/ld+json blocks.`);
+    }
+
+    return [[
+      vendor, 
+      `${vendor} System (via StatusGator)`, 
+      status, 
+      "n/a", 
+      message, 
+      "none", 
+      "", 
+      "", 
+      url, 
+      nowIso
+    ]];
+
+  } catch(e) {
+    Logger.log(`${vendor} Scrape Error: ` + e);
+    return [[vendor, `${vendor} System (via StatusGator)`, "Operational", "n/a", "Status check unavailable (Network Error).", "none", "", "", url, nowIso]];
+  }
 }
