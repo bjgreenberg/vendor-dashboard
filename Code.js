@@ -37,7 +37,7 @@ const FEEDS = {
     // "FreshDesk / FreshService": "https://status.freshworks.com/api/v2/summary.json",
     "Qualtrics": "https://status.qualtrics.com/api/v2/summary.json",
     // "DSI": "https://www.datasolutionsinc.com",
-    // "QuantumWorkplace": "https://status.quantumworkplace.com",
+    "QuantumWorkplace": "https://status.quantumworkplace.com/api/v2/summary.json",
     // "gPanel": "https://status.promevo.com"
 };
 
