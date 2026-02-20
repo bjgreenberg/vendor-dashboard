@@ -255,12 +255,12 @@ function fetchGoogleAppsStatus_(vendor, url, nowIso) {
   
   // Find incidents that are NOT resolved
   const activeIncidents = allIncidents.filter(inc => {
-    // Rely on status_impact, which represents the actual status of the incident
-    const status = inc.status_impact || "";
+    // Determine the status from most_recent_update since status_impact is the highest historical impact
+    const status = (inc.most_recent_update && inc.most_recent_update.status) || inc.status_impact || "";
     // We consider it active if the status is not "AVAILABLE" and not "RESOLVED"
     const isResolved = status.toUpperCase() === "AVAILABLE" || status.toUpperCase() === "RESOLVED" || status.toUpperCase() === "SERVICE_INFORMATION";
     
-    return !isResolved && coreApps.some(app => inc.service_name.includes(app));
+    return !isResolved && coreApps.some(app => (inc.service_name || "").includes(app));
   });
 
   if (activeIncidents.length === 0) {
@@ -320,7 +320,23 @@ function ensureHeaders_(sheet) {
 }
 
 function stripHtml_(text) {
-  return (text || "").replace(/<[^>]*>/g, "").trim();
+  if (!text) return "";
+  
+  // Remove HTML tags
+  let cleaned = text.replace(/<[^>]*>/g, "");
+  
+  // Remove markdown bolding (**)
+  cleaned = cleaned.replace(/\*\*/g, "");
+  
+  // Optionally remote markdown bullets (*) to make it cleaner, 
+  // though Looker handles lists poorly anyway
+  cleaned = cleaned.replace(/^\* /gm, "- ");
+  
+  // Replace multiple newlines with a single space or just a single newline 
+  // so it doesn't take up massive vertical space in a Looker table
+  cleaned = cleaned.replace(/\n\s*\n/g, "\n");
+  
+  return cleaned.trim();
 }
 
 function fetchNetSuiteStatus_(vendor, url, nowIso) {
