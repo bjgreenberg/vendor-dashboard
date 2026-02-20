@@ -250,28 +250,41 @@ function fetchGoogleAppsStatus_(vendor, url, nowIso) {
   // Explicitly include Gemini and ensure matching is robust
   const coreApps = ["Gmail", "Drive", "Calendar", "Meet", "Admin Console", "Gemini", "Looker Studio", "AppSheet"];
   
+  // Google's incidents.json is a top-level array
+  const allIncidents = Array.isArray(data) ? data : (data.incidents || []);
+  
   // Find incidents that are NOT resolved
-  const activeIncidents = (data.incidents || []).filter(inc => 
-    inc.status !== "resolved" && coreApps.some(app => inc.service_name.includes(app))
-  );
+  const activeIncidents = allIncidents.filter(inc => {
+    // Rely on status_impact, which represents the actual status of the incident
+    const status = inc.status_impact || "";
+    // We consider it active if the status is not "AVAILABLE" and not "RESOLVED"
+    const isResolved = status.toUpperCase() === "AVAILABLE" || status.toUpperCase() === "RESOLVED" || status.toUpperCase() === "SERVICE_INFORMATION";
+    
+    return !isResolved && coreApps.some(app => inc.service_name.includes(app));
+  });
 
   if (activeIncidents.length === 0) {
     return [["Google", "Google Workspace", "Operational", "n/a", "All systems normal.", "none", "", "", "https://www.google.com/appsstatus", nowIso]];
   }
 
   return activeIncidents.map(inc => {
-    // Map "service disruption" or "service information" to "Degraded"
-    const statusLabel = (inc.status === "available") ? "Operational" : "Degraded";
+    // We already filtered out resolved ones, so they are Degraded
+    const statusLabel = "Degraded"; 
+    
+    // Updates are in an array, we get the most recent or the most_recent_update
+    const recentUpdate = inc.most_recent_update || (inc.updates && inc.updates.length > 0 ? inc.updates[0] : {}) || {};
+    const title = inc.title || `Incident affecting ${inc.service_name}`;
+    const description = stripHtml_(recentUpdate.text || title);
     
     return [
       "Google", 
       inc.service_name, 
       statusLabel, 
-      inc.title, 
-      stripHtml_(inc.updates[0].text),
+      title, 
+      description,
       inc.severity || "minor", 
-      inc.created, 
-      inc.modified, 
+      recentUpdate.created || "", 
+      recentUpdate.modified || "", 
       "https://www.google.com/appsstatus", 
       nowIso
     ];
