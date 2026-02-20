@@ -246,8 +246,11 @@ function fetchStatuspageSummary_(vendor, url, nowIso, allowedComponents) {
 function fetchGoogleAppsStatus_(vendor, url, nowIso) {
   const rawResponse = UrlFetchApp.fetch(url).getContentText();
   const data = JSON.parse(rawResponse);
+  
+  // Explicitly include Gemini and ensure matching is robust
   const coreApps = ["Gmail", "Drive", "Calendar", "Meet", "Admin Console", "Gemini", "Looker Studio", "AppSheet"];
   
+  // Find incidents that are NOT resolved
   const activeIncidents = (data.incidents || []).filter(inc => 
     inc.status !== "resolved" && coreApps.some(app => inc.service_name.includes(app))
   );
@@ -256,10 +259,23 @@ function fetchGoogleAppsStatus_(vendor, url, nowIso) {
     return [["Google", "Google Workspace", "Operational", "n/a", "All systems normal.", "none", "", "", "https://www.google.com/appsstatus", nowIso]];
   }
 
-  return activeIncidents.map(inc => [
-    "Google", inc.service_name, "Degraded", inc.title, stripHtml_(inc.updates[0].text),
-    inc.severity || "minor", inc.created, inc.modified, "https://www.google.com/appsstatus", nowIso
-  ]);
+  return activeIncidents.map(inc => {
+    // Map "service disruption" or "service information" to "Degraded"
+    const statusLabel = (inc.status === "available") ? "Operational" : "Degraded";
+    
+    return [
+      "Google", 
+      inc.service_name, 
+      statusLabel, 
+      inc.title, 
+      stripHtml_(inc.updates[0].text),
+      inc.severity || "minor", 
+      inc.created, 
+      inc.modified, 
+      "https://www.google.com/appsstatus", 
+      nowIso
+    ];
+  });
 }
 
 function fetchMicrosoftStatus_(vendor, url, nowIso) {
