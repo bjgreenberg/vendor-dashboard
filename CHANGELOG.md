@@ -9,6 +9,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## 2026-06-10
+
+### Added
+- `ci`: GitHub Actions `test` workflow — `node --check` on all tracked JS + `npm audit --audit-level=high`, every push and PR. README CI section updated; `test` becomes the required branch-protection check.
+
+---
+
 ## 2026-02-22
 
 ### Changed
