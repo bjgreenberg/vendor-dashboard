@@ -60,8 +60,8 @@ No API keys are hardcoded. Any credentials required by specific vendor APIs shou
 
 ## CI
 
-Every push and pull request runs the `test` workflow
-([.github/workflows/ci.yml](.github/workflows/ci.yml)):
+Every pull request, and every push to `main`, runs the `test` job of the CI
+workflow ([.github/workflows/ci.yml](.github/workflows/ci.yml)):
 
 - `node --check` on every tracked `.js` file (syntax gate — Apps Script code
   has no unit tests yet)
