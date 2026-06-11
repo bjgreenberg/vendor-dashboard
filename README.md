@@ -58,8 +58,17 @@ No API keys are hardcoded. Any credentials required by specific vendor APIs shou
 - `npm` symlink is broken on the dev machine (`/opt/homebrew/opt/npm` points to a missing Cellar path). Run `brew reinstall node` to fix before running `npm audit`.
 - `jsconfig.json.` has a trailing dot in the filename — likely a typo; rename to `jsconfig.json` if IDE support is needed.
 
+## CI
+
+Every pull request, and every push to `main`, runs the `test` job of the CI
+workflow ([.github/workflows/ci.yml](.github/workflows/ci.yml)):
+
+- `node --check` on every tracked `.js` file (syntax gate — Apps Script code
+  has no unit tests yet)
+- `npm audit --audit-level=high` against the committed lockfile
+
 ## Branch protection
 
 PR flow per senior-engineering-partner v2.9: `main` is protected — changes go
-branch → PR → merge (no required CI checks yet; add a `test` check when CI
-lands). Linear history, enforced for admins.
+branch → PR → merge. The `test` CI check is required: PRs cannot merge until
+it passes. Linear history, enforced for admins.
