@@ -32,3 +32,15 @@ jobs:
 
       - name: Audit dependencies (high+)
         run: npm audit --audit-level=high
+
+  # Render-check every ```mermaid block in the repo's Markdown. A diagram that
+  # fails to render is a broken deliverable (a red box for every reader), so it
+  # is gated like a test. Uses the digest-pinned mermaid-cli container — no Node
+  # or Chrome on the runner. Docker is preinstalled on ubuntu-latest.
+  docs-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render-check Mermaid diagrams
+        run: scripts/render-diagrams.sh

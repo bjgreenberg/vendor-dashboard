@@ -7,6 +7,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Architecture data-flow diagram + a "How it works" section** in the README:
+  a render-checked Mermaid `flowchart` of the trigger → `refreshVendorStatus()`
+  → per-vendor adapter dispatch (Statuspage-v2 default + the custom adapters,
+  each in its own `try/catch`) → normalize → validate column count → clear,
+  write, multi-sort the Google Sheet.
+- **`docs-render` CI job + `scripts/render-diagrams.sh`** — render-checks every
+  ` ```mermaid ` block via the digest-pinned `mermaid-cli` container; promoted
+  to a required status check alongside `test`.
+- **`Last updated:` stamp** under the README H1.
+
+### Fixed
+- **Stale trigger name in the README.** Setup step 5 told users to schedule a
+  trigger on `fetchAllStatuses`, which does not exist in `Code.js` — the actual
+  entry point is `refreshVendorStatus()`. Corrected, and clarified the entry
+  point in the Project Structure table.
+
 ---
 
 ## 2026-06-10
