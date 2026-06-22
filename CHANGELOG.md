@@ -23,6 +23,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   trigger on `fetchAllStatuses`, which does not exist in `Code.js` — the actual
   entry point is `refreshVendorStatus()`. Corrected, and clarified the entry
   point in the Project Structure table.
+- **Renamed `jsconfig.json.` → `jsconfig.json`** — the file had a stray trailing
+  dot in its name, so editors never picked it up for Apps Script IDE type
+  support. Content was already a valid jsconfig; only the filename was wrong.
+  Removed the corresponding note from the README's Known Issues.
 
 ---
 

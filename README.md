@@ -1,6 +1,6 @@
 # RHR Vendor System Status Dashboard
 
-Last updated: 2026-06-22 06:28 AM CDT
+Last updated: 2026-06-22 06:54 AM CDT
 
 A Google Apps Script / Node.js project that monitors the live status of RHR International's SaaS vendor ecosystem by polling each vendor's public status API and writing the results to a Google Sheet.
 
@@ -94,7 +94,6 @@ No API keys are hardcoded. Any credentials required by specific vendor APIs shou
 ## Known Issues
 
 - `npm` symlink is broken on the dev machine (`/opt/homebrew/opt/npm` points to a missing Cellar path). Run `brew reinstall node` to fix before running `npm audit`.
-- `jsconfig.json.` has a trailing dot in the filename — likely a typo; rename to `jsconfig.json` if IDE support is needed.
 
 ## CI
 
