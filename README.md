@@ -2,19 +2,21 @@
 
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard?sort=semver)](https://github.com/bjgreenberg/vendor-dashboard/releases)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bjgreenberg/vendor-dashboard/badge)](https://securityscorecards.dev/viewer/?uri=github.com/bjgreenberg/vendor-dashboard)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-07-05 02:22 PM CDT
+Last updated: 2026-07-05 02:40 PM CDT
 
 A Google Apps Script / Node.js project that monitors the live status of a SaaS
 vendor ecosystem by polling each vendor's public status API and writing the
 results to a Google Sheet.
 
-> **Note on badges:** the repository is currently private, so the CI and Release
-> badges render their status only to authenticated collaborators; they become
-> universally visible when the repository is made public. See
-> [Going public](#going-public) for the remaining open-source steps (adds an
-> OpenSSF Scorecard badge).
+> **Note on badges:** the repository is currently private. The CI and Release
+> badges render their status only to authenticated collaborators, and the
+> **OpenSSF Scorecard** badge stays blank until the repo is public and the
+> Scorecard workflow has run once on `main` (the workflow is committed and
+> guarded to skip while private). All three activate for everyone when the
+> repository is made public — see [Going public](#going-public).
 
 ## Purpose
 
@@ -156,6 +158,19 @@ No API keys are hardcoded. Any credentials required by specific vendor APIs shou
 be stored in Apps Script **Script Properties** (Project Settings → Script
 Properties), not in source code.
 
+## Security
+
+- **Least-privilege OAuth scopes** are declared explicitly in `appsscript.json`
+  (`spreadsheets.currentonly` + `script.external_request`) instead of relying on
+  Apps Script's over-reaching scope auto-detection. If you extend the script to
+  touch other spreadsheets, widen `spreadsheets.currentonly` → `spreadsheets`.
+- **No inbound surface:** the script only makes outbound HTTPS calls to public
+  status endpoints and treats every response as untrusted (per-adapter
+  `try/catch`; malformed rows dropped).
+- **CI security gates:** `secret-scan` (gitleaks over history + tree), `npm
+  audit`, plus OpenSSF Scorecard once public. Full policy and reporting process:
+  [`SECURITY.md`](SECURITY.md).
+
 ## Project Structure
 
 | File | Purpose |
@@ -165,9 +180,10 @@ Properties), not in source code.
 | `package.json` / `package-lock.json` | Dev dependencies (`@types/google-apps-script`) + project metadata |
 | `LICENSE` | Apache-2.0 license text |
 | `CITATION.cff` | Machine-readable citation metadata (powers GitHub's "Cite this repository") |
+| `SECURITY.md` | Vulnerability disclosure policy + security posture |
 | `CHANGELOG.md` | Keep a Changelog history |
 | `release-please-config.json` / `.release-please-manifest.json` | Release automation config (see [Versioning & releases](#versioning--releases)) |
-| `.github/workflows/` | `ci.yml` (syntax + audit + docs-render), `release-please.yml` |
+| `.github/workflows/` | `ci.yml` (syntax + audit + secret-scan + cff-validate + docs-render), `release-please.yml`, `scorecard.yml` |
 | `.github/dependabot.yml` | Weekly npm + github-actions update PRs |
 | `scripts/render-diagrams.sh` | Render-checks every Mermaid block (the `docs-render` gate) |
 | `.gitignore` | Excludes `node_modules/`, `.clasp.json`, `creds.json`, `AGENTS.md` |
@@ -211,11 +227,13 @@ scripts/render-diagrams.sh
 ## CI
 
 Every pull request, and every push to `main`, runs the CI workflow
-([.github/workflows/ci.yml](.github/workflows/ci.yml)), which has three jobs:
+([.github/workflows/ci.yml](.github/workflows/ci.yml)), which has four jobs:
 
 - **`test`** — `node --check` on every tracked `.js` file (syntax gate — Apps
   Script code has no unit tests yet) and `npm audit --audit-level=high` against
   the committed lockfile.
+- **`secret-scan`** — scans the full git history and the working tree for
+  committed secrets via the digest-pinned `gitleaks` container.
 - **`cff-validate`** — validates `CITATION.cff` against the CFF schema via the
   digest-pinned `cffconvert` container, so a broken "Cite this repository" button
   can't merge.
@@ -225,9 +243,12 @@ Every pull request, and every push to `main`, runs the CI workflow
 
 All GitHub Actions are pinned to full-length commit SHAs (supply-chain integrity).
 
-Separately, the `release-please` workflow
+Two more workflows run on pushes to `main`: `release-please`
 ([.github/workflows/release-please.yml](.github/workflows/release-please.yml))
-runs on pushes to `main` to maintain the release PR.
+maintains the release PR, and `scorecard`
+([.github/workflows/scorecard.yml](.github/workflows/scorecard.yml)) runs the
+OpenSSF Scorecard analysis once the repository is public. See
+[Security](#security) for the full security posture.
 
 ## Branch protection
 
@@ -239,14 +260,15 @@ are SHA-pinned per repository policy.
 ## Going public
 
 This repository is being generalized from an internal tool into a public
-open-source project. When it is flipped to public, complete the open-source
-posture:
+open-source project. The [OpenSSF Scorecard](https://github.com/ossf/scorecard-action)
+workflow and badge are already committed but inert while private. When the repo
+is flipped to public:
 
-- Add an [OpenSSF Scorecard](https://github.com/ossf/scorecard-action) workflow
-  and its badge (the action requires a public repo).
+- The `scorecard` workflow activates on the next push to `main`; confirm the
+  Scorecard badge renders (allow one run to complete).
 - Enable Dependabot **alerts + security updates** and **secret scanning + push
   protection** in repository settings (the committed `dependabot.yml` handles
-  version-update PRs).
+  version-update PRs; the CI `secret-scan` job is the in-tree complement).
 - Confirm the CI and Release badges render for anonymous visitors.
 
 ## License

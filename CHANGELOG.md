@@ -33,6 +33,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `release-please-action`) to a full-length commit SHA — supply-chain integrity,
   and required by the repository's action-pinning policy. Dependabot
   (`github-actions`) keeps the pins current.
+- **`secret-scan` CI gate** — gitleaks (digest-pinned container) over the full
+  git history and working tree on every PR. Works while the repo is private.
+- **OpenSSF Scorecard workflow + badge** (`.github/workflows/scorecard.yml`) —
+  supply-chain posture analysis. Guarded on repo visibility, so it is a clean
+  skip while private and auto-activates on the first push to `main` after the
+  repo is made public. All Scorecard-workflow actions are SHA-pinned.
+- **`SECURITY.md`** — vulnerability disclosure policy, threat model, and the CI
+  security-gate matrix.
+
+### Security
+- **Declared explicit least-privilege `oauthScopes` in `appsscript.json`**
+  (`spreadsheets.currentonly` + `script.external_request`) instead of relying on
+  Apps Script scope auto-detection, which over-reaches. The script only uses
+  `SpreadsheetApp` (active sheet) and `UrlFetchApp`.
+  **Note:** adding explicit scopes forces re-authorization on the next `clasp
+  push` / deploy. If the bound-sheet write ever fails, widen
+  `spreadsheets.currentonly` → `spreadsheets`.
 
 ### Fixed
 - **`package.json` metadata** — removed the bogus `node` **runtime** dependency

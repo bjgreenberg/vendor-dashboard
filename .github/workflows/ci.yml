@@ -33,6 +33,23 @@ jobs:
       - name: Audit dependencies (high+)
         run: npm audit --audit-level=high
 
+  # Secret-scan the full git history AND the working tree. Complements
+  # Scorecard (which is public-only) — this gate works while the repo is
+  # private. Digest-pinned gitleaks container; runs as root inside the
+  # ephemeral container to avoid git "dubious ownership" on the mounted repo.
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0   # full history for the git-log scan
+
+      - name: gitleaks (history + tree)
+        run: |
+          docker run --rm -v "$PWD:/repo" --user root \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git /repo --no-banner
+
   # Validate CITATION.cff against the CFF schema. An invalid file silently
   # breaks GitHub's "Cite this repository" button — a broken deliverable, so it
   # is gated like a test. Digest-pinned cffconvert container (bump deliberately).
