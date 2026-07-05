@@ -33,6 +33,20 @@ jobs:
       - name: Audit dependencies (high+)
         run: npm audit --audit-level=high
 
+  # Validate CITATION.cff against the CFF schema. An invalid file silently
+  # breaks GitHub's "Cite this repository" button — a broken deliverable, so it
+  # is gated like a test. Digest-pinned cffconvert container (bump deliberately).
+  cff-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate CITATION.cff
+        run: |
+          docker run --rm -v "$PWD:/app" \
+            citationcff/cffconvert@sha256:f8c5dc5fa8013e5c3635b1c2695bf54eac4d319719f8acdbb7b7ad7a778e46ea \
+            --validate
+
   # Render-check every ```mermaid block in the repo's Markdown. A diagram that
   # fails to render is a broken deliverable (a red box for every reader), so it
   # is gated like a test. Uses the digest-pinned mermaid-cli container — no Node

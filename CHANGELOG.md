@@ -7,7 +7,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Generalized the project from an RHR-specific internal tool to a
+  vendor-neutral, public-ready open-source project.** Renamed to **"Vendor
+  Status Dashboard"**; removed all "RHR International" / RHR references from the
+  README (title and description). The vendor `FEEDS` list is unchanged (all
+  public status endpoints) and is now documented as a configurable example set.
+
 ### Added
+- **Release automation with [release-please](https://github.com/googleapis/release-please)**
+  — `release-please-config.json`, `.release-please-manifest.json`, and the
+  `release-please` workflow (third-party action SHA-pinned). Version bumps,
+  `CHANGELOG.md`, and `CITATION.cff` are driven by Conventional Commits; merging
+  the release PR publishes a GitHub Release.
+- **Apache-2.0 `LICENSE`** and a **`CITATION.cff`** (CFF 1.2.0) whose `version`
+  and `date-released` are kept current by release-please via `extra-files`
+  annotations.
+- **Status badge row** in the README (CI, Release, License) plus new
+  **Versioning & releases**, **Citing this project**, **Configuring vendors**,
+  **Contributing**, **Going public**, and **License** sections.
+- **Second and third README visuals** — a render-checked `stateDiagram-v2` of a
+  single vendor row's lifecycle, and an output-schema data-dictionary table.
+- **`.github/dependabot.yml`** — weekly `npm` + `github-actions` update PRs.
+
+### Fixed
+- **`package.json` metadata** — removed the bogus `node` **runtime** dependency
+  (`node@^25.6.1`, a mistaken install), set `license` to `Apache-2.0`, and added
+  `author`, `description`, `keywords`, `repository`, `bugs`, and `homepage`. The
+  `test` script no longer exits non-zero for a project with no unit tests.
+  Regenerated `package-lock.json` (2 packages, 0 vulnerabilities).
+
+### Added (prior, unreleased)
 - **Architecture data-flow diagram + a "How it works" section** in the README:
   a render-checked Mermaid `flowchart` of the trigger → `refreshVendorStatus()`
   → per-vendor adapter dispatch (Statuspage-v2 default + the custom adapters,
