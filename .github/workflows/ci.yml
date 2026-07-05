@@ -43,7 +43,7 @@ jobs:
 
       - name: Validate CITATION.cff
         run: |
-          docker run --rm -v "$PWD:/app" \
+          docker run --rm -v "$PWD:/app" -w /app \
             citationcff/cffconvert@sha256:f8c5dc5fa8013e5c3635b1c2695bf54eac4d319719f8acdbb7b7ad7a778e46ea \
             --validate
 

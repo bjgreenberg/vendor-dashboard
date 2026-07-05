@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard?sort=semver)](https://github.com/bjgreenberg/vendor-dashboard/releases)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-07-05 02:13 PM CDT
+Last updated: 2026-07-05 02:22 PM CDT
 
 A Google Apps Script / Node.js project that monitors the live status of a SaaS
 vendor ecosystem by polling each vendor's public status API and writing the
@@ -199,10 +199,10 @@ export APA/BibTeX.
 
 ## Contributing
 
-`main` is protected — all changes go **branch → PR → squash-merge**, with the
-`test` and `docs-render` CI checks required. Use Conventional Commit messages so
-release automation can classify the change. Before opening a PR, run the diagram
-render-check locally:
+`main` is protected — all changes go **branch → PR → squash-merge**. The CI
+workflow's `test`, `cff-validate`, and `docs-render` jobs must be green before a
+PR can merge. Use Conventional Commit messages so release automation can classify
+the change. Before opening a PR, run the diagram render-check locally:
 
 ```bash
 scripts/render-diagrams.sh
@@ -210,15 +210,20 @@ scripts/render-diagrams.sh
 
 ## CI
 
-Every pull request, and every push to `main`, runs the `test` job of the CI
-workflow ([.github/workflows/ci.yml](.github/workflows/ci.yml)):
+Every pull request, and every push to `main`, runs the CI workflow
+([.github/workflows/ci.yml](.github/workflows/ci.yml)), which has three jobs:
 
-- `node --check` on every tracked `.js` file (syntax gate — Apps Script code
-  has no unit tests yet)
-- `npm audit --audit-level=high` against the committed lockfile
-- `docs-render` — renders every Mermaid diagram in the repo's Markdown via the
-  digest-pinned `mermaid-cli` container (`scripts/render-diagrams.sh`), so an
-  unrenderable diagram can't merge
+- **`test`** — `node --check` on every tracked `.js` file (syntax gate — Apps
+  Script code has no unit tests yet) and `npm audit --audit-level=high` against
+  the committed lockfile.
+- **`cff-validate`** — validates `CITATION.cff` against the CFF schema via the
+  digest-pinned `cffconvert` container, so a broken "Cite this repository" button
+  can't merge.
+- **`docs-render`** — renders every Mermaid diagram in the repo's Markdown via
+  the digest-pinned `mermaid-cli` container (`scripts/render-diagrams.sh`), so an
+  unrenderable diagram can't merge.
+
+All GitHub Actions are pinned to full-length commit SHAs (supply-chain integrity).
 
 Separately, the `release-please` workflow
 ([.github/workflows/release-please.yml](.github/workflows/release-please.yml))
@@ -226,9 +231,10 @@ runs on pushes to `main` to maintain the release PR.
 
 ## Branch protection
 
-PR flow per senior-engineering-partner: `main` is protected — changes go
-branch → PR → merge. The `test` and `docs-render` CI checks are required: PRs
-cannot merge until they pass. Linear history, enforced for admins.
+`main` is protected: changes go branch → PR → **squash-merge**, never a direct
+push. The CI jobs (`test`, `cff-validate`, `docs-render`) must pass before a PR
+can merge. Linear history is enforced, including for admins. All GitHub Actions
+are SHA-pinned per repository policy.
 
 ## Going public
 
