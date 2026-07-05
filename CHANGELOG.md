@@ -29,6 +29,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Second and third README visuals** — a render-checked `stateDiagram-v2` of a
   single vendor row's lifecycle, and an output-schema data-dictionary table.
 - **`.github/dependabot.yml`** — weekly `npm` + `github-actions` update PRs.
+- **SHA-pinned every GitHub Action** (`actions/checkout`, `actions/setup-node`,
+  `release-please-action`) to a full-length commit SHA — supply-chain integrity,
+  and required by the repository's action-pinning policy. Dependabot
+  (`github-actions`) keeps the pins current.
 
 ### Fixed
 - **`package.json` metadata** — removed the bogus `node` **runtime** dependency
