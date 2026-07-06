@@ -1,22 +1,21 @@
 # Vendor Status Dashboard
 
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard?sort=semver)](https://github.com/bjgreenberg/vendor-dashboard/releases)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bjgreenberg/vendor-dashboard/badge)](https://securityscorecards.dev/viewer/?uri=github.com/bjgreenberg/vendor-dashboard)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-07-05 02:40 PM CDT
+Last updated: 2026-07-05 09:09 PM CDT
 
 A Google Apps Script / Node.js project that monitors the live status of a SaaS
 vendor ecosystem by polling each vendor's public status API and writing the
 results to a Google Sheet.
 
-> **Note on badges:** the repository is currently private. The CI and Release
-> badges render their status only to authenticated collaborators, and the
-> **OpenSSF Scorecard** badge stays blank until the repo is public and the
-> Scorecard workflow has run once on `main` (the workflow is committed and
-> guarded to skip while private). All three activate for everyone when the
-> repository is made public — see [Going public](#going-public).
+> **Note on badges:** the **Release** (shields.io) and **OpenSSF Scorecard**
+> badges are intentionally omitted while the repository is **private** — both
+> services read the repo over the public API and would render an error
+> ("repo not found" / "invalid repo path"), which is worse than no badge. They
+> are added back the moment the repo goes public (a one-line edit each, staged
+> in [Going public](#going-public)). The CI badge renders to authenticated
+> collaborators now and to everyone once public.
 
 ## Purpose
 
@@ -200,8 +199,8 @@ release and maintains a **release PR** that:
 - prepends the new version section to `CHANGELOG.md`.
 
 Merging that release PR tags the version and publishes a **GitHub Release** with
-generated notes — the version then appears on the repository's Releases panel and
-in the Release badge above. Versions are never hand-tagged.
+generated notes — the version then appears on the repository's Releases panel
+(and, once the repo is public, in a Release badge). Versions are never hand-tagged.
 
 Commit types drive the bump: `feat:` → minor, `fix:` → patch, `feat!:`/`BREAKING
 CHANGE:` → major. `docs:`, `chore:`, `ci:`, etc. do not cut a release on their own.
@@ -253,17 +252,24 @@ OpenSSF Scorecard analysis once the repository is public. See
 ## Branch protection
 
 `main` is protected: changes go branch → PR → **squash-merge**, never a direct
-push. The CI jobs (`test`, `cff-validate`, `docs-render`) must pass before a PR
-can merge. Linear history is enforced, including for admins. All GitHub Actions
-are SHA-pinned per repository policy.
+push. The CI jobs (`test`, `secret-scan`, `cff-validate`, `docs-render`) must pass
+before a PR can merge. Linear history is enforced, including for admins. All
+GitHub Actions are SHA-pinned per repository policy.
 
 ## Going public
 
 This repository is being generalized from an internal tool into a public
 open-source project. The [OpenSSF Scorecard](https://github.com/ossf/scorecard-action)
-workflow and badge are already committed but inert while private. When the repo
-is flipped to public:
+workflow is already committed but inert while private. When the repo is flipped
+to public:
 
+- **Re-add the Release and Scorecard badges** to the badge row at the top of this
+  README (removed while private because the badge services can't read a private
+  repo). Paste these two lines back between the CI and License badges:
+  ```markdown
+  [![Release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard?sort=semver)](https://github.com/bjgreenberg/vendor-dashboard/releases)
+  [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bjgreenberg/vendor-dashboard/badge)](https://securityscorecards.dev/viewer/?uri=github.com/bjgreenberg/vendor-dashboard)
+  ```
 - The `scorecard` workflow activates on the next push to `main`; confirm the
   Scorecard badge renders (allow one run to complete).
 - Enable Dependabot **alerts + security updates** and **secret scanning + push
