@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **Removed the Release and OpenSSF Scorecard badges while the repo is private.**
+  Both badge services (shields.io, securityscorecards.dev) read the repo over the
+  public API and rendered errors ("repo not found" / "invalid repo path") — a
+  broken claim, worse than no badge. Kept the CI and License badges (which render
+  truthfully). Exact markdown to restore both badges is staged in the README's
+  *Going public* section for the moment the repo is made public.
+
+---
+
 ## [1.1.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v1.0.0...v1.1.0) (2026-07-06)
 
 
