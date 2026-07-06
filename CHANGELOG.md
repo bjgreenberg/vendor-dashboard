@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.1.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v1.0.0...v1.1.0) (2026-07-06)
+
+
+### Features
+
+* Add 1Password status, migrate NetSuite to Statuspage API, and refine incident parsing for Concur and generic Statuspage feeds. ([003368a](https://github.com/bjgreenberg/vendor-dashboard/commit/003368aba57d6995fd09d933e90138aacd078bb9))
+* Add QuantumWorkplace status API URL and a new script to discover Freshworks API endpoints. ([dadcac3](https://github.com/bjgreenberg/vendor-dashboard/commit/dadcac38f04c9b10203905ca75519c3f8a8425d8))
+* Add status fetching for Tableau, Iorad, and Okta, and remove `test-fresh.js`. ([b06bc84](https://github.com/bjgreenberg/vendor-dashboard/commit/b06bc84ed4b9e0e5afc7ba5b6daa48805fb70f07))
+* Expand vendor status feeds and introduce StatusGator scraping for additional services. ([8a93f20](https://github.com/bjgreenberg/vendor-dashboard/commit/8a93f20bd3c363669dce3f2501d0ea5bb1c64d78))
+* generalize for public open-source release (versioning, badges, citation, docs) ([#5](https://github.com/bjgreenberg/vendor-dashboard/issues/5)) ([a20d130](https://github.com/bjgreenberg/vendor-dashboard/commit/a20d13088c0e41f0798cc30ddd1e82a042e09639))
+* improve Google Workspace status parsing by using `status_impact` and `most_recent_update` fields and adding new test scripts. ([e78b8d3](https://github.com/bjgreenberg/vendor-dashboard/commit/e78b8d37bfa7a035a04d762bba4b10de0caece31))
+
+
+### Bug Fixes
+
+* rename jsconfig.json. -&gt; jsconfig.json ([#4](https://github.com/bjgreenberg/vendor-dashboard/issues/4)) ([56bddc2](https://github.com/bjgreenberg/vendor-dashboard/commit/56bddc279ac51f9c8f226e450cb86b9bd6d3bac9))
+
 ## [Unreleased]
 
 ### Changed

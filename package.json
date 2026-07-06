@@ -1,6 +1,6 @@
 {
   "name": "vendor-dashboard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Google Apps Script tool that monitors the live status of a SaaS vendor ecosystem via each vendor's public status API and writes results to a Google Sheet.",
   "main": "Code.js",
   "scripts": {
