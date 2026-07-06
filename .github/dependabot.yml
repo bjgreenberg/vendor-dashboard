@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Dev tooling (@types/google-apps-script) — the only npm surface; runtime is
+  # Google Apps Script, not Node.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Keep the SHA-pinned GitHub Actions (release-please, checkout, setup-node)
+  # from silently falling behind.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

@@ -1,0 +1,28 @@
+name: release-please
+
+# Automates versioning + releases from Conventional Commits on main:
+# release-please opens/maintains a "release PR" that bumps the version in
+# package.json + CITATION.cff and updates CHANGELOG.md. Merging that PR tags
+# the release and publishes a GitHub Release with generated notes — surfacing
+# the version on the repo's Releases panel. No hand-tagging.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # create tags + GitHub Releases
+      pull-requests: write    # open/maintain the release PR
+    steps:
+      # Third-party action pinned by commit SHA (supply-chain integrity);
+      # bump deliberately and re-pin. Tracked by Dependabot (github-actions).
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

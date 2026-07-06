@@ -1,19 +1,31 @@
 {
   "name": "vendor-dashboard",
   "version": "1.0.0",
-  "description": "",
+  "description": "Google Apps Script tool that monitors the live status of a SaaS vendor ecosystem via each vendor's public status API and writes results to a Google Sheet.",
   "main": "Code.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"No unit tests (Google Apps Script); CI gates on node --check + npm audit\" && exit 0"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "google-apps-script",
+    "status-monitoring",
+    "statuspage",
+    "vendor-status",
+    "google-sheets",
+    "observability"
+  ],
+  "author": "Brian Greenberg <bjg@acm.org> (https://briangreenberg.net)",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bjgreenberg/vendor-dashboard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bjgreenberg/vendor-dashboard/issues"
+  },
+  "homepage": "https://github.com/bjgreenberg/vendor-dashboard#readme",
   "type": "commonjs",
   "devDependencies": {
     "@types/google-apps-script": "^2.0.8"
-  },
-  "dependencies": {
-    "node": "^25.6.1"
   }
 }

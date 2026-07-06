@@ -1,0 +1,51 @@
+name: Scorecard supply-chain security
+
+# OpenSSF Scorecard — assesses supply-chain security posture (pinned deps,
+# branch protection, token permissions, etc.) and publishes results so the
+# Scorecard badge renders.
+#
+# INERT WHILE PRIVATE: Scorecard publishing and the code-scanning SARIF upload
+# require a PUBLIC repository. The job is guarded on repo visibility, so while
+# the repo is private every trigger is a clean skip (no red X). On the first
+# push to main AFTER the repo is made public, it runs and the badge activates.
+
+on:
+  push:
+    branches: [main]
+  branch_protection_rule:
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    if: ${{ github.event.repository.private == false }}
+    permissions:
+      security-events: write   # upload the SARIF result to code scanning
+      id-token: write          # publish results to the OpenSSF API (OIDC)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: SARIF file
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@411c4c9a36b3fca4d674f06b6396b2c6d23522c6 # v3
+        with:
+          sarif_file: results.sarif
