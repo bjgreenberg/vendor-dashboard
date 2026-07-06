@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.1.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v1.0.0...v1.1.0) (2026-07-06)
+
+
+### Features
+
+* Vendor Status Dashboard — Google Apps Script SaaS status monitor ([7e04846](https://github.com/bjgreenberg/vendor-dashboard/commit/7e048463555a63eac05d3ab8d976c54b413c6ec8))
+
 ## [Unreleased]
 
 ### Changed
