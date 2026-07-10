@@ -28,9 +28,22 @@ cd "$repo_root"
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 
-# Collect Markdown files, skipping vendored / VCS directories.
-mapfile -t md_files < <(find . -type f -name '*.md' \
+# Collect Markdown files, skipping vendored / VCS directories. A while-read
+# loop, not mapfile: stock macOS bash is 3.2 and mapfile arrived in bash 4, so
+# mapfile makes the gate fail locally with "command not found" (bitten
+# 2026-07-10 — CI's ubuntu bash 5 hid it).
+md_files=()
+while IFS= read -r md_file; do
+  md_files+=("$md_file")
+done < <(find . -type f -name '*.md' \
   -not -path './node_modules/*' -not -path './.git/*' | sort)
+
+# Guard the empty case: under bash 3.2's set -u, expanding an empty array
+# below would abort with "unbound variable".
+if [[ ${#md_files[@]} -eq 0 ]]; then
+  echo "No Markdown files found — nothing to render."
+  exit 0
+fi
 
 # Extract every fenced mermaid block to <path-slug>__<n>.mmd. The path is part of
 # the name so the three README.md files (db/ api/ worker/) can't collide.
