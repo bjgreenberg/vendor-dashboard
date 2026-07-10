@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- `scripts/render-diagrams.sh` now runs on stock macOS bash 3.2: the
+  bash-4-only `mapfile` (which failed locally with "command not found" —
+  CI's ubuntu bash 5 hid it) replaced with a portable while-read loop, plus
+  an empty-array guard for `set -u`. Same fix as ai-usage-journal PR #3.
 - **Removed the Release and OpenSSF Scorecard badges while the repo is private.**
   Both badge services (shields.io, securityscorecards.dev) read the repo over the
   public API and rendered errors ("repo not found" / "invalid repo path") — a
