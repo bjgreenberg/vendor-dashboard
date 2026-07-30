@@ -1,0 +1,161 @@
+<feed xmlns="http://www.w3.org/2005/Atom">
+ <title>Okta Status</title>
+ <id>http://status.okta.com/services/xml/OktaTrustRSS</id>
+ <updated>2025-05-09T15:10:47.164Z</updated>
+ <author>
+  <name>Okta Status</name>
+ </author>
+ <link rel="self" href="http://status.okta.com/services/xml/OktaTrustRSS" />
+ <entry>
+  <title>Resolved Service Disruption</title>
+  <updated>2025-04-30T16:47:04.000Z</updated>
+  <link href="https://status.okta.com/#incident/a9CKZ000000oLkp2AE" />
+  <id>https://www.salesforce.com/a9CKZ000000oLkp2AE</id>
+  <content type="text">Okta Engineering became aware of an issue with a downstream email provider. Customers may experience errors with MFA Emails, password reset, and user activation.</content>
+ </entry><entry>
+  <title>Resolved Feature Disruption</title>
+  <updated>2025-04-23T22:17:50.000Z</updated>
+  <link href="https://status.okta.com/#incident/a9CKZ000000oLkk2AE" />
+  <id>https://www.salesforce.com/a9CKZ000000oLkk2AE</id>
+  <content type="text">Okta Engineering became aware of an issue with the Apple Business Manager integration. Customers may experience errors while setting up the integration.
+
+As of 5:54 PM PT Apple has informed us resolution of the issue</content>
+ </entry><entry>
+  <title>Resolved Service Degradation</title>
+  <updated>2025-04-11T21:39:39.000Z</updated>
+  <link href="https://status.okta.com/#incident/a9CKZ000000sXtm2AE" />
+  <id>https://www.salesforce.com/a9CKZ000000sXtm2AE</id>
+  <content type="text">At 4/4/2025 8:00 AM PT, the team became aware of an issue with  to our  service affecting customers in US Cell 1, US Cell 2, US Cell 3, US Cell 4, US Cell 6, US Cell 7, US Cell 11, US Cell 12, US Cell 14. During this time, users may be experiencing intermittent issues within our system. Our team is actively investigating this issue and  to mitigate the issue. We will provide another update within the next , or sooner if additional information becomes available.</content>
+ </entry><entry>
+  <title>Resolved Service Disruption</title>
+  <updated>2025-02-24T19:21:23.000Z</updated>
+  <link href="https://status.okta.com/#incident/a9C4z000001BZi5EAG" />
+  <id>https://www.salesforce.com/a9C4z000001BZi5EAG</id>
+  <content type="text">On 1/9/2025 10:42 AM PT, the Advanced Server Access team became aware of an issue with our Advanced Server Access service affecting customers in US Cell 1, US Cell 2, US Cell 3, US Cell 4, US Cell 6, APJ Cell 1, US Cell 7, US Cell 8, EMEA Cell 9, US Cell 11, US Cell 12, US Cell 14, JP Cell 16, Preview Cell 1, Preview Cell 2, and Preview Cell 3. During this time, administrators were unable to access the ASA dashboard.  This issue has since been resolved.
+
+Root cause information:
+
+We sincerely apologize for any impact this incident has caused to you, your business, and your customers. At Okta trust and transparency are our top priorities. Outlined below are the facts regarding this incident. We are committed to implementing improvements to the service to prevent future occurrences of this incident.
+
+Detection and Impact:
+
+On January 9, 2025 starting at approximately 10:42AM PT, Okta was alerted to an issue where Advanced Server Access (ASA) customers were unable to access the ASA UI console. All ASA UI actions were unavailable, including logins and administrative actions within the console. Any ASA actions via client API were unimpacted.
+
+Root Cause Summary:
+
+Okta’s Engineering team determined the root cause of the issue was a recent update to the ASA dashboard which referenced a missing JavaScript asset. This resulted in all ASA UI access being temporarily unavailable. This did not impact client API access, server registration or other ASA resource actions.
+
+Remediation Steps &amp; Preventative Actions:
+
+Okta identified the issue at 11:10AM PT and Okta engineering deployed the solution at 11:19AM PT, reverting to an earlier version and restoring access.
+
+Okta is adding additional automated test scenarios to prevent similar incidents from happening in the future. We will increase monitoring and implement additional sign-off during future service updates.</content>
+ </entry><entry>
+  <title>Resolved Service Disruption</title>
+  <updated>2025-02-21T18:20:09.000Z</updated>
+  <link href="https://status.okta.com/#incident/a9C4z000000TXJ3EAO" />
+  <id>https://www.salesforce.com/a9C4z000000TXJ3EAO</id>
+  <content type="text">At 12/02/2025 15:08 PT, the  team became aware of an issue with our  service affecting customers in US Cell 14. During this time, users may be experiencing intermittent issues within our system. Our team is actively investigating this issue and  to mitigate the issue. We will provide another update within the next 30 minutes, or sooner if additional information becomes available.</content>
+ </entry><entry>
+  <title>Resolved Service Degradation</title>
+  <updated>2025-01-24T07:04:02.000Z</updated>
+  <link href="https://status.okta.com/#incident/a9C4z000000TXIxEAO" />
+  <id>https://www.salesforce.com/a9C4z000000TXIxEAO</id>
+  <content type="text">The Okta Workflows team became aware of missing telemetry affecting customers on OK1, OK2, OK3, OK4, OK6, OK7, and OK11 between 6pm and 1am PT on January 14th-15th, 2025.
+
+During this time, your flows continued to process properly. It may appear that flows did not execute during this timeframe. Telemetry processing has since been restored. 
+
+Root cause information:
+
+We sincerely apologize for any impact this incident has caused to you, your business, or your customers. At Okta, trust and transparency are our top priorities. Outlined below are the facts regarding this incident. We are committed to implementing improvements to the service to prevent future occurrences of this incident.
+
+
+Detection and Impact 
+
+On January 14th at 4:10 pm PST, Okta was alerted to an issue where 8% of Workflows execution history messages were unable to be processed in Cells OK1, OK2, OK3, OK4, OK6, OK7, OK8, OK11. This could result in the appearance that workflow executions were stalled or lost. Workflows continued to execute properly.
+
+ 
+Root Cause Summary
+
+Based on our investigation and findings, the root cause of this issue was due to a configuration error within services managed by a 3rd party provider during a maintenance window. 
+
+
+Remediation Steps
+
+Immediately upon receiving alerts of network disruptions, Okta Engineering escalated the issues with our provider and worked to implement internal mitigations. Okta worked directly with our provider to mitigate the issue and confirmed full service restoration. Okta's internal mitigations restored full service to the affected cells  by 5:50 pm PST on January 14th. 
+
+
+Preventative Actions
+
+Okta will continue working with our third-party service provider to enhance monitoring and expedite the detection of georegional issues with the queuing system. Additionally, we have updated our operational processes to further improve service recovery times. In parallel, we are rolling out a new, more resilient message delivery system for flow execution history data, reducing our dependency on this specific service.</content>
+ </entry><entry>
+  <title>Resolved Service Disruption</title>
+  <updated>2025-01-23T00:32:56.000Z</updated>
+  <link href="https://status.okta.com/#incident/a9C4z000001BZiUEAW" />
+  <id>https://www.salesforce.com/a9C4z000001BZiUEAW</id>
+  <content type="text">At 1/14/2025 9:16 AM PST, the Core Identity team became aware of an issue with Custom Domains affecting customers in OK8. During this time, users may have experienced issues accessing resources powered by Okta custom domains. This issue has been resolved. Okta took corrective action to resolve the service interruption. The service was fully restored at 9:33 AM PST.
+
+Root cause information:
+
+We sincerely apologize for any impact this incident has caused to you, your business, and your customers. At Okta trust and transparency are our top priorities. Outlined below are the facts regarding this incident. We are committed to implementing improvements to the service to prevent future occurrences of this incident.
+
+
+
+Detection and Impact:
+
+On January 14th at 9:22AM PT Okta internal monitoring alerts indicated errors in loading custom domains in OK Cell 8.
+
+During this time customers who utilize customized domains in OK Cell 8 experienced errors accessing the service.
+
+
+
+Root Cause Summary:
+
+In order to resolve an issue which was caught by our internal monitoring during a change the previous evening, Okta engineering staff was redeploying the edge servers. Due to a bug in the operating procedure used, the service became momentarily unavailable until corrective actions were taken to fully restore the service.
+
+
+
+Remediation Steps:
+
+At 9:24AM PT, Okta Engineering quickly identified the issue and resolved it by placing healthy servers in service.
+
+
+
+Preventative Actions:
+
+Okta has updated the operating procedure and improved the tooling used for managing custom domain services. To ensure this does not happen again, Okta is enhancing current automated testing of this process.</content>
+ </entry><entry>
+  <title>Resolved Service Disruption</title>
+  <updated>2024-12-20T22:59:27.000Z</updated>
+  <link href="https://status.okta.com/#incident/a9C4z000001BZgOEAW" />
+  <id>https://www.salesforce.com/a9C4z000001BZgOEAW</id>
+  <content type="text">Okta is currently experiencing an issue with the service. We are actively investigating and will update this message with more information as soon as we have it.</content>
+ </entry><entry>
+  <title>Resolved Major Service Disruption</title>
+  <updated>2024-12-18T23:59:23.000Z</updated>
+  <link href="https://status.okta.com/#incident/a9C4z000001BZg9EAG" />
+  <id>https://www.salesforce.com/a9C4z000001BZg9EAG</id>
+  <content type="text">Okta is currently experiencing an issue with end-user and admin logins. We are actively investigating and will update this message with more information as soon as we have it.</content>
+ </entry><entry>
+  <title>Resolved Service Degradation</title>
+  <updated>2024-11-23T00:25:52.000Z</updated>
+  <link href="https://status.okta.com/#incident/a9C4z000000TXInEAO" />
+  <id>https://www.salesforce.com/a9C4z000000TXInEAO</id>
+  <content type="text">Okta Engineering implemented mitigating actions and restored the connectivity impacting some users in OK6. Okta Engineering will continue monitoring. Additional root cause information will be available within 5 Business days.</content>
+ </entry><entry>
+  <title>Resolved Service Disruption</title>
+  <updated>2024-11-19T21:37:23.000Z</updated>
+  <link href="https://status.okta.com/#incident/a9C4z000001BZecEAG" />
+  <id>https://www.salesforce.com/a9C4z000001BZecEAG</id>
+  <content type="text">At 8:40am on November 19th PST, the OIN team became aware of an Import issue with the Paylocity OIN integration affecting customers on all cells of the Okta Workforce Identity Cloud environment. During this time customers may experience import roadblocks. Okta recommends not running imports from Paylocity during this investigation.
+
+Okta Engineering is investigating and working to resolve this as quickly as possible.
+We’ll provide an update in 30 minutes, or sooner if additional information becomes available.</content>
+ </entry><entry>
+  <title>Resolved Performance Issue</title>
+  <updated>2024-11-04T23:26:04.000Z</updated>
+  <link href="https://status.okta.com/#incident/a9C4z000001BZdAEAW" />
+  <id>https://www.salesforce.com/a9C4z000001BZdAEAW</id>
+  <content type="text">Okta is currently experiencing an issue with the service. We are actively investigating and will update this message with more information as soon as we have it.</content>
+ </entry>
+</feed>

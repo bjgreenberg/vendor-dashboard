@@ -155,5 +155,13 @@ export function parseStatuspage(payload, options) {
     description = toPlainText(payload?.status?.description) || 'Status reported as degraded by vendor.';
   }
 
-  return { ...base, severity, incidentName, description, warnings };
+  // Children are always returned in full, healthy ones included. rollup.js
+  // decides which are worth showing; hiding them here would throw away data the
+  // dashboard needs the moment something breaks.
+  const components = selected.map((c) => ({
+    name: c.name,
+    severity: normalizeSeverity(c.status),
+  }));
+
+  return { ...base, severity, incidentName, description, components, warnings };
 }

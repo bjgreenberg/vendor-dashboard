@@ -155,3 +155,53 @@ Not "fix the Apps Script" — sequence for the port.
 8. **L1** delete dead code · **L2** honest UA · **L3** full header compare · **L4** validate config against live payloads.
 
 **Explicitly out of scope / decided elsewhere:** the Paylocity and Freshdesk/Freshservice monitoring gaps (no public endpoints found — recorded in the RHR notes), and the RHR share-vs-reimplement decision.
+
+---
+
+## Addendum — findings surfaced while capturing fixtures (2026-07-30)
+
+**H6 — Stormboard has been permanently green for an unknown period: the vendor
+migrated off Statuspage and the adapter never noticed.**
+
+`Code.js:39` configures `https://status.stormboard.com/api/v2/summary.json`.
+Stormboard has since moved to **Better Stack**, and that URL now returns the
+Better Stack HTML page (`200`, `text/html`) rather than Statuspage JSON.
+
+`fetchStormboardStatus_` handles this "gracefully" — it falls through to its
+HTML path (`Code.js:190-211`), whose first test is:
+
+```js
+if (/all systems operational/i.test(html) || /\boperational\b/i.test(html))
+```
+
+That second alternative is a **bare word match anywhere in the document**. The
+word "operational" appears **7 times** in Better Stack's markup regardless of
+actual status, so the branch always fires and Stormboard reports `Operational`
+unconditionally — verified by replaying the real fetched HTML through the
+function's own logic.
+
+**Impact:** a third permanently-green vendor, alongside H1 (Microsoft) and the
+fail-open handlers of H4. Worse than H1 in one respect: H1 is at least
+*visible* in the source as a hardcoded literal, whereas this one looks like
+working scraper code and only broke when the vendor changed platforms. This is
+the exact silent-rot failure mode that motivates fixture-pinned tests (H5).
+
+**Fix:** Better Stack exposes **no machine-readable status API** on this page —
+`index.json`, `api/v2/summary.json` and `status.json` all return HTML, and
+`badge.json` advertises `application/json` but serves an HTML badge widget
+(all verified). Options, in preference order:
+1. Parse Better Stack's actual DOM structure with a targeted selector, pinned
+   by a fixture, failing to `UNKNOWN` when the structure changes.
+2. Drop Stormboard rather than carry a fourth green-by-accident row.
+
+**Never** retain a bare `/\boperational\b/` document-wide match. Any HTML
+adapter must assert on structure and fail closed.
+
+**Related, same sweep:**
+- `status.okta.com/history.atom` returns **401**; the legacy FeedBurner URL in
+  `Code.js:32` still serves a valid 200 Atom feed with 200 entries. Working,
+  but on a deprecated Google property — a single point of silent failure worth
+  a fixture and an `UNKNOWN` fallback.
+- Apple's endpoint now returns **plain JSON**, not the JS-wrapped form the
+  `indexOf('{')` slice at `Code.js:378` was written for. The slice is harmless
+  on plain JSON, so this is latent cleanup, not a defect.
