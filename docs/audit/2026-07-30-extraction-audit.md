@@ -251,3 +251,26 @@ scoping to a data centre (e.g. `US2`).
 single bug but the absence of a test that asserts an adapter's output against a
 recorded payload — finding H5. Every one of these would have failed red on the
 first fixture-pinned assertion.
+
+---
+
+## Local-development note (not a defect)
+
+`Apple` reports `unknown` during a local collection run on **socrates** while
+every other vendor succeeds. This is an environment artefact, not a code or
+vendor problem:
+
+- `curl -6 https://www.apple.com/` fails to connect in ~26 ms; `curl -4`
+  returns 200. This host has no working IPv6 egress.
+- Node's `fetch` (undici) attempts the AAAA addresses first and hits its
+  connect timeout; `curl` falls back to IPv4 automatically.
+- Apple is the only configured vendor whose hostname returns AAAA records, so
+  it is the only one affected.
+
+It will not reproduce in a Cloudflare Worker, whose `fetch` runs on
+Cloudflare's own network. The correct behaviour was observed: the adapter
+returned `UNKNOWN` with a warning rather than a green row, which is finding H4
+working as designed.
+
+Recorded because it is precisely the kind of local-network artefact that
+invites a "fix" to code that is not broken.

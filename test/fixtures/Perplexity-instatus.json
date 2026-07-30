@@ -1,0 +1,36 @@
+{
+  "page": {
+    "name": "Perplexity",
+    "url": "https://status.perplexity.com",
+    "status": "UP"
+  },
+  "components": [
+    {
+      "id": "clyi6jhgg31469ihojbwbsmeeg",
+      "name": "Website",
+      "description": "",
+      "status": "OPERATIONAL",
+      "order": 1,
+      "isParent": false,
+      "children": []
+    },
+    {
+      "id": "clyiakn7i60113hvojwho6za6j",
+      "name": "API",
+      "description": "",
+      "status": "OPERATIONAL",
+      "order": 2,
+      "isParent": false,
+      "children": []
+    },
+    {
+      "id": "cmr18ih7201l20rqmap66bx4l",
+      "name": "Computer",
+      "description": "",
+      "status": "OPERATIONAL",
+      "order": 3,
+      "isParent": false,
+      "children": []
+    }
+  ]
+}

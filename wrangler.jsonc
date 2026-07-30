@@ -1,0 +1,47 @@
+{
+  // vendor-dashboard - SaaS status monitor.
+  //
+  // Routing note: this Worker is served at briangreenberg.net/status* via a
+  // Workers ROUTE, configured in the dashboard/API - NOT here. Never declare
+  // `custom_domain` in this file: wrangler skips the changeset preview and
+  // force-overrides DNS whenever stdout is not a TTY (CI, agent shells), which
+  // can silently rewrite records on a zone a live site depends on.
+  "name": "vendor-dashboard",
+  "main": "src/worker/index.js",
+  "compatibility_date": "2026-07-01",
+
+  // Collect every 15 minutes. Cron invocations get a 15-minute wall-time
+  // budget, against a run that completes in seconds - the vendors are fetched
+  // concurrently, not serially.
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+
+  // Workers Logs on from day one. The 2026-07-25 Turnstile false alarm ran
+  // three days with ZERO retained logs; enabling observability is what turns
+  // the next silent failure into a five-minute query instead of days of
+  // inference.
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+
+  // Runaway guards. ~35 vendors plus redirects sits far below these; the point
+  // is to bound a bug or a redirect loop rather than to permit normal load.
+  "limits": {
+    "subrequests": 200,
+    "cpu_ms": 30000
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vendor-dashboard",
+      // Populated by `wrangler d1 create vendor-dashboard`.
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+    }
+  ],
+
+  "vars": {
+    // Path prefix the Worker is mounted under, so links and asset URLs are
+    // correct whether it runs at /status or at the root in local dev.
+    "BASE_PATH": "/status"
+  }
+}

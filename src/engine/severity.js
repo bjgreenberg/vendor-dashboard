@@ -81,6 +81,16 @@ const VOCABULARY = Object.freeze({
   minor: SEVERITY.DEGRADED,
   maintenance: SEVERITY.MAINTENANCE,
   none: SEVERITY.OPERATIONAL,
+
+  // Instatus (e.g. Perplexity). Page-level uses UP/HASISSUES/UNDERMAINTENANCE;
+  // components use a squashed, unpunctuated form of the Statuspage words. Both
+  // arrive here lowercased by normalizeSeverity.
+  up: SEVERITY.OPERATIONAL,
+  hasissues: SEVERITY.DEGRADED,
+  undermaintenance: SEVERITY.MAINTENANCE,
+  degradedperformance: SEVERITY.DEGRADED,
+  partialoutage: SEVERITY.PARTIAL_OUTAGE,
+  majoroutage: SEVERITY.MAJOR_OUTAGE,
 });
 
 /**
