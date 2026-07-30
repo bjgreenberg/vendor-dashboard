@@ -205,3 +205,49 @@ adapter must assert on structure and fail closed.
 - Apple's endpoint now returns **plain JSON**, not the JS-wrapped form the
   `indexOf('{')` slice at `Code.js:378` was written for. The slice is harmless
   on plain JSON, so this is latent cleanup, not a defect.
+
+**H7 — Concur has also been permanently green: the status page became a
+client-side app and the scraper never noticed.**
+
+`open.concur.com` is now a React application. The served HTML is an empty
+shell — 58 characters of visible text, reading "Concur Open You need to enable
+JavaScript to run this app." The strings the scraper looks for
+(`Code.js:473-474`) appear **zero** times:
+
+| Sought | Occurrences in the real page |
+|---|---|
+| `Disruption` / `status-disruption` | 0 |
+| `Degradation` / `status-degradation` | 0 |
+
+So `hasDisruption` and `hasDegradation` are both false and the function returns
+`Operational`. The guard that exists precisely to catch this —
+`if (!html.includes("Concur"))` → *"Could not verify page content (Scrape
+Failed)"* — **passes**, because the word "Concur" sits in the empty shell's
+`<title>`. Verified by replaying the real fetched HTML through the function's
+own logic.
+
+**Fix (implemented):** the React app calls a JSON API, discovered by reading
+its bundle (`/static/js/main.*.chunk.js`):
+
+- `https://open.concur.com/api/open/incidents` — 200 `application/json`,
+  incidents carrying `affected_services`, `data_centers`, `status`,
+  `severity`, `end_epoch`
+- `https://open.concur.com/api/v3/banner` — 200 `application/json`,
+  `data.display` is Concur's own "something is wrong" flag
+
+The new adapter uses both, treats a past `end_epoch` as closed, and supports
+scoping to a data centre (e.g. `US2`).
+
+### Revised tally of green-by-accident vendors
+
+| Finding | Vendor | Mechanism |
+|---|---|---|
+| H1 | Microsoft | fetches the endpoint, discards it, returns a hardcoded literal |
+| H6 | Stormboard | vendor moved to Better Stack; bare `/\boperational\b/` matches its markup |
+| H7 | Concur | vendor became a JS app; scraped strings vanished, sanity guard defeated by `<title>` |
+| H4 | Concur, StatusGator | network error returns a row whose status column reads `Operational` |
+
+**Four of the mechanisms above are independent.** The common cause is not any
+single bug but the absence of a test that asserts an adapter's output against a
+recorded payload — finding H5. Every one of these would have failed red on the
+first fixture-pinned assertion.
