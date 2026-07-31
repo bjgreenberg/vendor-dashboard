@@ -431,3 +431,29 @@ describe('renderDashboard — warnings shown to readers', () => {
     expect(card).not.toContain('DNS');
   });
 });
+
+// This page defaults to dark, unlike the rest of the site which follows the
+// system. The theme key is SHARED with briangreenberg.net, so the default must
+// not be persisted - writing it would change the whole site's default.
+describe('renderDashboard — dark by default', () => {
+  const html = () => renderDashboard({ records: [], meta: null, nonce: 'n1' });
+
+  it('renders the document dark before any script runs', () => {
+    expect(html()).toContain('<html lang="en" data-theme="dark">');
+  });
+
+  it('seeds dark only when the visitor has no stored preference', () => {
+    expect(html()).toMatch(/if \(!localStorage\.getItem\('bgnet-theme'\)\)/);
+  });
+
+  it('NEVER writes the default to the shared storage key', () => {
+    // setItem must appear nowhere in the seeding logic; persisting would change
+    // briangreenberg.net's default too.
+    const seed = html().slice(0, html().indexOf('/assets/js/theme.js'));
+    expect(seed).not.toContain('setItem');
+  });
+
+  it('falls back to dark when storage is unavailable', () => {
+    expect(html()).toMatch(/catch[\s\S]{0,80}setAttribute\('data-theme', 'dark'\)/);
+  });
+});
