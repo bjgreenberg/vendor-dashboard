@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> **Note on versioning.** v1.1.0 was the last release of the Apps Script line.
+> The rewrite is v2.0.0 and is cut by release-please from the `feat!` commit
+> that landed it — the release-please manifest deliberately reads `1.1.0`,
+> because that is the last version actually released. It briefly read `2.0.0`,
+> which made the tooling propose 3.0.0 and would have skipped a version number
+> that has no artifact behind it.
+>
 > **Note on history.** Git history was squashed at v2.0.0. The prior 1.x line
 > was a single-file Google Apps Script implementation; its source is preserved
 > outside this repository (in the RHR project that still runs it) and in a
