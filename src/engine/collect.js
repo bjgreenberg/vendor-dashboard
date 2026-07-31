@@ -38,11 +38,32 @@ const DEFAULT_RETRY_DELAY_MS = 250;
 /**
  * Total retries allowed across ALL vendors in one run.
  *
- * Sized against the Workers free-plan ceiling of 50 subrequests per invocation:
- * ~34 vendors plus Concur's banner is ~35 first attempts, leaving roughly 15 of
- * headroom. 10 keeps a margin for redirect chains, which also count.
+ * This bounds RETRIES only. It is not, and never was, a bound on the run's
+ * total subrequests — see DEFAULT_SUBREQUEST_BUDGET, which is.
  */
 const DEFAULT_RETRY_BUDGET = 10;
+
+/**
+ * Hard ceiling on subrequests for one invocation.
+ *
+ * The Workers *free* plan allows 50 EXTERNAL subrequests per invocation and
+ * refuses `limits.subrequests` (paid-plan only). Exceeding it is not a
+ * recoverable error: the runtime kills every remaining fetch, so vendors late
+ * in the run report `unknown` while being healthy.
+ *
+ * This budget is deliberately lower than 50. Redirect chains are followed by
+ * the runtime and count against the ceiling WITHOUT being visible to us as
+ * fetch calls, so our count always understates the true spend — measured
+ * 2026-07-31, three vendors redirect. The margin absorbs that.
+ *
+ * Reaching this budget is a real defect, not a routine condition: with
+ * sharding a run costs ~16. It is a backstop that converts a fatal, silent,
+ * whole-run failure into a bounded and LOUD one.
+ */
+const DEFAULT_SUBREQUEST_BUDGET = 40;
+
+/** Marker so an exhausted budget is reported distinctly from a vendor outage. */
+export const BUDGET_EXHAUSTED = 'subrequest budget exhausted';
 
 /**
  * Identify ourselves honestly.
@@ -290,6 +311,7 @@ export async function collect(config, ctx) {
     timeoutMs = DEFAULT_TIMEOUT_MS,
     retryDelayMs = DEFAULT_RETRY_DELAY_MS,
     retryBudget = DEFAULT_RETRY_BUDGET,
+    subrequestBudget = DEFAULT_SUBREQUEST_BUDGET,
   } = ctx ?? {};
 
   if (!config || !Array.isArray(config.vendors)) {
@@ -304,13 +326,31 @@ export async function collect(config, ctx) {
 
   const checkedAt = now().toISOString();
 
+  // Count EVERY subrequest by wrapping fetchFn itself, rather than incrementing
+  // at each call site. Call sites were the original bug: the retry path was
+  // metered while base attempts, fallbacks and the advisory second calls
+  // (Concur's banner, Google's catalogue, Perplexity's components) were not, so
+  // the run had no bound at all. Wrapping the injected function means a new
+  // fetch site cannot be added later without being counted.
+  const meter = { spent: 0, max: subrequestBudget, denied: 0 };
+  const meteredFetch = async (url, init) => {
+    if (meter.spent >= meter.max) {
+      meter.denied += 1;
+      throw new Error(BUDGET_EXHAUSTED);
+    }
+    meter.spent += 1;
+    return fetchFn(url, init);
+  };
+
   // Concurrent by design (finding M5). allSettled is belt-and-braces: collectOne
   // already swallows its own failures, but a bug there must still not lose rows.
   // Shared, mutable retry budget. Bounds total subrequests for the whole run.
   const budget = { remaining: retryBudget };
 
   const settled = await Promise.allSettled(
-    config.vendors.map((v) => collectOne(v, { fetchFn, now, timeoutMs, retryDelayMs, budget })),
+    config.vendors.map((v) =>
+      collectOne(v, { fetchFn: meteredFetch, now, timeoutMs, retryDelayMs, budget }),
+    ),
   );
 
   const records = settled.map((outcome, i) =>
@@ -328,7 +368,27 @@ export async function collect(config, ctx) {
 
   const warnings = records.flatMap((r) => (r.warnings ?? []).map((w) => `${r.vendor}: ${w}`));
 
-  return { records, checkedAt, total: records.length, impacted, unknown, warnings };
+  // An exhausted budget is an OPERATOR fault, not a vendor one. Without this,
+  // it presents as N unrelated vendors having simultaneous outages -- which is
+  // exactly how it presented on 2026-07-31, and why it went unnoticed: nothing
+  // distinguished "we stopped asking" from "they are down".
+  if (meter.denied > 0) {
+    warnings.unshift(
+      `collector: subrequest budget of ${meter.max} exhausted; ${meter.denied} request(s) were never made. ` +
+        `Affected vendors are reported unknown but were NOT checked. Reduce vendors per shard or raise SHARD_COUNT.`,
+    );
+  }
+
+  return {
+    records,
+    checkedAt,
+    total: records.length,
+    impacted,
+    unknown,
+    warnings,
+    subrequests: meter.spent,
+    budgetExhausted: meter.denied > 0,
+  };
 }
 
 export { rank };

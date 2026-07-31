@@ -69,6 +69,28 @@ a future non-Cloudflare deployment possible.
   available. Bounded by an attempt cap and a run-wide budget.
 - **Retries share a run-wide budget** — the Workers *free* plan caps subrequests
   at 50 per invocation; 34 vendors retrying twice would be 102.
+- **Collection is SHARDED: 3 shards on a `*/5` cron** (each vendor still
+  refreshed every 15 min). The free plan's 50-external-subrequest ceiling cannot
+  be raised (`limits.subrequests` is paid-only). A full 41-vendor run measured
+  **47** — 41 vendors + 3 second-calls + 3 redirect chains — so a run needing a
+  few retries was killed with "Too many subrequests" and every vendor after the
+  cutoff reported `unknown` while healthy. Intermittent, because it depended on
+  how many retries a run happened to need. One shard costs ~15.
+  - `CRON_EVERY_MINUTES` in `src/worker/index.js` **must** match
+    `triggers.crons`. Shard rotation is derived from the clock; a mismatch
+    silently starves some shards forever.
+  - **Never `DELETE FROM snapshot` wholesale** — a sharded run must delete only
+    the vendors it checked, or it wipes the other two thirds of the board.
+  - `run_meta` counts are computed **in SQL from the snapshot table**, not from
+    the run: a shard only knows its own third.
+- **The subrequest budget meters `fetchFn` itself**, not each call site.
+  Metering call sites was the original defect: retries were counted while base
+  attempts, fallbacks and advisory second calls were not, so nothing bounded the
+  run. Wrapping the injected function means a new fetch site cannot escape it.
+- **Budget exhaustion is an operator fault and must read as one.** It presented
+  as 17 simultaneous vendor outages; nothing distinguished "we stopped asking"
+  from "they are down". `run.budgetExhausted` and a leading `collector:` warning
+  now make that explicit.
 - **Never a bare word match on HTML.** Finding H6 was
   `/\boperational\b/.test(html)` against a whole document. Parse structure and
   fail closed.
@@ -86,6 +108,28 @@ a future non-Cloudflare deployment possible.
 Run `npm test` locally before pushing. Every adapter is pinned against a
 recorded payload in `test/fixtures/` — that is the gate that would have caught
 H1, H6 and H7 before they shipped.
+
+## Verifying a deploy — read the RIGHT log stream
+
+`wrangler tail --status=error` shows **exceptions only**. The whole design of
+this collector is to *fail closed without throwing*, so a run where every fetch
+fails produces a clean board of `unknown` rows and an empty error tail. On
+2026-07-31 that exact combination was used to declare the service healthy while
+17 vendors were starving.
+
+To actually verify a collection:
+
+```sh
+# 1. The collector's own verdict, unfiltered — NOT --status=error.
+npx wrangler tail --format=json | grep -E 'collection_(complete|alert)'
+# 2. The board's aggregate state, over more than one cron cycle.
+curl -s https://briangreenberg.net/service-status/api/status \
+  | python3 -c "import sys,json;from collections import Counter;d=json.load(sys.stdin);print(Counter(r['severity'] for r in d['records']))"
+```
+
+A single green reading right after a deploy proves nothing: the failure was
+intermittent and cycle-dependent. Watch at least one full 15-minute cycle
+(three shards) before calling it good.
 
 ## Deployment gotchas
 

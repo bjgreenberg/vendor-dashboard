@@ -1,0 +1,189 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { writeRun, readSnapshot } from '../../src/worker/storage.js';
+import { makeD1, record as rec, runOf as run } from '../helpers/d1.js';
+
+// These tests execute the REAL SQL against REAL SQLite.
+//
+// That is the entire point. The previous storage tests used a mock `db` whose
+// `batch()` resolved to []. A mock that never executes SQL cannot fail on
+// invalid SQL, so on 2026-07-31 an `INSERT ... SELECT ... ON CONFLICT` missing
+// its required `WHERE true` passed every test, deployed, and made every cron
+// throw `near "DO": syntax error` for 25 minutes. The board silently froze on
+// its last good snapshot while reporting nothing wrong.
+//
+// node:sqlite ships with Node, so this costs no dependency. D1 is SQLite, so
+// the dialect is the same one production parses.
+
+let db;
+const meta = () => db.sqlite.prepare('SELECT * FROM run_meta WHERE id = 1').get();
+const snap = () => db.sqlite.prepare('SELECT vendor, severity FROM snapshot ORDER BY vendor').all();
+
+beforeEach(() => {
+  db = makeD1();
+});
+
+describe('writeRun against real SQLite', () => {
+
+  it('executes without a SQL syntax error', async () => {
+    // The regression. Every statement is prepared and executed for real.
+    await expect(writeRun(db, run([rec('A', 'operational')]))).resolves.not.toThrow();
+  });
+
+  it('replaces only the vendors this run checked', async () => {
+    // Shard 1 writes, then shard 2 writes. Shard 1's rows must survive --
+    // a wholesale DELETE would leave the board showing a third of the services.
+    await writeRun(db, run([rec('A', 'operational'), rec('B', 'degraded')]));
+    await writeRun(db, run([rec('C', 'operational')]));
+    expect(snap().map((r) => r.vendor)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('updates a vendor in place rather than duplicating it', async () => {
+    await writeRun(db, run([rec('A', 'operational')]));
+    await writeRun(db, run([rec('A', 'major_outage')]));
+    expect(snap()).toEqual([{ vendor: 'A', severity: 'major_outage' }]);
+  });
+
+  it('counts the WHOLE board, not just the shard that just ran', async () => {
+    // The failure this guards: a 14-vendor shard reporting total=14 would make
+    // the headline read "14 services" and drop the other 27 from the counts.
+    await writeRun(db, run([rec('A', 'operational'), rec('B', 'unknown')]));
+    await writeRun(db, run([rec('C', 'degraded')]));
+
+    const m = meta();
+    expect(m.total).toBe(3); // not 1
+    expect(m.unknown).toBe(1); // from the earlier shard
+    expect(m.impacted).toBe(1); // degraded, from this shard
+  });
+
+  it('records history for every write, append-only', async () => {
+    await writeRun(db, run([rec('A', 'operational')]));
+    await writeRun(db, run([rec('A', 'degraded')]));
+    const rows = db.sqlite.prepare('SELECT vendor, severity FROM history').all();
+    expect(rows.length).toBe(2);
+  });
+
+  it('leaves the previous snapshot intact when the batch fails', async () => {
+    // Finding M3: clearing output and then failing left an EMPTY board, which
+    // renders as "nothing is wrong". The transaction must roll back whole.
+    await writeRun(db, run([rec('A', 'operational')]));
+    const bad = run([rec('B', 'operational')]);
+    bad.records.push({ ...rec('C', 'operational'), vendor: null }); // NOT NULL violation
+    await expect(writeRun(db, bad)).rejects.toThrow();
+    expect(snap()).toEqual([{ vendor: 'A', severity: 'operational' }]);
+  });
+});
+
+describe('writeRun defensive defaults', () => {
+
+  it('fills every optional field rather than writing NULL', async () => {
+    // Adapters are allowed to omit optional fields. NOT NULL columns would
+    // reject the row, and one bad adapter would abort the whole shard's
+    // transaction -- taking 13 healthy vendors down with it.
+    const bare = {
+      vendor: 'Bare',
+      severity: 'operational',
+      checkedAt: '2026-07-31T23:30:00.000Z',
+    };
+    await expect(
+      writeRun(db, {
+        records: [bare],
+        checkedAt: '2026-07-31T23:30:00.000Z',
+        total: 1,
+        impacted: 0,
+        unknown: 0,
+      }),
+    ).resolves.not.toThrow();
+
+    const row = db.sqlite.prepare('SELECT * FROM snapshot WHERE vendor = ?').get('Bare');
+    expect(row.service).toBe('Bare'); // falls back to the vendor name
+    expect(row.incident_name).toBe('');
+    expect(row.description).toBe('');
+    expect(row.source_url).toBe('');
+    expect(row.components).toBe('[]');
+    expect(row.warnings).toBe('[]');
+  });
+
+  it('falls back to the run timestamp when a record carries none', async () => {
+    await writeRun(db, {
+      records: [{ vendor: 'NoTime', severity: 'unknown' }],
+      checkedAt: '2026-07-31T23:30:00.000Z',
+      total: 1,
+      impacted: 0,
+      unknown: 1,
+    });
+    const row = db.sqlite.prepare('SELECT checked_at FROM snapshot WHERE vendor = ?').get('NoTime');
+    expect(row.checked_at).toBe('2026-07-31T23:30:00.000Z');
+  });
+
+  it('writes an empty warnings array when the run reports none', async () => {
+    await writeRun(db, {
+      records: [rec('A', 'operational')],
+      checkedAt: '2026-07-31T23:30:00.000Z',
+      total: 1,
+      impacted: 0,
+      unknown: 0,
+    });
+    expect(meta().warnings).toBe('[]');
+  });
+});
+
+describe('readSnapshot', () => {
+  it('returns empty results and null meta on a fresh database', async () => {
+    const { records, meta: m } = await readSnapshot(makeD1());
+    expect(records).toEqual([]);
+    expect(m).toBeNull();
+  });
+
+  it('degrades a corrupt JSON column to an empty array instead of throwing', async () => {
+    await writeRun(db, {
+      records: [rec('A', 'operational')],
+      checkedAt: '2026-07-31T23:30:00.000Z',
+      total: 1,
+      impacted: 0,
+      unknown: 0,
+    });
+    db.sqlite.prepare("UPDATE snapshot SET components='oops', warnings='{'").run();
+    const { records } = await readSnapshot(db);
+    expect(records[0].components).toEqual([]);
+    expect(records[0].warnings).toEqual([]);
+  });
+});
+
+describe('read order is guaranteed by the reader, not by insertion order', () => {
+  // REGRESSION (2026-07-31). collect() sorts its records and writeRun inserted
+  // them in that order, so a bare `SELECT *` came back sorted purely because
+  // rowid order happened to match. Sharding broke that: each shard deletes its
+  // own rows and re-appends them, so the board became ordered by "whichever
+  // shard ran most recently" and impacted services stopped floating to the top.
+  //
+  // The ordering contract now belongs to readSnapshot, which is the only place
+  // that can honour it no matter how the rows were written.
+  it('sorts most-severe first regardless of which shard wrote last', async () => {
+    // Written in three shards, deliberately worst-last.
+    await writeRun(db, run([rec('Alpha', 'operational'), rec('Bravo', 'operational')]));
+    await writeRun(db, run([rec('Charlie', 'degraded')]));
+    await writeRun(db, run([rec('Delta', 'major_outage'), rec('Echo', 'unknown')]));
+
+    const { records } = await readSnapshot(db);
+    expect(records.map((r) => r.vendor)).toEqual([
+      'Delta', // major_outage
+      'Charlie', // degraded
+      'Echo', // unknown  (outranks operational: a failed check is not health)
+      'Alpha', // operational, then A-Z
+      'Bravo',
+    ]);
+  });
+
+  it('re-sorts after a healthy vendor becomes impacted in a later shard', async () => {
+    await writeRun(db, run([rec('Zulu', 'operational'), rec('Alpha', 'operational')]));
+    await writeRun(db, run([rec('Zulu', 'major_outage')]));
+    const { records } = await readSnapshot(db);
+    expect(records[0].vendor).toBe('Zulu');
+  });
+
+  it('breaks ties case-insensitively by vendor name', async () => {
+    await writeRun(db, run([rec('zapier', 'operational'), rec('Zoom', 'operational')]));
+    const { records } = await readSnapshot(db);
+    expect(records.map((r) => r.vendor)).toEqual(['zapier', 'Zoom']);
+  });
+});

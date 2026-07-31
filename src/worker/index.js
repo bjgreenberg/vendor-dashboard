@@ -8,9 +8,13 @@
  */
 
 import { collect } from '../engine/collect.js';
+import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
 import { writeRun, readSnapshot } from './storage.js';
 import { renderDashboard } from './render.js';
 import vendorConfig from '../../config/vendors.example.json';
+
+/** Must match `triggers.crons` in wrangler.jsonc; shard rotation is derived from it. */
+const CRON_EVERY_MINUTES = 5;
 
 /**
  * Scheduled collection.
@@ -26,7 +30,17 @@ import vendorConfig from '../../config/vendors.example.json';
  */
 async function scheduled(controller, env) {
   const started = Date.now();
-  const run = await collect(vendorConfig, { fetchFn: fetch.bind(globalThis) });
+
+  // Collect one shard per invocation. The full list costs ~47 external
+  // subrequests against a free-plan ceiling of 50, so a run needing a few
+  // retries was killed mid-flight and the vendors it never reached reported
+  // `unknown`. One shard costs ~16. Every vendor is still refreshed once per
+  // 15 minutes; the cron just fires three times as often.
+  const at = new Date(controller.scheduledTime ?? Date.now());
+  const shard = shardDueAt(at, SHARD_COUNT, CRON_EVERY_MINUTES);
+  const vendors = selectShard(vendorConfig.vendors, shard, SHARD_COUNT);
+
+  const run = await collect({ ...vendorConfig, vendors }, { fetchFn: fetch.bind(globalThis) });
 
   await writeRun(env.DB, run);
 
@@ -36,12 +50,57 @@ async function scheduled(controller, env) {
     JSON.stringify({
       event: 'collection_complete',
       checked_at: run.checkedAt,
+      shard,
+      shard_count: SHARD_COUNT,
       total: run.total,
       impacted: run.impacted,
       unknown: run.unknown,
+      subrequests: run.subrequests,
+      subrequest_ceiling: 50,
       duration_ms: Date.now() - started,
     }),
   );
+
+  // SELF-MONITORING.
+  //
+  // The 2026-07-31 incident was not a gap in logging -- `collection_complete`
+  // had been emitting `unknown: 17` every run for hours. The gap was that
+  // nothing ever compared that number against a threshold, so the only detector
+  // in the system was a human noticing orange boxes on his phone. These checks
+  // are that comparison. They log at ERROR so they are separable from routine
+  // output by severity alone (`wrangler tail --status=error` shows only
+  // exceptions, so a plain console.warn here would have stayed invisible).
+  const alerts = [];
+
+  if (run.budgetExhausted) {
+    alerts.push({
+      alert: 'subrequest_budget_exhausted',
+      detail: `${run.subrequests} subrequests spent; some vendors were never checked`,
+    });
+  }
+
+  // A whole shard failing is infrastructure (budget, DNS, egress), not 14
+  // vendors coincidentally breaking at once.
+  if (run.total > 0 && run.unknown / run.total >= 0.5) {
+    alerts.push({
+      alert: 'unknown_rate_high',
+      detail: `${run.unknown}/${run.total} vendors unresolved in shard ${shard}`,
+    });
+  }
+
+  // Approaching the ceiling is the leading indicator. It is what a run looked
+  // like the day before it started failing, and it is the only signal that
+  // arrives while there is still time to act.
+  if (run.subrequests >= 40) {
+    alerts.push({
+      alert: 'subrequest_headroom_low',
+      detail: `${run.subrequests} of a 50 ceiling; raise SHARD_COUNT before this starts truncating runs`,
+    });
+  }
+
+  for (const a of alerts) {
+    console.error(JSON.stringify({ event: 'collection_alert', shard, ...a }));
+  }
 
   // Surface config drift and staleness rather than letting it accumulate silently.
   for (const warning of run.warnings) {

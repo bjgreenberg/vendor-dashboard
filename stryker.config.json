@@ -1,0 +1,47 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+
+  "_comment": [
+    "Mutation testing (testing.md §6): high coverage with weak assertions still",
+    "ships bugs. Stryker makes small breaking edits to the source and asserts the",
+    "suite goes red; a SURVIVING mutant is a line the tests execute but do not",
+    "actually check.",
+    "",
+    "This repo needed it. On 2026-07-31 storage.js had passing tests and no real",
+    "assertions behind them -- the mock never executed SQL -- and a syntax error",
+    "shipped to production. Mutation testing is the mechanical form of that",
+    "question: 'if I broke this line, would anything notice?'",
+    "",
+    "NOT a per-PR gate: it is slow (it reruns the suite once per mutant). Run it",
+    "nightly or before a release, on the CORE decision code only -- the modules",
+    "where a survivor means a vendor can read green when it is not.",
+    "",
+    "  npm run test:mutation",
+    "",
+    "Adapters are deliberately excluded: they are already pinned against recorded",
+    "vendor payloads, which is a stronger guarantee than mutation score, and",
+    "including them makes a run take long enough that nobody runs it."
+  ],
+
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "reporters": ["html", "clear-text", "progress"],
+  "coverageAnalysis": "perTest",
+
+  "mutate": [
+    "src/engine/severity.js",
+    "src/engine/shard.js",
+    "src/engine/collect.js",
+    "src/engine/scope.js",
+    "src/worker/storage.js"
+  ],
+
+  "thresholds": {
+    "high": 90,
+    "low": 80,
+    "break": 75
+  },
+
+  "timeoutMS": 20000,
+  "concurrency": 4
+}
