@@ -77,10 +77,10 @@
     { "name": "NetSuite", "type": "statuspage", "url": "https://status.netsuite.com/api/v2/summary.json" },
 
     {
-      "$comment": "status.okta.com/history.atom returns 401; the legacy FeedBurner property is the only working public source and is deprecated. The adapter emits a staleness warning if the feed stops updating, so it cannot rot into a permanent green.",
+      "$comment": "Okta runs on Salesforce Experience Cloud with no public JSON API (summary.json, index.json, history.atom and history.rss all 401). The page embeds its incidents as JSON and the adapter parses that. The previous FeedBurner Atom source returned 200 but its newest entry was 456 days old - a feed that reports healthy forever is the same silent rot as findings H6 and H7.",
       "name": "Okta",
       "type": "okta",
-      "url": "http://feeds.feedburner.com/OktaTrustRSS",
+      "url": "https://status.okta.com/",
       "pageUrl": "https://status.okta.com"
     },
 

@@ -1,6 +1,6 @@
 {
   "name": "vendor-dashboard",
-  "version": "2.0.0-dev",
+  "version": "2.0.0",
   "description": "Monitors the live status of a configurable SaaS vendor set by polling each vendor's public status endpoint. Cloudflare Worker + runtime-agnostic engine.",
   "main": "Code.js",
   "scripts": {

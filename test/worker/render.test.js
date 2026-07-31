@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderDashboard, esc } from '../../src/worker/render.js';
+import { renderDashboard, esc, safeUrl, formatChicago } from '../../src/worker/render.js';
 
 // Audit finding M4. Every field on this page is third-party content from ~35
 // vendor status pages. A compromised or merely sloppy vendor page is untrusted
@@ -105,16 +105,19 @@ describe('renderDashboard — presentation contract', () => {
     expect(html).toContain('1 unchecked');
   });
 
-  it('collapses a healthy vendor instead of listing its services', () => {
+  it('does not surface healthy components in the always-visible list', () => {
     const html = renderDashboard({
       records: [record({ components: [{ name: 'Subservice', severity: 'operational' }] })],
       meta: null,
     });
+    // Healthy children live only inside the collapsed <details>, never in the
+    // affected list above it.
+    const beforeDetails = html.slice(0, html.indexOf('<details'));
+    expect(beforeDetails).not.toContain('Subservice');
     expect(html).toContain('all healthy');
-    expect(html).not.toContain('>Subservice<');
   });
 
-  it('breaks out only the unhealthy children', () => {
+  it('breaks out only the unhealthy children by default', () => {
     const html = renderDashboard({
       records: [
         record({
@@ -127,8 +130,9 @@ describe('renderDashboard — presentation contract', () => {
       ],
       meta: null,
     });
-    expect(html).toContain('BrokenBit');
-    expect(html).not.toContain('FineBit');
+    const beforeDetails = html.slice(0, html.indexOf('<details'));
+    expect(beforeDetails).toContain('BrokenBit');
+    expect(beforeDetails).not.toContain('FineBit');
   });
 
   it('emits a nonce on the inline script when given one', () => {
@@ -136,25 +140,31 @@ describe('renderDashboard — presentation contract', () => {
     expect(html).toContain('<script nonce="abc123">');
   });
 
-  it('ships a three-state appearance control defaulting to System', () => {
+  it('reuses the site chrome, stylesheet and shared theme control', () => {
     const html = renderDashboard({ records: [record()], meta: null });
-    expect(html).toContain('data-theme-set="system"');
-    expect(html).toContain('data-theme-set="light"');
-    expect(html).toContain('data-theme-set="dark"');
-    expect(html).toContain('data-theme="system"');
+    // Site header + footer so the page reads as part of briangreenberg.net.
+    expect(html).toContain('class="wordmark"');
+    expect(html).toContain('href="/writing/"');
+    expect(html).toContain('© 2008–2026 Brian Greenberg');
+    // Same stylesheet and theme script -> shared appearance preference.
+    expect(html).toContain('href="/assets/site.css"');
+    expect(html).toContain('src="/assets/js/theme.js"');
+    expect(html).toContain('data-mode="system"');
+    expect(html).toContain('data-mode="light"');
+    expect(html).toContain('data-mode="dark"');
   });
 
   it('includes a skip link and a labelled search input for keyboard users', () => {
     const html = renderDashboard({ records: [record()], meta: null });
     expect(html).toContain('class="skip"');
-    expect(html).toContain('<label for="q"');
+    expect(html).toContain('<label for="vs-q"');
   });
 
-  it('styles both themes and lets the explicit override win over the media query', () => {
+  it('styles status colours for both themes, with the explicit override winning', () => {
     const html = renderDashboard({ records: [record()], meta: null });
     expect(html).toContain('prefers-color-scheme: dark');
     expect(html).toContain(':root[data-theme="dark"]');
-    expect(html).toContain(':root[data-theme="light"]');
+    expect(html).toContain(':root:not([data-theme="light"])');
   });
 });
 
@@ -225,5 +235,132 @@ describe('renderDashboard — only the canonical host is indexable', () => {
   it('points canonical at the real URL regardless of which host served it', () => {
     const html = renderDashboard({ records: r, meta: null, host: 'vendor-dashboard.gsysd.workers.dev' });
     expect(html).toContain('href="https://briangreenberg.net/service-status"');
+  });
+});
+
+// Vendor status pages are linked from each card. `sourceUrl` comes FROM the
+// vendor payload, so it is untrusted input that is stored in D1 and replayed to
+// every visitor — a javascript: URL in an href would be stored XSS.
+describe('safeUrl — vendor-supplied URLs are validated before use in href', () => {
+  it('permits http and https', () => {
+    expect(safeUrl('https://status.example.com')).toBe('https://status.example.com/');
+    expect(safeUrl('http://status.example.com/x')).toBe('http://status.example.com/x');
+  });
+
+  it('rejects javascript:, data: and vbscript:', () => {
+    expect(safeUrl('javascript:alert(1)')).toBe('');
+    expect(safeUrl('data:text/html,<script>alert(1)</script>')).toBe('');
+    expect(safeUrl('vbscript:msgbox')).toBe('');
+  });
+
+  it('rejects malformed input without throwing', () => {
+    expect(safeUrl('not a url')).toBe('');
+    expect(safeUrl('')).toBe('');
+    expect(safeUrl(null)).toBe('');
+    expect(safeUrl(42)).toBe('');
+  });
+});
+
+describe('renderDashboard — vendor status page links', () => {
+  const withUrl = (sourceUrl) => ({
+    vendor: 'V', service: 'V', severity: 'operational', incidentName: '',
+    description: '', sourceUrl, components: [], warnings: [],
+    checkedAt: '2026-07-31T12:00:00.000Z',
+  });
+
+  it('links the service name to the vendor status page', () => {
+    const html = renderDashboard({ records: [withUrl('https://status.example.com')], meta: null });
+    expect(html).toContain('href="https://status.example.com/"');
+    expect(html).toContain('rel="noopener nofollow"');
+    expect(html).toContain('target="_blank"');
+  });
+
+  it('renders plain text rather than a link when the URL is unsafe', () => {
+    const html = renderDashboard({ records: [withUrl('javascript:alert(1)')], meta: null });
+    expect(html).not.toContain('javascript:alert(1)');
+    expect(html).toContain('<span class="vs-name">V</span>');
+  });
+
+  it('renders plain text when the vendor supplied no URL', () => {
+    const html = renderDashboard({ records: [withUrl('')], meta: null });
+    expect(html).toContain('<span class="vs-name">V</span>');
+  });
+});
+
+// Requirement: clicking a service expands ALL of its components, not just the
+// affected ones — e.g. Google -> Docs, Sheets, Meet, GCP.
+describe('renderDashboard — expandable component list', () => {
+  const rec = (components, severity = 'operational') => ({
+    vendor: 'Google', service: 'Google', severity, incidentName: '', description: '',
+    sourceUrl: '', components, warnings: [], checkedAt: '2026-07-31T12:00:00.000Z',
+  });
+
+  it('discloses every component inside a native <details>', () => {
+    const html = renderDashboard({
+      records: [rec([
+        { name: 'Gmail', severity: 'operational' },
+        { name: 'Drive', severity: 'operational' },
+        { name: 'Meet', severity: 'operational' },
+      ])],
+      meta: null,
+    });
+    expect(html).toContain('<details');
+    const details = html.slice(html.indexOf('<details'));
+    expect(details).toContain('Gmail');
+    expect(details).toContain('Drive');
+    expect(details).toContain('Meet');
+  });
+
+  it('summarises the component count and how many are affected', () => {
+    const html = renderDashboard({
+      records: [rec([
+        { name: 'Gmail', severity: 'major_outage' },
+        { name: 'Drive', severity: 'operational' },
+      ], 'major_outage')],
+      meta: null,
+    });
+    expect(html).toMatch(/2 components · 1 affected/);
+  });
+
+  it('says all healthy when nothing is affected', () => {
+    const html = renderDashboard({ records: [rec([{ name: 'Gmail', severity: 'operational' }])], meta: null });
+    expect(html).toMatch(/1 component · all healthy/);
+  });
+
+  it('omits the disclosure entirely for a vendor with no components', () => {
+    const html = renderDashboard({ records: [rec([])], meta: null });
+    expect(html).not.toContain('<details');
+  });
+
+  it('makes component names searchable so "gmail" finds Google', () => {
+    const html = renderDashboard({ records: [rec([{ name: 'Gmail', severity: 'operational' }])], meta: null });
+    expect(html).toMatch(/data-search="[^"]*gmail[^"]*"/);
+  });
+});
+
+describe('renderDashboard — timestamp', () => {
+  const rec = { vendor: 'V', service: 'V', severity: 'operational', incidentName: '', description: '', sourceUrl: '', components: [], warnings: [], checkedAt: '2026-07-31T17:45:00.000Z' };
+
+  it('renders Chicago time server-side so it is meaningful without JavaScript', () => {
+    const html = renderDashboard({
+      records: [rec],
+      meta: { checked_at: '2026-07-31T17:45:00.000Z' },
+      now: () => new Date('2026-07-31T17:50:00.000Z'),
+    });
+    // 17:45 UTC is 12:45 PM CDT.
+    expect(html).toMatch(/12:45\s*PM\s*CDT/);
+  });
+
+  it('emits a machine-readable datetime the client can localise', () => {
+    const html = renderDashboard({
+      records: [rec],
+      meta: { checked_at: '2026-07-31T17:45:00.000Z' },
+      now: () => new Date('2026-07-31T17:50:00.000Z'),
+    });
+    expect(html).toContain('<time id="vs-checked" datetime="2026-07-31T17:45:00.000Z"');
+  });
+
+  it('formatChicago returns empty for an unparseable timestamp', () => {
+    expect(formatChicago('not-a-date')).toBe('');
   });
 });

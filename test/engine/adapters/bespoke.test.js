@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { SEVERITY } from '../../../src/engine/severity.js';
 import { parseGoogle } from '../../../src/engine/adapters/google.js';
 import { parseApple } from '../../../src/engine/adapters/apple.js';
-import { parseOktaAtom } from '../../../src/engine/adapters/okta.js';
+import { parseOkta } from '../../../src/engine/adapters/okta.js';
 import { parseSalesforce } from '../../../src/engine/adapters/salesforce.js';
 import { parseConcur } from '../../../src/engine/adapters/concur.js';
 import { parseSorryApp } from '../../../src/engine/adapters/sorryapp.js';
@@ -18,7 +18,7 @@ const now = () => new Date('2026-07-30T12:00:00Z');
 const ADAPTERS = [
   ['google', () => parseGoogle(json('Google-appsstatus'), { vendor: 'Google', now })],
   ['apple', () => parseApple(json('Apple'), { vendor: 'Apple', now })],
-  ['okta', () => parseOktaAtom(text('Okta-atom.xml'), { vendor: 'Okta', now })],
+  ['okta', () => parseOkta(text('Okta-statuspage.html'), { vendor: 'Okta', now })],
   ['salesforce', () => parseSalesforce(json('Salesforce-Tableau'), { vendor: 'Tableau', now })],
   ['concur', () => parseConcur(json('Concur-incidents'), { vendor: 'Concur', banner: json('Concur-banner'), now })],
   ['sorryapp', () => parseSorryApp(json('Iorad-sorryapp'), { vendor: 'Iorad', now })],
@@ -46,7 +46,7 @@ describe('adapter contract — every adapter fails closed (H4, H6, H7)', () => {
   const NULL_CASES = [
     ['google', () => parseGoogle(null, { vendor: 'G', now })],
     ['apple', () => parseApple(null, { vendor: 'A', now })],
-    ['okta', () => parseOktaAtom(null, { vendor: 'O', now })],
+    ['okta', () => parseOkta(null, { vendor: 'O', now })],
     ['salesforce', () => parseSalesforce(null, { vendor: 'S', now })],
     ['concur', () => parseConcur(null, { vendor: 'C', now })],
     ['sorryapp', () => parseSorryApp(null, { vendor: 'I', now })],
@@ -65,7 +65,7 @@ describe('adapter contract — every adapter fails closed (H4, H6, H7)', () => {
   const GARBAGE = [
     ['google', () => parseGoogle('nonsense', { vendor: 'G', now })],
     ['apple', () => parseApple({ nope: 1 }, { vendor: 'A', now })],
-    ['okta', () => parseOktaAtom('<html>not a feed</html>', { vendor: 'O', now })],
+    ['okta', () => parseOkta('<html>no embedded data</html>', { vendor: 'O', now })],
     ['salesforce', () => parseSalesforce({}, { vendor: 'S', now })],
     ['concur', () => parseConcur({}, { vendor: 'C', now })],
     ['sorryapp', () => parseSorryApp({}, { vendor: 'I', now })],
@@ -120,25 +120,56 @@ describe('apple', () => {
   });
 });
 
-describe('okta (Atom)', () => {
-  it('reports operational when every entry is resolved', () => {
-    expect(parseOktaAtom(text('Okta-atom.xml'), { vendor: 'Okta', now }).severity).toBe(SEVERITY.OPERATIONAL);
+// Okta runs on Salesforce Experience Cloud; there is no public JSON API (all of
+// summary.json, index.json, history.atom and history.rss return 401). The page
+// embeds its incidents as JSON and the adapter parses that.
+//
+// This REPLACED a FeedBurner Atom source that returned 200 while its newest
+// entry was 456 days old - a feed reporting healthy forever is the same silent
+// rot as findings H6 and H7, just slower to notice.
+describe('okta (embedded Salesforce records)', () => {
+  it('reports operational when every incident is resolved', () => {
+    expect(parseOkta(text('Okta-statuspage.html'), { vendor: 'Okta', now }).severity).toBe(
+      SEVERITY.OPERATIONAL,
+    );
   });
 
-  // The FeedBurner property is deprecated and the newest entry is from 2025-04-30.
-  // A feed that silently stops updating would report "operational" forever --
-  // the same rot that produced findings H6 and H7. Surface it as a warning.
-  it('warns when the feed has gone stale rather than trusting silence', () => {
-    const r = parseOktaAtom(text('Okta-atom.xml'), { vendor: 'Okta', now });
-    expect(r.warnings.join(' ')).toMatch(/stale|no entries newer/i);
+  it('detects an open incident and maps Okta\'s own category vocabulary', () => {
+    const html = `<html><body>[{"attributes":{"type":"Incident__c"},"Id":"x","Name":"I-1",
+      "Status__c":"Investigating","Category__c":"Major Service Disruption",
+      "Incident_Title__c":"Login failures","Okta_Sub_Service__c":"Authentication"}]</body></html>`;
+    const r = parseOkta(html, { vendor: 'Okta', now });
+    expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(r.components.map((c) => c.name)).toContain('Authentication');
   });
 
-  it('detects an unresolved entry', () => {
-    const feed = `<feed xmlns="http://www.w3.org/2005/Atom">
-      <entry><title>Service Disruption</title><updated>2026-07-30T10:00:00Z</updated>
-      <content>Authentication errors</content></entry></feed>`;
-    const r = parseOktaAtom(feed, { vendor: 'Okta', now });
-    expect(r.severity).not.toBe(SEVERITY.OPERATIONAL);
+  it('grades a minor disruption below a major one', () => {
+    const mk = (cat) => `<html>[{"attributes":{"type":"Incident__c"},"Status__c":"Open",
+      "Category__c":"${cat}","Incident_Title__c":"t","Okta_Sub_Service__c":"s"}]</html>`;
+    expect(parseOkta(mk('Minor Service Disruption'), { vendor: 'O', now }).severity).toBe(SEVERITY.DEGRADED);
+    expect(parseOkta(mk('Major Service Disruption'), { vendor: 'O', now }).severity).toBe(SEVERITY.MAJOR_OUTAGE);
+  });
+
+  // Brackets inside string values must not confuse the depth walk.
+  it('extracts correctly when incident text contains brackets', () => {
+    const html = `<html>[{"attributes":{"type":"Incident__c"},"Status__c":"Resolved",
+      "Incident_Title__c":"Array [0] and object {x} in the title"}]</html>`;
+    expect(parseOkta(html, { vendor: 'Okta', now }).severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('fails closed when the embedded data is absent rather than assuming health', () => {
+    const r = parseOkta('<html><body>no data here</body></html>', { vendor: 'Okta', now });
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.warnings.join(' ')).toMatch(/structure may have changed/i);
+  });
+
+  // The 347 KB real page must stay well inside the free plan's 10ms CPU budget.
+  it('parses the full-size page without scanning the whole document', () => {
+    const big = 'x'.repeat(300_000) +
+      '[{"attributes":{"type":"Incident__c"},"Status__c":"Resolved"}]' + 'y'.repeat(300_000);
+    const t0 = Date.now();
+    expect(parseOkta(big, { vendor: 'Okta', now }).severity).toBe(SEVERITY.OPERATIONAL);
+    expect(Date.now() - t0).toBeLessThan(50);
   });
 });
 

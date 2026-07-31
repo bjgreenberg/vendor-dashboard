@@ -1,16 +1,24 @@
 /**
- * Okta status adapter (Atom feed).
+ * Okta status adapter.
  *
- * Source: the legacy FeedBurner Atom feed. `status.okta.com/history.atom`
- * returns 401 (verified 2026-07-30), so the deprecated FeedBurner property is
- * the only working public source.
+ * Okta runs its status page on Salesforce Experience Cloud. There is no public
+ * JSON API — `status.okta.com/api/v2/summary.json`, `/index.json`,
+ * `/history.atom` and `/history.rss` all return **401** (verified 2026-07-31) —
+ * but the rendered page embeds its incident records as JSON: an array of
+ * Salesforce `Incident__c` objects.
  *
- * PARSING NOTE: this extracts entries with targeted regex rather than a real
- * XML parser. That is a deliberate trade-off — the engine stays dependency-free
- * and runtime-agnostic (Workers have no built-in XML parser), and the failure
- * mode is safe: if the markup shape changes, no entries match and the adapter
- * reports UNKNOWN rather than guessing. It is pinned by a fixture. Do NOT
- * extend this into general-purpose XML handling.
+ * This replaces an earlier implementation that read the legacy FeedBurner Atom
+ * feed. That feed still returned 200, which is exactly what made it dangerous:
+ * its newest entry was **456 days old**, so it reported "operational"
+ * indefinitely while looking perfectly healthy. That is the same silent-rot
+ * failure as audit findings H6 and H7, and it would have gone unnoticed for as
+ * long as anyone trusted the row. The embedded source is current — its newest
+ * incident was seven days old at the time of writing.
+ *
+ * PARSING NOTE: the page is ~347 KB and the Workers free plan allows 10 ms of
+ * CPU per cron invocation, so extraction deliberately avoids regex backtracking
+ * across the whole document. It locates the array with `indexOf`, then walks
+ * brackets in a single linear pass.
  */
 
 import { SEVERITY } from '../severity.js';
@@ -18,80 +26,149 @@ import { makeRecord, unknownRecord, toPlainText } from '../record.js';
 
 const SOURCE_URL = 'https://status.okta.com';
 
-/** A feed with no new entries for this long is suspected dead, not healthy. */
-const STALE_AFTER_DAYS = 180;
+/** The embedded array always begins with this exact marker. */
+const MARKER = '[{"attributes":{"type":"Incident__c"';
+
+/** Statuses meaning "no longer affecting anyone". */
+const CLOSED = new Set(['resolved', 'completed', 'closed']);
 
 /**
- * @param {string} xml
- * @returns {{title: string, updated: string, content: string}[]}
+ * Okta's `Category__c` values mapped onto our vocabulary.
+ * @type {Record<string, import('../severity.js').Severity>}
  */
-function extractEntries(xml) {
-  const entries = xml.match(/<entry\b[\s\S]*?<\/entry>/gi) ?? [];
-  return entries.map((e) => ({
-    title: toPlainText((e.match(/<title[^>]*>([\s\S]*?)<\/title>/i) ?? [, ''])[1]),
-    updated: (e.match(/<updated[^>]*>([\s\S]*?)<\/updated>/i) ?? [, ''])[1].trim(),
-    content: toPlainText((e.match(/<content[^>]*>([\s\S]*?)<\/content>/i) ?? [, ''])[1]),
-  }));
+const CATEGORY = {
+  'major service disruption': SEVERITY.MAJOR_OUTAGE,
+  'service disruption': SEVERITY.PARTIAL_OUTAGE,
+  'minor service disruption': SEVERITY.DEGRADED,
+  'feature disruption': SEVERITY.DEGRADED,
+  'service degradation': SEVERITY.DEGRADED,
+  'performance issue': SEVERITY.DEGRADED,
+};
+
+/**
+ * Extract the embedded JSON array in one linear pass.
+ *
+ * A `.*?` regex across 347 KB risks both CPU burn and catastrophic
+ * backtracking. Bracket-walking is O(n) with no backtracking, and it correctly
+ * handles the nested objects and arrays inside each record — including brackets
+ * that appear inside string values.
+ *
+ * @param {string} html
+ * @returns {any[]|null}
+ */
+export function extractIncidents(html) {
+  const start = html.indexOf(MARKER);
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < html.length; i += 1) {
+    const ch = html[i];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+
+    if (ch === '[' || ch === '{') {
+      depth += 1;
+    } else if (ch === ']' || ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(html.slice(start, i + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 /**
- * @param {unknown} xml raw Atom feed text
+ * @param {any} incident
+ * @returns {import('../severity.js').Severity}
+ */
+function severityOf(incident) {
+  const category = String(incident?.Category__c ?? '')
+    .toLowerCase()
+    .trim();
+  return CATEGORY[category] ?? SEVERITY.DEGRADED;
+}
+
+/**
+ * @param {unknown} html raw status.okta.com page
  * @param {{vendor: string, now?: () => Date}} options
  * @returns {import('../record.js').StatusRecord}
  */
-export function parseOktaAtom(xml, options) {
-  const { vendor, now = () => new Date() } = options ?? {};
-  if (typeof xml !== 'string' || !/<feed\b/i.test(xml)) {
-    return unknownRecord(vendor, 'input was not an Atom feed', { now, sourceUrl: SOURCE_URL });
+export function parseOkta(html, options) {
+  const { vendor, now } = options ?? {};
+
+  if (typeof html !== 'string') {
+    return unknownRecord(vendor, 'input was not HTML', { now, sourceUrl: SOURCE_URL });
   }
 
-  const entries = extractEntries(xml);
-  if (entries.length === 0) {
-    return unknownRecord(vendor, 'Atom feed contained no entries', { now, sourceUrl: SOURCE_URL });
+  const incidents = extractIncidents(html);
+  if (!Array.isArray(incidents)) {
+    return unknownRecord(
+      vendor,
+      'embedded incident data not found; the status page structure may have changed',
+      { now, sourceUrl: SOURCE_URL },
+    );
   }
 
-  const warnings = [];
+  const open = incidents.filter(
+    (i) => !CLOSED.has(String(i?.Status__c ?? '').toLowerCase().trim()),
+  );
 
-  // Freshness check. A deprecated feed that quietly stops updating would
-  // otherwise report "operational" forever -- the rot behind findings H6/H7.
-  const newest = entries
-    .map((e) => Date.parse(e.updated))
-    .filter((t) => !Number.isNaN(t))
-    .sort((a, b) => b - a)[0];
-  if (newest !== undefined) {
-    const ageDays = (now().getTime() - newest) / 86_400_000;
-    if (ageDays > STALE_AFTER_DAYS) {
-      warnings.push(
-        `feed appears stale: no entries newer than ${Math.round(ageDays)} days (source is a deprecated FeedBurner property)`,
-      );
-    }
-  }
-
-  // Okta titles their resolutions "Resolved <something>".
-  const unresolved = entries.filter((e) => !/^resolved\b/i.test(e.title.trim()));
-
-  if (unresolved.length === 0) {
+  if (open.length === 0) {
     return makeRecord({
       vendor,
       severity: SEVERITY.OPERATIONAL,
       description: 'All systems operational.',
       sourceUrl: SOURCE_URL,
-      warnings,
       now,
     });
   }
 
-  const primary = unresolved[0];
-  const severe = /disruption|outage/i.test(primary.title) ? SEVERITY.PARTIAL_OUTAGE : SEVERITY.DEGRADED;
+  const components = open.slice(0, 10).map((i) => ({
+    name:
+      toPlainText(i?.Okta_Sub_Service__c ?? i?.Service_Feature__c ?? i?.Name ?? '') || 'Okta',
+    severity: severityOf(i),
+    description: toPlainText(i?.Incident_Title__c ?? ''),
+  }));
 
+  const worstChild = components.some((c) => c.severity === SEVERITY.MAJOR_OUTAGE)
+    ? SEVERITY.MAJOR_OUTAGE
+    : components.some((c) => c.severity === SEVERITY.PARTIAL_OUTAGE)
+      ? SEVERITY.PARTIAL_OUTAGE
+      : SEVERITY.DEGRADED;
+
+  const primary = open[0];
   return makeRecord({
     vendor,
-    severity: severe,
-    incidentName: primary.title,
-    description: primary.content || primary.title,
+    severity: worstChild,
+    incidentName: toPlainText(primary?.Incident_Title__c ?? '') || 'Active incident',
+    description:
+      toPlainText(primary?.Incident_Title__c ?? '') ||
+      `${open.length} open incident${open.length === 1 ? '' : 's'} reported by Okta.`,
     sourceUrl: SOURCE_URL,
-    components: unresolved.slice(0, 5).map((e) => ({ name: e.title, severity: severe })),
-    warnings,
+    components,
     now,
   });
 }
+
+/** Back-compat alias; the Atom implementation is gone. */
+export { parseOkta as parseOktaAtom };

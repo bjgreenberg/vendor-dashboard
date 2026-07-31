@@ -18,17 +18,20 @@ jobs:
         with:
           node-version: lts/*
 
-      # Apps Script project — no unit tests; gate on JS syntax validity
-      # for every tracked .js file (node --check parses without executing).
-      - name: Syntax-check JavaScript
-        run: |
-          set -euo pipefail
-          status=0
-          while IFS= read -r -d '' f; do
-            echo "== node --check: $f"
-            node --check "$f" || status=1
-          done < <(git ls-files -z -- '*.js')
-          exit "$status"
+      - name: Install dependencies
+        run: npm ci
+
+      # Real unit tests. The predecessor was Apps Script, which cannot be
+      # tested off-platform, so CI could only gate on syntax validity. Every
+      # adapter is now pinned against a recorded vendor payload — the gate that
+      # would have caught findings H1, H6 and H7 before they shipped.
+      - name: Run tests
+        run: npm test
+
+      # Catch bundling/binding errors without deploying. --dry-run needs no
+      # Cloudflare credentials.
+      - name: Build check (wrangler dry-run)
+        run: npx wrangler deploy --dry-run --outdir=/tmp/build
 
       - name: Audit dependencies (high+)
         run: npm audit --audit-level=high

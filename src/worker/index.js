@@ -82,7 +82,11 @@ async function handleFetch(request, env) {
         // (audit finding M4). The renderer escapes on output; CSP is the
         // second line of defence.
         'Content-Security-Policy':
-          `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+          // 'self' is required for the site's own /assets/site.css and
+          // /assets/js/theme.js, which this page reuses so it matches the site
+          // and shares its appearance preference. Everything else stays denied,
+          // and the inline script is nonce-gated rather than 'unsafe-inline'.
+          `default-src 'none'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
         'X-Content-Type-Options': 'nosniff',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
       },
