@@ -431,3 +431,91 @@ describe('renderDashboard — warnings shown to readers', () => {
     expect(card).not.toContain('DNS');
   });
 });
+
+// This page defaults to dark, unlike the rest of the site which follows the
+// system. The theme key is SHARED with briangreenberg.net, so the default must
+// not be persisted - writing it would change the whole site's default.
+describe('renderDashboard — dark by default', () => {
+  const html = () => renderDashboard({ records: [], meta: null, nonce: 'n1' });
+
+  it('renders the document dark before any script runs', () => {
+    expect(html()).toContain('<html lang="en" data-theme="dark">');
+  });
+
+  it('seeds dark only when the visitor has no stored preference', () => {
+    expect(html()).toMatch(/if \(!localStorage\.getItem\('bgnet-theme'\)\)/);
+  });
+
+  it('NEVER writes the default to the shared storage key', () => {
+    // setItem must appear nowhere in the seeding logic; persisting would change
+    // briangreenberg.net's default too.
+    const seed = html().slice(0, html().indexOf('/assets/js/theme.js'));
+    expect(seed).not.toContain('setItem');
+  });
+
+  it('falls back to dark when storage is unavailable', () => {
+    expect(html()).toMatch(/catch[\s\S]{0,80}setAttribute\('data-theme', 'dark'\)/);
+  });
+});
+
+describe('renderDashboard — logo placement', () => {
+  const rec = {
+    vendor: 'GitHub', service: 'GitHub', severity: 'operational', incidentName: '',
+    description: '', sourceUrl: 'https://www.githubstatus.com', components: [],
+    warnings: [], checkedAt: '2026-07-31T12:00:00.000Z',
+  };
+
+  // The mark leads the row: it is the identity anchor, at the position the eye
+  // starts. Placing it after the name arrives too late to aid recognition.
+  it('renders the mark BEFORE the vendor name', () => {
+    const html = renderDashboard({ records: [rec], meta: null });
+    const head = html.slice(html.indexOf('<div class="vs-head">'), html.indexOf('</h2>'));
+    expect(head).toContain('vs-logo');
+    expect(head.indexOf('vs-logo')).toBeLessThan(head.indexOf('GitHub'));
+  });
+
+  // Status is already carried by the card's coloured border AND the pill text,
+  // so the dot was redundant beside a mark.
+  it('replaces the status dot when a mark exists', () => {
+    const html = renderDashboard({ records: [rec], meta: null });
+    const head = html.slice(html.indexOf('<div class="vs-head">'), html.indexOf('</h2>'));
+    expect(head).not.toContain('vs-dot--');
+  });
+
+  it('KEEPS the dot for a vendor with no mark, so no row loses its glyph', () => {
+    const html = renderDashboard({
+      records: [{ ...rec, vendor: 'NoSuchVendor', service: 'NoSuchVendor' }], meta: null,
+    });
+    const head = html.slice(html.indexOf('<div class="vs-head">'), html.indexOf('</h2>'));
+    expect(head).toContain('vs-dot--');
+    expect(head).not.toContain('vs-logo');
+  });
+});
+
+describe('renderDashboard — logo legibility on both themes', () => {
+  const html = () => renderDashboard({
+    records: [{ vendor: 'Anthropic', service: 'Anthropic', severity: 'operational', incidentName: '',
+      description: '', sourceUrl: '', components: [], warnings: [], checkedAt: '2026-07-31T12:00:00.000Z' }],
+    meta: null,
+  });
+
+  // Several vendor favicons are dark marks on transparency (measured below 0.28
+  // luminance) and would vanish on this page, which defaults to dark.
+  it('gives every mark a chip so dark logos remain legible', () => {
+    expect(html()).toMatch(/\.vs-logo\s*\{[^}]*background:\s*#ffffff/);
+  });
+
+  it('softens the chip in light mode rather than showing a white block', () => {
+    expect(html()).toMatch(/data-theme="light"\]\s*\.vs-logo\s*\{[^}]*rgba\(0,0,0,\.03\)/);
+  });
+
+  it('constrains every mark to one fixed box so sizes look proportional', () => {
+    const css = html();
+    expect(css).toMatch(/\.vs-logo\s*\{[^}]*width:\s*24px[^}]*height:\s*24px/);
+    expect(css).toMatch(/\.vs-logo\s*\{[^}]*object-fit:\s*contain/);
+  });
+
+  it('does not cap the narrative narrower than the cards', () => {
+    expect(html()).not.toMatch(/\.vs-intro\s*\{[^}]*max-width/);
+  });
+});
