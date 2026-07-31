@@ -25,7 +25,9 @@
   "microsoft": "microsoft.png",
   "monday-com": "monday-com.png",
   "navan": "navan.png",
+  "netsuite": "netsuite.png",
   "okta": "okta.png",
+  "openai": "openai.png",
   "perplexity": "perplexity.png",
   "proton": "proton.svg",
   "qualtrics": "qualtrics.png",
@@ -34,6 +36,7 @@
   "sendgrid": "sendgrid.svg",
   "signal": "signal.svg",
   "stormboard": "stormboard.png",
+  "tableau": "tableau.png",
   "tailscale": "tailscale.svg",
   "zapier": "zapier.png",
   "zoom": "zoom.png"

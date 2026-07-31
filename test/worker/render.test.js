@@ -457,3 +457,52 @@ describe('renderDashboard — dark by default', () => {
     expect(html()).toMatch(/catch[\s\S]{0,80}setAttribute\('data-theme', 'dark'\)/);
   });
 });
+
+describe('renderDashboard — logo placement', () => {
+  const rec = {
+    vendor: 'GitHub', service: 'GitHub', severity: 'operational', incidentName: '',
+    description: '', sourceUrl: 'https://www.githubstatus.com', components: [],
+    warnings: [], checkedAt: '2026-07-31T12:00:00.000Z',
+  };
+
+  it('renders the mark AFTER the vendor name, not before it', () => {
+    const html = renderDashboard({ records: [rec], meta: null });
+    const head = html.slice(html.indexOf('<div class="vs-head">'), html.indexOf('</div>', html.indexOf('<div class="vs-head">')));
+    expect(head).toContain('vs-logo');
+    expect(head.indexOf('GitHub')).toBeLessThan(head.indexOf('vs-logo'));
+  });
+
+  it('keeps the mark inside the heading so flex-grow cannot strand it by the badge', () => {
+    const html = renderDashboard({ records: [rec], meta: null });
+    const h2 = html.slice(html.indexOf('<h2>'), html.indexOf('</h2>') + 5);
+    expect(h2).toContain('vs-logo');
+  });
+});
+
+describe('renderDashboard — logo legibility on both themes', () => {
+  const html = () => renderDashboard({
+    records: [{ vendor: 'Anthropic', service: 'Anthropic', severity: 'operational', incidentName: '',
+      description: '', sourceUrl: '', components: [], warnings: [], checkedAt: '2026-07-31T12:00:00.000Z' }],
+    meta: null,
+  });
+
+  // Several vendor favicons are dark marks on transparency (measured below 0.28
+  // luminance) and would vanish on this page, which defaults to dark.
+  it('gives every mark a chip so dark logos remain legible', () => {
+    expect(html()).toMatch(/\.vs-logo\s*\{[^}]*background:\s*#ffffff/);
+  });
+
+  it('softens the chip in light mode rather than showing a white block', () => {
+    expect(html()).toMatch(/data-theme="light"\]\s*\.vs-logo\s*\{[^}]*rgba\(0,0,0,\.03\)/);
+  });
+
+  it('constrains every mark to one fixed box so sizes look proportional', () => {
+    const css = html();
+    expect(css).toMatch(/\.vs-logo\s*\{[^}]*width:\s*22px[^}]*height:\s*22px/);
+    expect(css).toMatch(/\.vs-logo\s*\{[^}]*object-fit:\s*contain/);
+  });
+
+  it('does not cap the narrative narrower than the cards', () => {
+    expect(html()).not.toMatch(/\.vs-intro\s*\{[^}]*max-width/);
+  });
+});
