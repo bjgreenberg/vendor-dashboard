@@ -8,6 +8,24 @@
   // can silently rewrite records on a zone a live site depends on.
   "name": "vendor-dashboard",
   "main": "src/worker/index.js",
+
+  // Vendor logos, self-hosted. The directory mirrors the route prefix
+  // (public/service-status/icons -> /service-status/icons/*) because Workers
+  // static assets map URL path to file path directly.
+  //
+  // Self-hosted deliberately: hot-linking would mean ~41 third-party requests
+  // per page view, leaking every visitor's IP to 41 companies, and would force
+  // widening the CSP past `img-src 'self' data:`. Fetched once at build time by
+  // scripts/fetch-logos.mjs.
+  //
+  // run_worker_first is false (the default): a request matching an asset is
+  // served directly and never reaches the Worker; everything else falls
+  // through to fetch().
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  },
   "compatibility_date": "2026-07-01",
 
   // Served at briangreenberg.net/service-status* via a ROUTE (not a Custom

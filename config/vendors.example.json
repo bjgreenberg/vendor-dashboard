@@ -27,9 +27,7 @@
     "sourced from StatusGator, a third-party aggregator, which is no longer used.",
     "A monitored row with no real data source reports health it never verified.",
     "",
-    "ADOBE is NOT included, and the reason is a hard limit rather than a preference.",
     "status.adobe.com is a JS app; its real data lives at data.status.adobe.com",
-    "(SnowServiceRegistry 2.2MB, StatusEvents 5.5MB). Parsing those costs ~70ms of",
     "CPU, measured - against a Workers FREE-plan ceiling of 10ms for the ENTIRE",
     "collection run across all vendors. Adobe alone would exceed the budget 7x and",
     "kill the run for everyone else. It becomes viable on Workers Paid (30s CPU).",
@@ -53,43 +51,74 @@
     "JS app whose embedded __NEXT_DATA__ holds branding only. Live status comes from",
     "public-api.freshstatus.io/v1, which requires an account context that cannot be",
     "inferred without executing the page's JavaScript. No combination of subdomain,",
-    "account_id or referer headers returned 200."
+    "account_id or referer headers returned 200.",
+    "",
+    "ADOBE - investigated twice, still excluded. status.adobe.com is a JS shell; the",
+    "real data is data.status.adobe.com/adobestatus/{SnowServiceRegistry 2.2MB,",
+    "StatusEvents 5.5MB}. JSON.parse of those measured ~70ms of CPU against a",
+    "Workers FREE-plan ceiling of 10ms for the ENTIRE run.",
+    "",
+    "A lighter touch WAS attempted: regex-scanning the raw text for open products",
+    "costs 2.8ms instead of 17.4ms and matched a full parse exactly (74 hits). It was",
+    "REJECTED anyway, because the cheap signal is wrong. The marker it keys on",
+    "(\"endedOn\":0) does not mean 'currently affecting users' - every one of those 74",
+    "products has a latest history status of 'Closed', at severity Trivial (70) or",
+    "Minor (4). Shipping it would have reported 22 Adobe products degraded while",
+    "Adobe considers them resolved: a false RED, the mirror of findings H1/H6/H7.",
+    "",
+    "The authoritative signal is the newest entry of a timestamp-keyed history map",
+    "per product, which cannot be extracted without real parsing. Adobe therefore",
+    "needs Workers Paid (30s CPU per cron), not a cleverer scan.",
+    "",
+    "brandDomain is DECLARED per vendor, never derived from the status URL:",
+    "www.calendlystatus.com would yield 'calendlystatus.com' and",
+    "www.cloudflarestatus.com 'cloudflarestatus.com' - neither is the brand. It is",
+    "used only by scripts/fetch-logos.mjs, which downloads each vendor's own favicon",
+    "ONCE at build time. Logos are self-hosted deliberately: hot-linking would leak",
+    "every visitor's IP to 41 companies and force widening the CSP."
   ],
   "vendors": [
     {
       "name": "1Password",
       "type": "statuspage",
-      "url": "https://status.1password.com/api/v2/summary.json"
+      "url": "https://status.1password.com/api/v2/summary.json",
+      "brandDomain": "1password.com"
     },
     {
       "name": "Alteryx",
       "type": "statuspage",
-      "url": "https://status.alteryxcloud.com/api/v2/summary.json"
+      "url": "https://status.alteryxcloud.com/api/v2/summary.json",
+      "brandDomain": "alteryx.com"
     },
     {
       "name": "Anthropic",
       "type": "statuspage",
-      "url": "https://status.anthropic.com/api/v2/summary.json"
+      "url": "https://status.anthropic.com/api/v2/summary.json",
+      "brandDomain": "anthropic.com"
     },
     {
       "name": "Apple",
       "type": "apple",
-      "url": "https://www.apple.com/support/systemstatus/data/system_status_en_US.js"
+      "url": "https://www.apple.com/support/systemstatus/data/system_status_en_US.js",
+      "brandDomain": "apple.com"
     },
     {
       "name": "Calendly",
       "type": "statuspage",
-      "url": "https://www.calendlystatus.com/api/v2/summary.json"
+      "url": "https://www.calendlystatus.com/api/v2/summary.json",
+      "brandDomain": "calendly.com"
     },
     {
       "name": "Celigo",
       "type": "statuspage",
-      "url": "https://status.celigo.com/api/v2/summary.json"
+      "url": "https://status.celigo.com/api/v2/summary.json",
+      "brandDomain": "celigo.com"
     },
     {
       "name": "Centage",
       "type": "statuspage",
-      "url": "https://status.centage.com/api/v2/summary.json"
+      "url": "https://status.centage.com/api/v2/summary.json",
+      "brandDomain": "centage.com"
     },
     {
       "$comment": "Cloudflare publishes ~470 components, most of them edge PoPs. Routine re-routing in far-flung data centres is the redundancy WORKING, not an outage, so scope to the services group. Measured 2026-07-30: unscoped = 46 non-operational (false red); services only = 0.",
@@ -100,7 +129,8 @@
         "groups": [
           "Cloudflare Sites and Services"
         ]
-      }
+      },
+      "brandDomain": "cloudflare.com"
     },
     {
       "$comment": "Uses the JSON API the Concur Open React app calls. Scrapes of the HTML page return an empty JS shell (audit finding H7).",
@@ -110,110 +140,129 @@
       "bannerUrl": "https://open.concur.com/api/v3/banner",
       "dataCenters": [
         "US2"
-      ]
+      ],
+      "brandDomain": "concur.com"
     },
     {
       "name": "Couchdrop",
       "type": "statuspage",
-      "url": "https://couchdropstatus.statuspage.io/api/v2/summary.json"
+      "url": "https://couchdropstatus.statuspage.io/api/v2/summary.json",
+      "brandDomain": "couchdrop.io"
     },
     {
       "name": "Discord",
       "type": "statuspage",
-      "url": "https://discordstatus.com/api/v2/summary.json"
+      "url": "https://discordstatus.com/api/v2/summary.json",
+      "brandDomain": "discord.com"
     },
     {
       "$comment": "Services live at GROUP level; leaves are per-datacentre instances. MIGRATION WATCH: Docusign is moving to health.docusign.com (a Next.js app whose embedded state carries only locale strings - status is fetched client-side, so it is not parseable yet). status.docusign.com still returns 200 as of 2026-07-31. When the old endpoint is retired this row fails closed to unknown with a visible warning - it cannot rot to green the way findings H6 and H7 did - so switch it when health.docusign.com exposes a machine-readable feed.",
       "name": "Docusign",
       "type": "statuspage",
       "url": "https://status.docusign.com/api/v2/summary.json",
-      "componentLevel": "group"
+      "componentLevel": "group",
+      "brandDomain": "docusign.com"
     },
     {
       "name": "Dropbox",
       "type": "statuspage",
-      "url": "https://status.dropbox.com/api/v2/summary.json"
+      "url": "https://status.dropbox.com/api/v2/summary.json",
+      "brandDomain": "dropbox.com"
     },
     {
       "name": "GitHub",
       "type": "statuspage",
-      "url": "https://www.githubstatus.com/api/v2/summary.json"
+      "url": "https://www.githubstatus.com/api/v2/summary.json",
+      "brandDomain": "github.com"
     },
     {
       "$comment": "Google publishes its product catalogue separately from its incidents feed; componentsUrl supplies the list so every product can be shown, with open incidents marked.",
       "name": "Google",
       "type": "google",
       "url": "https://www.google.com/appsstatus/dashboard/incidents.json",
-      "componentsUrl": "https://www.google.com/appsstatus/dashboard/products.json"
+      "componentsUrl": "https://www.google.com/appsstatus/dashboard/products.json",
+      "brandDomain": "google.com"
     },
     {
       "name": "HubSpot",
       "type": "statuspage",
-      "url": "https://status.hubspot.com/api/v2/summary.json"
+      "url": "https://status.hubspot.com/api/v2/summary.json",
+      "brandDomain": "hubspot.com"
     },
     {
       "name": "Iorad",
       "type": "sorryapp",
-      "url": "https://status.iorad.com/api/v1/status.json"
+      "url": "https://status.iorad.com/api/v1/status.json",
+      "brandDomain": "iorad.com"
     },
     {
       "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
       "name": "Jamf",
       "type": "statuspage",
       "url": "https://status.jamf.com/api/v2/summary.json",
-      "componentLevel": "group"
+      "componentLevel": "group",
+      "brandDomain": "jamf.com"
     },
     {
       "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
       "name": "KnowBe4",
       "type": "statuspage",
       "url": "https://status.knowbe4.com/api/v2/summary.json",
-      "componentLevel": "group"
+      "componentLevel": "group",
+      "brandDomain": "knowbe4.com"
     },
     {
       "name": "LinkedIn",
       "type": "statuspage",
-      "url": "https://www.linkedin-status.com/api/v2/summary.json"
+      "url": "https://www.linkedin-status.com/api/v2/summary.json",
+      "brandDomain": "linkedin.com"
     },
     {
       "name": "Loopio",
       "type": "statuspage",
-      "url": "https://www.loopiostatus.com/api/v2/summary.json"
+      "url": "https://www.loopiostatus.com/api/v2/summary.json",
+      "brandDomain": "loopio.com"
     },
     {
       "name": "Lucid",
       "type": "statuspage",
-      "url": "https://status.lucid.co/api/v2/summary.json"
+      "url": "https://status.lucid.co/api/v2/summary.json",
+      "brandDomain": "lucid.co"
     },
     {
       "$comment": "metastatus.com is a JS app; data lives at /data/orgs.json, found in its bundle. Covers BUSINESS/DEVELOPER platforms only - Graph API, Marketing API, WhatsApp Business Platform - NOT consumer Facebook, Instagram or WhatsApp.",
       "name": "Meta",
       "type": "metastatus",
       "url": "https://metastatus.com/data/orgs.json",
-      "pageUrl": "https://metastatus.com"
+      "pageUrl": "https://metastatus.com",
+      "brandDomain": "meta.com"
     },
     {
       "$comment": "CONSUMER services only - Outlook.com, OneDrive, Phone Link, Teams Free. Exchange Online, SharePoint, Entra, Intune and Defender are NOT in this feed. The adapter labels the row accordingly and warns. Enterprise tenant health needs the authenticated Microsoft Graph Service Health API.",
       "name": "Microsoft",
       "type": "microsoft",
-      "url": "https://portal.office.com/api/servicestatus/index"
+      "url": "https://portal.office.com/api/servicestatus/index",
+      "brandDomain": "microsoft.com"
     },
     {
       "name": "Monday.com",
       "type": "statuspage",
-      "url": "https://status.monday.com/api/v2/summary.json"
+      "url": "https://status.monday.com/api/v2/summary.json",
+      "brandDomain": "monday.com"
     },
     {
       "name": "Navan",
       "type": "statuspage",
-      "url": "https://status.navan.com/api/v2/summary.json"
+      "url": "https://status.navan.com/api/v2/summary.json",
+      "brandDomain": "navan.com"
     },
     {
       "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
       "name": "NetSuite",
       "type": "statuspage",
       "url": "https://status.netsuite.com/api/v2/summary.json",
-      "componentLevel": "group"
+      "componentLevel": "group",
+      "brandDomain": "netsuite.com"
     },
     {
       "$comment": "Okta runs on Salesforce Experience Cloud with no public JSON API (summary.json, index.json, history.atom and history.rss all 401). The page embeds its incidents as JSON and the adapter parses that. The previous FeedBurner Atom source returned 200 but its newest entry was 456 days old - a feed that reports healthy forever is the same silent rot as findings H6 and H7.",
@@ -239,85 +288,99 @@
         "Realms and Partner Portal",
         "Okta for AI Agents",
         "Third Party"
-      ]
+      ],
+      "brandDomain": "okta.com"
     },
     {
       "name": "OpenAI",
       "type": "statuspage",
-      "url": "https://status.openai.com/api/v2/summary.json"
+      "url": "https://status.openai.com/api/v2/summary.json",
+      "brandDomain": "openai.com"
     },
     {
       "$comment": "Instatus splits page state and components across two endpoints; summary.json carries only page.status. componentsUrl is advisory - if it fails the page status still decides severity.",
       "name": "Perplexity",
       "type": "instatus",
       "url": "https://status.perplexity.com/summary.json",
-      "componentsUrl": "https://status.perplexity.com/api/v2/components.json"
+      "componentsUrl": "https://status.perplexity.com/api/v2/components.json",
+      "brandDomain": "perplexity.ai"
     },
     {
       "name": "Proton",
       "type": "statuspage",
-      "url": "https://status.proton.me/api/v2/summary.json"
+      "url": "https://status.proton.me/api/v2/summary.json",
+      "brandDomain": "proton.me"
     },
     {
       "name": "Qualtrics",
       "type": "statuspage",
-      "url": "https://status.qualtrics.com/api/v2/summary.json"
+      "url": "https://status.qualtrics.com/api/v2/summary.json",
+      "brandDomain": "qualtrics.com"
     },
     {
       "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
       "name": "QuantumWorkplace",
       "type": "statuspage",
       "url": "https://status.quantumworkplace.com/api/v2/summary.json",
-      "componentLevel": "group"
+      "componentLevel": "group",
+      "brandDomain": "quantumworkplace.com"
     },
     {
       "$comment": "Seismic publishes 54 region names and no groups - infrastructure with no service breakdown. componentLevel none suppresses the list rather than showing data centres as though they were services.",
       "name": "Seismic",
       "type": "statuspage",
       "url": "https://status.seismic.com/api/v2/summary.json",
-      "componentLevel": "none"
+      "componentLevel": "none",
+      "brandDomain": "seismic.com"
     },
     {
       "name": "SendGrid",
       "type": "statuspage",
-      "url": "https://status.sendgrid.com/api/v2/summary.json"
+      "url": "https://status.sendgrid.com/api/v2/summary.json",
+      "brandDomain": "sendgrid.com"
     },
     {
       "$comment": "status.signal.org is a ~650-byte static page whose entire content is one sentence. The adapter matches that sentence and fails closed on anything else.",
       "name": "Signal",
       "type": "signal",
       "url": "https://status.signal.org/",
-      "pageUrl": "https://status.signal.org"
+      "pageUrl": "https://status.signal.org",
+      "brandDomain": "signal.org"
     },
     {
       "$comment": "Stormboard migrated from Statuspage to Better Stack; the old summary.json now returns HTML (audit finding H6).",
       "name": "Stormboard",
       "type": "betterstack",
       "url": "https://status.stormboard.com/",
-      "pageUrl": "https://status.stormboard.com"
+      "pageUrl": "https://status.stormboard.com",
+      "brandDomain": "stormboard.com"
     },
     {
       "$comment": "Salesforce publishes Tableau as per-region instances with no sub-service breakdown; instances drive severity but are not listed as components.",
       "name": "Tableau",
       "type": "salesforce",
-      "url": "https://api.status.salesforce.com/v1/products/Tableau"
+      "url": "https://api.status.salesforce.com/v1/products/Tableau",
+      "brandDomain": "tableau.com"
     },
     {
       "name": "Tailscale",
       "type": "statuspage",
-      "url": "https://status.tailscale.com/api/v2/summary.json"
+      "url": "https://status.tailscale.com/api/v2/summary.json",
+      "brandDomain": "tailscale.com"
     },
     {
       "name": "Zapier",
       "type": "statuspage",
-      "url": "https://status.zapier.com/api/v2/summary.json"
+      "url": "https://status.zapier.com/api/v2/summary.json",
+      "brandDomain": "zapier.com"
     },
     {
       "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
       "name": "Zoom",
       "type": "statuspage",
       "url": "https://status.zoom.us/api/v2/summary.json",
-      "componentLevel": "group"
+      "componentLevel": "group",
+      "brandDomain": "zoom.us"
     }
   ]
 }

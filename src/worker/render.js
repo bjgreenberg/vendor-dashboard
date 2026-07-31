@@ -23,6 +23,19 @@
  * trade-off is drift: if the site's chrome changes, update it here too.
  */
 
+import LOGOS from '../../config/logos.json';
+
+/** Where self-hosted vendor marks are served from (Workers static assets). */
+const ICON_BASE = '/service-status/icons';
+
+/**
+ * Slug used for both the logo filename and lookup.
+ * @param {string} name
+ */
+export function logoSlug(name) {
+  return String(name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 /** The only host permitted to be indexed. */
 export const CANONICAL_HOST = 'briangreenberg.net';
 
@@ -367,6 +380,14 @@ function renderRow(record) {
 
   const href = safeUrl(record.sourceUrl);
   const name = esc(record.service || record.vendor);
+
+  // Emit a mark only when one actually exists. Three vendors bot-block the
+  // build-time fetch (NetSuite, OpenAI, Tableau), so absence is normal and must
+  // degrade to the status dot rather than a broken image.
+  const file = LOGOS[logoSlug(record.vendor)];
+  const logo = file
+    ? `<img class="vs-logo" src="${esc(ICON_BASE)}/${esc(file)}" alt="" width="20" height="20" loading="lazy" decoding="async">`
+    : '';
   const nameHtml = href
     ? `<a class="vs-name" href="${esc(href)}" rel="noopener nofollow" target="_blank">${name}<span class="vs-ext" aria-hidden="true">↗</span><span class="sr-only"> — opens ${esc(hostOf(href))} in a new tab</span></a>`
     : `<span class="vs-name">${name}</span>`;
@@ -393,6 +414,7 @@ function renderRow(record) {
   return `<article class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}">
   <div class="vs-head">
     <span class="vs-dot vs-dot--${esc(p.tone)}" aria-hidden="true">${esc(p.symbol)}</span>
+    ${logo}
     <h2>${nameHtml}</h2>
     <span class="vs-badge vs-badge--${esc(p.tone)}">${esc(p.label)}</span>
   </div>
@@ -478,6 +500,9 @@ const STYLES = `
 
 .vs-head { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .vs-head h2 { font-size: 1.05rem; margin: 0; flex: 1 1 auto; }
+/* Decorative: alt="" because the vendor name sits right beside it. Fixed box so
+   a missing mark cannot shift the row, and mixed source shapes line up. */
+.vs-logo { width: 20px; height: 20px; object-fit: contain; flex: 0 0 auto; }
 .vs-ext { font-size: .75em; opacity: .6; margin-left: .25em; }
 
 .vs-dot { line-height: 1; }
