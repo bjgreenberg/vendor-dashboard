@@ -186,6 +186,13 @@
       "url": "https://status.lucid.co/api/v2/summary.json"
     },
     {
+      "$comment": "metastatus.com is a JS app; data lives at /data/orgs.json, found in its bundle. Covers BUSINESS/DEVELOPER platforms only - Graph API, Marketing API, WhatsApp Business Platform - NOT consumer Facebook, Instagram or WhatsApp.",
+      "name": "Meta",
+      "type": "metastatus",
+      "url": "https://metastatus.com/data/orgs.json",
+      "pageUrl": "https://metastatus.com"
+    },
+    {
       "$comment": "CONSUMER services only - Outlook.com, OneDrive, Phone Link, Teams Free. Exchange Online, SharePoint, Entra, Intune and Defender are NOT in this feed. The adapter labels the row accordingly and warns. Enterprise tenant health needs the authenticated Microsoft Graph Service Health API.",
       "name": "Microsoft",
       "type": "microsoft",
@@ -274,6 +281,13 @@
       "name": "SendGrid",
       "type": "statuspage",
       "url": "https://status.sendgrid.com/api/v2/summary.json"
+    },
+    {
+      "$comment": "status.signal.org is a ~650-byte static page whose entire content is one sentence. The adapter matches that sentence and fails closed on anything else.",
+      "name": "Signal",
+      "type": "signal",
+      "url": "https://status.signal.org/",
+      "pageUrl": "https://status.signal.org"
     },
     {
       "$comment": "Stormboard migrated from Statuspage to Better Stack; the old summary.json now returns HTML (audit finding H6).",
