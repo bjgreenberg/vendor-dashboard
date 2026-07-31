@@ -59,6 +59,14 @@ export async function writeRun(db, run) {
     //
     // Runs last in the batch, so it sees this run's inserts. D1 executes a
     // batch sequentially inside one transaction.
+    //
+    // `WHERE true` is REQUIRED, not decorative. SQLite cannot parse
+    // `INSERT ... SELECT ... ON CONFLICT` without a WHERE clause on the SELECT
+    // -- the parser cannot tell the upsert clause from a join constraint, and
+    // fails with `near "DO": syntax error`. Shipped without it on 2026-07-31
+    // and every cron threw for 25 minutes; the unit test missed it because a
+    // mock `batch()` never executes SQL. See test/worker/storage.test.js, which
+    // now asserts against real SQLite.
     db
       .prepare(
         `INSERT INTO run_meta (id, checked_at, total, impacted, unknown, warnings)
@@ -68,6 +76,7 @@ export async function writeRun(db, run) {
                 SUM(CASE WHEN severity = 'unknown' THEN 1 ELSE 0 END),
                 ?
            FROM snapshot
+          WHERE true
          ON CONFLICT(id) DO UPDATE SET
            checked_at = excluded.checked_at,
            total      = excluded.total,
