@@ -55,13 +55,37 @@
     },
 
     { "name": "Couchdrop", "type": "statuspage", "url": "https://couchdropstatus.statuspage.io/api/v2/summary.json" },
-    { "name": "Docusign", "type": "statuspage", "url": "https://status.docusign.com/api/v2/summary.json" },
+    {
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "name": "Docusign",
+      "type": "statuspage",
+      "url": "https://status.docusign.com/api/v2/summary.json",
+      "componentLevel": "group"
+    },
     { "name": "GitHub", "type": "statuspage", "url": "https://www.githubstatus.com/api/v2/summary.json" },
-    { "name": "Google", "type": "google", "url": "https://www.google.com/appsstatus/dashboard/incidents.json" },
+    {
+      "$comment": "Google publishes its product catalogue separately from its incidents feed; componentsUrl supplies the list so every product can be shown, with open incidents marked.",
+      "name": "Google",
+      "type": "google",
+      "url": "https://www.google.com/appsstatus/dashboard/incidents.json",
+      "componentsUrl": "https://www.google.com/appsstatus/dashboard/products.json"
+    },
     { "name": "HubSpot", "type": "statuspage", "url": "https://status.hubspot.com/api/v2/summary.json" },
     { "name": "Iorad", "type": "sorryapp", "url": "https://status.iorad.com/api/v1/status.json" },
-    { "name": "Jamf", "type": "statuspage", "url": "https://status.jamf.com/api/v2/summary.json" },
-    { "name": "KnowBe4", "type": "statuspage", "url": "https://status.knowbe4.com/api/v2/summary.json" },
+    {
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "name": "Jamf",
+      "type": "statuspage",
+      "url": "https://status.jamf.com/api/v2/summary.json",
+      "componentLevel": "group"
+    },
+    {
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "name": "KnowBe4",
+      "type": "statuspage",
+      "url": "https://status.knowbe4.com/api/v2/summary.json",
+      "componentLevel": "group"
+    },
     { "name": "Loopio", "type": "statuspage", "url": "https://www.loopiostatus.com/api/v2/summary.json" },
     { "name": "Lucid", "type": "statuspage", "url": "https://status.lucid.co/api/v2/summary.json" },
 
@@ -74,7 +98,13 @@
 
     { "name": "Monday.com", "type": "statuspage", "url": "https://status.monday.com/api/v2/summary.json" },
     { "name": "Navan", "type": "statuspage", "url": "https://status.navan.com/api/v2/summary.json" },
-    { "name": "NetSuite", "type": "statuspage", "url": "https://status.netsuite.com/api/v2/summary.json" },
+    {
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "name": "NetSuite",
+      "type": "statuspage",
+      "url": "https://status.netsuite.com/api/v2/summary.json",
+      "componentLevel": "group"
+    },
 
     {
       "$comment": "Okta runs on Salesforce Experience Cloud with no public JSON API (summary.json, index.json, history.atom and history.rss all 401). The page embeds its incidents as JSON and the adapter parses that. The previous FeedBurner Atom source returned 200 but its newest entry was 456 days old - a feed that reports healthy forever is the same silent rot as findings H6 and H7.",
@@ -93,7 +123,13 @@
       "componentsUrl": "https://status.perplexity.com/api/v2/components.json"
     },
     { "name": "Qualtrics", "type": "statuspage", "url": "https://status.qualtrics.com/api/v2/summary.json" },
-    { "name": "QuantumWorkplace", "type": "statuspage", "url": "https://status.quantumworkplace.com/api/v2/summary.json" },
+    {
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "name": "QuantumWorkplace",
+      "type": "statuspage",
+      "url": "https://status.quantumworkplace.com/api/v2/summary.json",
+      "componentLevel": "group"
+    },
     { "name": "Seismic", "type": "statuspage", "url": "https://status.seismic.com/api/v2/summary.json" },
     { "name": "SendGrid", "type": "statuspage", "url": "https://status.sendgrid.com/api/v2/summary.json" },
 
@@ -107,6 +143,12 @@
 
     { "name": "Tableau", "type": "salesforce", "url": "https://api.status.salesforce.com/v1/products/Tableau" },
     { "name": "Zapier", "type": "statuspage", "url": "https://status.zapier.com/api/v2/summary.json" },
-    { "name": "Zoom", "type": "statuspage", "url": "https://status.zoom.us/api/v2/summary.json" }
+    {
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "name": "Zoom",
+      "type": "statuspage",
+      "url": "https://status.zoom.us/api/v2/summary.json",
+      "componentLevel": "group"
+    }
   ]
 }

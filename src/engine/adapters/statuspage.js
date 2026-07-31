@@ -8,8 +8,30 @@
  * Resolves audit findings M1, M2, H3, H4 and L4.
  */
 
-import { SEVERITY, normalizeSeverity, worst } from '../severity.js';
+import { SEVERITY, normalizeSeverity, worst, rank } from '../severity.js';
 import { selectComponents } from '../scope.js';
+
+/**
+ * Collapse components that share a name, keeping the WORST status.
+ *
+ * Several vendors publish the same service once per region — 1Password lists
+ * "1Password.com website" under USA/Global, Canada and Europe; Monday.com lists
+ * "Platform" under US, EU and AUS. A reader wants one row per service, and if
+ * it is broken anywhere that row must say so. Taking the healthiest would
+ * manufacture exactly the false green this project exists to eliminate.
+ *
+ * Harmless when names are already unique.
+ *
+ * @param {{name: string, severity: any, description?: string}[]} components
+ */
+function dedupeByName(components) {
+  const byName = new Map();
+  for (const c of components) {
+    const existing = byName.get(c.name);
+    if (!existing || rank(c.severity) > rank(existing.severity)) byName.set(c.name, c);
+  }
+  return [...byName.values()];
+}
 
 /**
  * @typedef {import('../severity.js').Severity} Severity
@@ -82,12 +104,23 @@ function indicatorSeverity(payload) {
  * @param {string} options.vendor
  * @param {string} [options.service]
  * @param {import('../scope.js').Scope} [options.scope]
+ * @param {'group'|'component'} [options.componentLevel] where this vendor puts
+ *   its SERVICES. Default 'component' (leaves). Use 'group' for vendors whose
+ *   groups are products and whose leaves are data centres — NetSuite publishes
+ *   9 products across 275 leaves that are just "US Ashburn 1" repeated.
  * @param {string} [options.sourceUrl]
  * @param {() => Date} [options.now] injected clock for deterministic tests
  * @returns {StatusRecord}
  */
 export function parseStatuspage(payload, options) {
-  const { vendor, service, scope, sourceUrl, now = () => new Date() } = options ?? {};
+  const {
+    vendor,
+    service,
+    scope,
+    componentLevel = 'component',
+    sourceUrl,
+    now = () => new Date(),
+  } = options ?? {};
   const checkedAt = now().toISOString();
   const warnings = [];
 
@@ -111,7 +144,16 @@ export function parseStatuspage(payload, options) {
     };
   }
 
-  const { selected, scoped, warnings: scopeWarnings } = selectComponents(payload, scope);
+  // When a vendor's services live at group level, read the groups' own
+  // published statuses instead of their per-region children.
+  const groups = Array.isArray(payload?.components)
+    ? payload.components.filter((c) => c.group)
+    : [];
+  const useGroups = componentLevel === 'group' && groups.length > 0;
+
+  const { selected, scoped, warnings: scopeWarnings } = useGroups
+    ? { selected: groups, scoped: true, warnings: [] }
+    : selectComponents(payload, scope);
   warnings.push(...scopeWarnings);
 
   const componentSeverities = selected.map((c) => normalizeSeverity(c.status));
@@ -158,10 +200,9 @@ export function parseStatuspage(payload, options) {
   // Children are always returned in full, healthy ones included. rollup.js
   // decides which are worth showing; hiding them here would throw away data the
   // dashboard needs the moment something breaks.
-  const components = selected.map((c) => ({
-    name: c.name,
-    severity: normalizeSeverity(c.status),
-  }));
+  const components = dedupeByName(
+    selected.map((c) => ({ name: c.name, severity: normalizeSeverity(c.status) })),
+  );
 
   return { ...base, severity, incidentName, description, components, warnings };
 }

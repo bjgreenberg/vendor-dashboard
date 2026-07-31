@@ -165,6 +165,7 @@ async function collectOne(vendor, ctx) {
   const opts = {
     vendor: name,
     scope: vendor?.scope,
+    componentLevel: vendor?.componentLevel,
     dataCenters: vendor?.dataCenters,
     sourceUrl: vendor?.pageUrl ?? vendor?.url,
     now,
@@ -195,6 +196,18 @@ async function collectOne(vendor, ctx) {
     // Instatus splits page state and components across two endpoints; merge
     // them when a componentsUrl is configured. Advisory, like Concur's banner:
     // if it fails, the page-level status still stands.
+    // Google publishes its product catalogue separately from its incidents feed.
+    if (vendor.type === 'google' && vendor.componentsUrl) {
+      try {
+        const res = await fetchFn(vendor.componentsUrl, {
+          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+        });
+        opts.products = JSON.parse(await res.text());
+      } catch {
+        /* catalogue is advisory; incidents still decide severity */
+      }
+    }
+
     if (vendor.type === 'instatus' && vendor.componentsUrl) {
       try {
         const res = await fetchFn(vendor.componentsUrl, {

@@ -7,7 +7,7 @@
  * per-product children are derived from the open incidents themselves.
  */
 
-import { SEVERITY } from '../severity.js';
+import { SEVERITY, worst as worstOf } from '../severity.js';
 import { makeRecord, unknownRecord, toPlainText } from '../record.js';
 
 const SOURCE_URL = 'https://www.google.com/appsstatus/dashboard';
@@ -39,11 +39,14 @@ function severityOf(incident) {
 
 /**
  * @param {any} payload parsed incidents.json (array)
- * @param {{vendor: string, now?: () => Date}} options
+ * @param {{vendor: string, products?: any, now?: () => Date}} options
+ *   `products` is the optional catalogue from products.json. Google publishes
+ *   its product list separately from its incidents feed, so without it the row
+ *   has nothing to expand.
  * @returns {import('../record.js').StatusRecord}
  */
 export function parseGoogle(payload, options) {
-  const { vendor, now } = options ?? {};
+  const { vendor, products, now } = options ?? {};
   const incidents = Array.isArray(payload) ? payload : payload?.incidents;
   if (!Array.isArray(incidents)) {
     return unknownRecord(vendor, 'payload was not an incident array', { now, sourceUrl: SOURCE_URL });
@@ -66,7 +69,20 @@ export function parseGoogle(payload, options) {
       });
     }
   }
-  const components = [...byService.values()];
+  // With the catalogue, list EVERY product and mark the affected ones. Without
+  // it, fall back to the products named by open incidents.
+  const catalogue = Array.isArray(products?.products) ? products.products : null;
+  const components = catalogue
+    ? catalogue.map((p) => {
+        const title = String(p?.title ?? 'Unknown product');
+        const hit = byService.get(title);
+        return {
+          name: title,
+          severity: hit ? hit.severity : SEVERITY.OPERATIONAL,
+          description: hit ? hit.description : '',
+        };
+      })
+    : [...byService.values()];
 
   if (open.length === 0) {
     return makeRecord({
@@ -74,6 +90,7 @@ export function parseGoogle(payload, options) {
       severity: SEVERITY.OPERATIONAL,
       description: 'All services normal.',
       sourceUrl: SOURCE_URL,
+      components,
       now,
     });
   }
@@ -81,10 +98,7 @@ export function parseGoogle(payload, options) {
   const primary = open[0];
   return makeRecord({
     vendor,
-    severity: components.reduce(
-      (acc, c) => (acc === SEVERITY.MAJOR_OUTAGE ? acc : c.severity),
-      components[0]?.severity ?? SEVERITY.DEGRADED,
-    ),
+    severity: worstOf([...byService.values()].map((c) => c.severity)),
     incidentName: toPlainText(primary?.external_desc ?? '') || 'Service incident',
     description:
       toPlainText(primary?.most_recent_update?.text ?? primary?.external_desc ?? '') ||
