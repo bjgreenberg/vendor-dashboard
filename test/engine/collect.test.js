@@ -312,3 +312,44 @@ describe('collect — optional secondary fetches', () => {
     expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
   });
 });
+
+// Microsoft publishes the same payload at two addresses whose failures are only
+// partly correlated: measured over six rounds each failed ~half the time, but
+// both failed together only twice.
+describe('collect — fallback URLs', () => {
+  const GH = readFileSync(new URL('../fixtures/GitHub.json', import.meta.url), 'utf8');
+
+  it('falls back to the second URL when the first exhausts its retries', async () => {
+    const seen = [];
+    const fetchFn = async (url) => {
+      seen.push(url);
+      if (url === 'https://primary') return { ok: false, status: 404, text: async () => '' };
+      return { ok: true, status: 200, text: async () => GH };
+    };
+    const res = await collect(
+      cfg([{ name: 'V', type: 'statuspage', url: 'https://primary', fallbackUrls: ['https://backup'] }]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+    expect(seen).toContain('https://backup');
+  });
+
+  it('does not touch the fallback when the primary succeeds', async () => {
+    const seen = [];
+    const fetchFn = async (url) => { seen.push(url); return { ok: true, status: 200, text: async () => GH }; };
+    await collect(
+      cfg([{ name: 'V', type: 'statuspage', url: 'https://primary', fallbackUrls: ['https://backup'] }]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(seen).toEqual(['https://primary']);
+  });
+
+  it('still yields UNKNOWN when every URL fails', async () => {
+    const fetchFn = async () => ({ ok: false, status: 404, text: async () => '' });
+    const res = await collect(
+      cfg([{ name: 'V', type: 'statuspage', url: 'https://a', fallbackUrls: ['https://b'] }]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
+  });
+});
