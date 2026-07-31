@@ -106,6 +106,30 @@ const MAX_ATTEMPTS = 3;
  * mid-flight. The shared budget makes the worst case arithmetic rather than
  * hopeful.
  *
+ * Callers may pass several URLs. Each is tried in turn with the full retry
+ * policy before moving on, which matters when a vendor publishes the same feed
+ * at more than one address with PARTLY INDEPENDENT availability. Microsoft is
+ * the case in point: measured over six rounds, portal.office.com and
+ * admin.microsoft.com each failed roughly half the time, but both failed
+ * together only twice — so falling back converts a coin flip into a good bet.
+ *
+ * @param {string[]} urls primary first, then fallbacks
+ * @param {object} ctx
+ * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string}>}
+ */
+async function fetchWithFallback(urls, ctx) {
+  let lastReason = 'fetch failed';
+  for (const url of urls) {
+    const attempt = await fetchWithRetry(url, ctx);
+    if (attempt.ok) return attempt;
+    lastReason = attempt.reason;
+    // Only spend a fallback if the budget still allows it.
+    if (ctx.budget.remaining <= 0) break;
+  }
+  return { ok: false, reason: lastReason };
+}
+
+/**
  * @param {string} url
  * @param {object} ctx
  * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string}>}
@@ -182,7 +206,8 @@ async function collectOne(vendor, ctx) {
     return unknownRecord(name, `no adapter registered for type "${vendor?.type}"`, opts);
   }
 
-  const attempt = await fetchWithRetry(vendor.url, ctx);
+  const urls = [vendor.url, ...(Array.isArray(vendor.fallbackUrls) ? vendor.fallbackUrls : [])];
+  const attempt = await fetchWithFallback(urls, ctx);
   if (!attempt.ok) {
     return unknownRecord(name, attempt.reason, opts);
   }
