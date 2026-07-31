@@ -79,12 +79,21 @@ export function selectShard(vendors, index, count = SHARD_COUNT) {
  * across restarts, redeploys and missed crons — there is no counter to drift.
  * With a 5-minute cron and 3 shards this cycles 0,1,2 every 15 minutes.
  *
+ * Counted from the EPOCH, not from midnight. A time-of-day slot number resets
+ * every 24 h, and the rotation only survives that reset when the slots-per-day
+ * divides evenly by `count`: at 5-minute intervals there are 288 slots, and
+ * 288 % 3 === 0, so three shards happen to be safe. Five or seven are not —
+ * one shard would be skipped at every midnight, roughly 0.3% of its runs,
+ * which is exactly the kind of drip-failure nobody attributes to the clock.
+ * Since `subrequest_headroom_low` explicitly advises raising SHARD_COUNT, that
+ * trap had to be removed rather than documented.
+ *
  * @param {Date} at
  * @param {number} [count]
  * @param {number} [everyMinutes] cron interval
  * @returns {number}
  */
 export function shardDueAt(at, count = SHARD_COUNT, everyMinutes = 5) {
-  const slot = Math.floor((at.getUTCHours() * 60 + at.getUTCMinutes()) / everyMinutes);
-  return slot % count;
+  const slot = Math.floor(at.getTime() / (everyMinutes * 60_000));
+  return ((slot % count) + count) % count; // normalise for pre-epoch dates
 }

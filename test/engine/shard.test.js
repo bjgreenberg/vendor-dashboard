@@ -26,14 +26,53 @@ describe('sharding', () => {
 
   it('rotates through every shard once per 15 minutes on a 5-minute cron', () => {
     const at = (h, m) => new Date(Date.UTC(2026, 6, 31, h, m));
-    expect([0, 5, 10, 15, 20, 25].map((m) => shardDueAt(at(12, m), 3, 5))).toEqual([
-      0, 1, 2, 0, 1, 2,
-    ]);
+    // Absolute phase depends on the epoch, so assert the SEQUENCE advances by
+    // one each slot rather than pinning which shard is first.
+    const seq = [0, 5, 10, 15, 20, 25].map((m) => shardDueAt(at(12, m), 3, 5));
+    for (let i = 1; i < seq.length; i += 1) expect(seq[i]).toBe((seq[i - 1] + 1) % 3);
     // A full hour must hit each shard the same number of times, or some vendors
     // would be refreshed more often than others forever.
     const counts = [0, 0, 0];
     for (let m = 0; m < 60; m += 5) counts[shardDueAt(at(9, m), 3, 5)] += 1;
     expect(counts).toEqual([4, 4, 4]);
+  });
+
+  it('rotates continuously ACROSS an hour boundary', () => {
+    // Found by mutation testing: replacing `getUTCHours() * 60` with
+    // `getUTCHours() / 60` SURVIVED the suite, because every rotation test used
+    // a single fixed hour. In production that mutant scrambles the sequence at
+    // every hour boundary, so some shards would be skipped for long stretches
+    // -- silent starvation, with each individual run still succeeding.
+    const at = (h, m) => new Date(Date.UTC(2026, 6, 31, h, m));
+    const slots = [
+      at(9, 45), at(9, 50), at(9, 55),
+      at(10, 0), at(10, 5), at(10, 10),
+    ].map((d) => shardDueAt(d, 3, 5));
+
+    // Consecutive 5-minute slots must advance by exactly one shard, wrapping.
+    for (let i = 1; i < slots.length; i += 1) {
+      expect(slots[i]).toBe((slots[i - 1] + 1) % 3);
+    }
+  });
+
+  it('rotates continuously across a full day for ANY shard count', () => {
+    // The count matters. With 3 shards and a 5-minute cron there are 12 slots
+    // per hour and 12 % 3 === 0, so a bug that restarts the slot counter every
+    // hour still lands on the right shard -- it is an EQUIVALENT mutant at the
+    // production settings, and no amount of 3-shard testing can catch it.
+    //
+    // A count that does NOT divide the slots per hour exposes it: with 5
+    // shards, 12 % 5 !== 0, so an hourly reset desynchronises immediately.
+    // Verified by re-running the mutant: it survives at count=3 and dies here.
+    const start = Date.UTC(2026, 6, 31, 0, 0);
+    for (const count of [3, 5, 7]) {
+      let prev = shardDueAt(new Date(start), count, 5);
+      for (let m = 5; m <= 24 * 60; m += 5) {
+        const cur = shardDueAt(new Date(start + m * 60_000), count, 5);
+        expect(cur, `count=${count} desynchronised at minute ${m}`).toBe((prev + 1) % count);
+        prev = cur;
+      }
+    }
   });
 
   it('keeps a vendor in its shard when neighbours are added or removed', () => {
