@@ -445,6 +445,7 @@ const STYLES = `
 }
 :root[data-theme="dark"] .vs-headline { color: #52c47a; }
 :root[data-theme="dark"] .vs-headline.headline--impacted { color: #ff6b61; }
+:root[data-theme="dark"] .vs-headline.headline--unknown { color: #a3adba; }
 
 .vs-meta, .vs-hint, .vs-note { font-size: .875rem; opacity: .75; margin: .25rem 0; }
 .vs-stale {
@@ -483,11 +484,50 @@ const STYLES = `
 .vs-dot--ok { color: #1f7a3d; } .vs-dot--minor { color: #8a5a00; }
 .vs-dot--major { color: #b3480f; } .vs-dot--critical { color: #b3261e; }
 .vs-dot--maintenance { color: #2c5aa0; } .vs-dot--unknown { color: #6b7280; }
+/* Dark-mode status colours.
+   Measured against the site's dark background (#16191D) for WCAG 2.2 AA. The
+   badge text is 0.78rem, i.e. NORMAL text, so 4.5:1 is required - the 3:1
+   large-text allowance does not apply.
+
+   The light-mode values for maintenance (#2c5aa0, 2.58:1) and unknown
+   (#6b7280, 3.65:1) both FAILED here; they were missing from this block, so
+   they leaked through from light mode. The unknown state is not hypothetical:
+   it shows whenever a vendor check fails, and this page defaults to dark.
+
+   NOTE: no backticks in this comment - it lives inside a JS template literal,
+   and a stray backtick terminates it. That exact mistake broke the build here.
+
+   ok 8.01  critical 6.32  major 7.09  minor 8.07  maintenance 7.23  unknown 7.76 */
+:root[data-theme="dark"] .vs-dot--ok,
+:root[data-theme="dark"] .vs-badge--ok { color: #52c47a; }
+:root[data-theme="dark"] .vs-dot--critical,
+:root[data-theme="dark"] .vs-badge--critical { color: #ff6b61; }
+:root[data-theme="dark"] .vs-dot--major,
+:root[data-theme="dark"] .vs-badge--major { color: #f08a4b; }
+:root[data-theme="dark"] .vs-dot--minor,
+:root[data-theme="dark"] .vs-badge--minor,
+:root[data-theme="dark"] .vs-warn,
+:root[data-theme="dark"] .vs-stale { color: #e0a53a; }
+:root[data-theme="dark"] .vs-dot--maintenance,
+:root[data-theme="dark"] .vs-badge--maintenance { color: #7aa7f0; }
+:root[data-theme="dark"] .vs-dot--unknown,
+:root[data-theme="dark"] .vs-badge--unknown { color: #a3adba; }
+
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .vs-dot--ok { color: #52c47a; }
-  :root:not([data-theme="light"]) .vs-dot--critical { color: #ff6b61; }
-  :root:not([data-theme="light"]) .vs-dot--major { color: #f08a4b; }
-  :root:not([data-theme="light"]) .vs-dot--minor { color: #e0a53a; }
+  :root:not([data-theme="light"]) .vs-dot--ok,
+  :root:not([data-theme="light"]) .vs-badge--ok { color: #52c47a; }
+  :root:not([data-theme="light"]) .vs-dot--critical,
+  :root:not([data-theme="light"]) .vs-badge--critical { color: #ff6b61; }
+  :root:not([data-theme="light"]) .vs-dot--major,
+  :root:not([data-theme="light"]) .vs-badge--major { color: #f08a4b; }
+  :root:not([data-theme="light"]) .vs-dot--minor,
+  :root:not([data-theme="light"]) .vs-badge--minor,
+  :root:not([data-theme="light"]) .vs-warn,
+  :root:not([data-theme="light"]) .vs-stale { color: #e0a53a; }
+  :root:not([data-theme="light"]) .vs-dot--maintenance,
+  :root:not([data-theme="light"]) .vs-badge--maintenance { color: #7aa7f0; }
+  :root:not([data-theme="light"]) .vs-dot--unknown,
+  :root:not([data-theme="light"]) .vs-badge--unknown { color: #a3adba; }
 }
 
 .vs-badge {
