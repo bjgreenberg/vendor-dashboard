@@ -25,6 +25,9 @@
 
 import LOGOS from '../../config/logos.json';
 
+const SHARE_URL = 'https://briangreenberg.net/service-status';
+const SHARE_TITLE = 'Service Status';
+
 /** Where self-hosted vendor marks are served from (Workers static assets). */
 const ICON_BASE = '/service-status/icons';
 
@@ -197,6 +200,14 @@ export function renderDashboard({
     ? `<p class="vs-meta">Last checked <time id="vs-checked" datetime="${esc(meta.checked_at)}">${esc(formatChicago(meta.checked_at))}</time>. Updates every 15 minutes.</p>`
     : `<p class="vs-meta">No collection has run yet. Updates every 15 minutes.</p>`;
 
+  // Social description reflects the LIVE board, so a share during an incident
+  // says so instead of claiming everything is fine.
+  const ogDescription = empty
+    ? 'Live status for cloud and SaaS services, read from each vendor\u2019s own status page.'
+    : `${records.length} cloud and SaaS services, checked every 15 minutes. ${
+        impacted > 0 ? `${impacted} currently impacted.` : 'All operational.'
+      } Read from each vendor\u2019s own status page.`;
+
   const rows = records.map((r) => renderRow(r)).join('\n');
 
   return `<!doctype html>
@@ -208,6 +219,24 @@ export function renderDashboard({
 <meta name="description" content="Live operational status for ${esc(records.length)} cloud and SaaS services, refreshed every 15 minutes from each vendor's own public status endpoint.">
 <meta name="robots" content="${indexable ? 'index, follow' : 'noindex, nofollow'}">
 <link rel="canonical" href="https://briangreenberg.net/service-status">
+
+<!-- Social / GEO. The site's own pages get these from Eleventy; this page is a
+     separate Worker, so they are emitted here. Absolute URLs are required:
+     scrapers do not resolve relative og:image. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Brian Greenberg">
+<meta property="og:url" content="https://briangreenberg.net/service-status">
+<meta property="og:title" content="Service Status">
+<meta property="og:description" content="${esc(ogDescription)}">
+<meta property="og:image" content="https://briangreenberg.net/service-status/card.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Service Status — live status for cloud and SaaS services, from briangreenberg.net">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Service Status">
+<meta name="twitter:description" content="${esc(ogDescription)}">
+<meta name="twitter:image" content="https://briangreenberg.net/service-status/card.jpg">
+<meta name="twitter:image:alt" content="Service Status — live status for cloud and SaaS services, from briangreenberg.net">
 <link rel="icon" href="/assets/img/favicon.png" type="image/png">
 <link rel="stylesheet" href="/assets/site.css">
 <script${nonce ? ` nonce="${esc(nonce)}"` : ''}>
@@ -262,6 +291,19 @@ export function renderDashboard({
     that vendor&rsquo;s own status page, which you can open from any row.</p>
     <p>If a check fails, the service is marked <strong>Unknown</strong> rather
     than green. A check that didn&rsquo;t happen isn&rsquo;t good news.</p>
+  </div>
+
+  <!-- Share bar: plain intent links only, zero third-party JS or SDKs, matching
+       the site's privacy posture (src/_includes/share.njk). Native Web Share
+       covers anything not listed; Copy link covers the rest. -->
+  <div class="share-bar vs-share" data-url="${esc(SHARE_URL)}" data-title="${esc(SHARE_TITLE)}">
+    <span class="share-label">Share</span>
+    <a class="pill" rel="noopener" target="_blank" href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/linkedin.com.png">LinkedIn</a>
+    <a class="pill" rel="noopener" target="_blank" href="https://bsky.app/intent/compose?text=${encodeURIComponent(SHARE_TITLE + ' ' + SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/bsky.app.png">Bluesky</a>
+    <a class="pill" rel="noopener" target="_blank" href="https://x.com/intent/tweet?url=${encodeURIComponent(SHARE_URL)}&amp;text=${encodeURIComponent(SHARE_TITLE)}"><img class="pillfav" alt="" src="/assets/icons/social/x.com.png">X</a>
+    <a class="pill" href="mailto:?subject=${encodeURIComponent(SHARE_TITLE)}&amp;body=${encodeURIComponent(SHARE_URL)}">&#9993; Email</a>
+    <button class="pill share-copy" type="button">&#128279; Copy link</button>
+    <button class="pill share-native" type="button" hidden>&#8599; Share&hellip;</button>
   </div>
 
   <p class="vs-headline ${headlineTone}">${esc(headline)}</p>
@@ -331,6 +373,30 @@ ${rows || '<p class="vs-empty">No status has been collected yet. The collector r
         : hrs + ' hours ago';
       el.textContent = local + ' (' + ago + ')';
       el.title = 'Chicago time: ' + chicago;
+    }
+  }
+
+  // Share bar: copy-link and the native share sheet. No SDKs - the platform
+  // links above are plain intents.
+  var bar = document.querySelector('.share-bar');
+  if (bar) {
+    var url = bar.getAttribute('data-url');
+    var copy = bar.querySelector('.share-copy');
+    if (copy && navigator.clipboard) {
+      copy.addEventListener('click', function () {
+        navigator.clipboard.writeText(url).then(function () {
+          var old = copy.textContent;
+          copy.textContent = '\u2713 Copied';
+          setTimeout(function () { copy.textContent = old; }, 1600);
+        });
+      });
+    }
+    var native = bar.querySelector('.share-native');
+    if (native && navigator.share) {
+      native.hidden = false;
+      native.addEventListener('click', function () {
+        navigator.share({ title: bar.getAttribute('data-title'), url: url }).catch(function () {});
+      });
     }
   }
 
@@ -416,11 +482,18 @@ function renderRow(record) {
     .filter(Boolean);
   const warning = readerWarnings.length ? `<p class="vs-warn">${esc(readerWarnings[0])}</p>` : '';
 
-  return `<article class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}">
+  // A stable id per row. The genuine want behind "share each service" is
+  // "look at THIS row", which a deep link satisfies - 41 share widgets would be
+  // clutter, and nobody shares a vendor's status from an aggregator anyway when
+  // the row already links the vendor's own page.
+  const anchor = logoSlug(record.vendor);
+
+  return `<article id="${esc(anchor)}" class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}">
   <div class="vs-head">
     ${logo || `<span class="vs-dot vs-dot--${esc(p.tone)}" aria-hidden="true">${esc(p.symbol)}</span>`}
     <h2>${nameHtml}</h2>
     <span class="vs-badge vs-badge--${esc(p.tone)}">${esc(p.label)}</span>
+    <a class="vs-anchor" href="#${esc(anchor)}" aria-label="Link to ${esc(record.vendor)}">#</a>
   </div>
   ${record.incidentName ? `<p class="vs-incident">${esc(record.incidentName)}</p>` : ''}
   <p class="vs-desc">${esc(record.description)}</p>
@@ -612,6 +685,16 @@ const STYLES = `
   cursor: pointer; font-size: .85rem; opacity: .75; padding: .4rem 0; min-height: 30px;
 }
 .vs-all > summary:hover { opacity: 1; }
+
+.vs-share { margin: 0 0 1rem; }
+.vs-anchor {
+  opacity: 0; text-decoration: none; font-weight: 600;
+  padding: 0 .25rem; flex: 0 0 auto;
+}
+.vs-card:hover .vs-anchor, .vs-anchor:focus { opacity: .55; }
+.vs-anchor:hover { opacity: 1; }
+/* Deep-linked row gets a moment of emphasis so it is findable on arrival. */
+.vs-card:target { box-shadow: 0 0 0 2px currentColor; }
 
 .vs-empty { opacity: .75; }
 .skip { position: absolute; left: -9999px; }
