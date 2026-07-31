@@ -96,6 +96,46 @@ export function formatChicago(iso) {
 }
 
 /**
+ * Translate an internal warning into something a reader can act on — or hide it.
+ *
+ * Warnings serve two audiences. "fetch returned HTTP 404" tells an operator
+ * exactly what happened and tells a visitor nothing; "configured component X
+ * matched nothing" is pure maintenance signal. The raw strings stay in
+ * /api/status and in the logs, where operators actually look.
+ *
+ * Returns null for operator-only warnings, which are then not rendered.
+ *
+ * @param {string} warning
+ * @returns {string|null}
+ */
+export function humanizeWarning(warning) {
+  const w = String(warning ?? '');
+
+  // Operator-only: config drift and maintenance signals.
+  if (/matched no (component|group)/i.test(w)) return null;
+  if (/catalog may be out of date/i.test(w)) return null;
+  if (/scope could not be applied/i.test(w)) return null;
+
+  // Reachability, in plain language.
+  if (/fetch returned HTTP (\d+)/i.test(w)) {
+    const code = w.match(/HTTP (\d+)/i)[1];
+    return code.startsWith('5')
+      ? "The vendor's status service is having trouble, so its status could not be read."
+      : "The vendor's status service did not return a status when asked.";
+  }
+  if (/fetch failed|timed out|abort/i.test(w)) {
+    return "The vendor's status service could not be reached.";
+  }
+  if (/not valid JSON|structure may have changed|not found|no adapter/i.test(w)) {
+    return "The vendor changed how it publishes status, so it could not be read.";
+  }
+
+  // Anything already written for readers passes through — e.g. the Microsoft
+  // consumer-services note.
+  return w;
+}
+
+/**
  * @param {{records: any[], meta: any, nonce?: string, now?: () => Date, host?: string}} input
  * @returns {string} complete HTML document
  */
@@ -317,9 +357,11 @@ function renderRow(record) {
   </details>`
     : '';
 
-  const warning = (record.warnings ?? []).length
-    ? `<p class="vs-warn">${esc(record.warnings[0])}</p>`
-    : '';
+  // Reader-facing warnings only; the raw text remains in /api/status.
+  const readerWarnings = (record.warnings ?? [])
+    .map(humanizeWarning)
+    .filter(Boolean);
+  const warning = readerWarnings.length ? `<p class="vs-warn">${esc(readerWarnings[0])}</p>` : '';
 
   return `<article class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}">
   <div class="vs-head">

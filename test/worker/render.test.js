@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderDashboard, esc, safeUrl, formatChicago } from '../../src/worker/render.js';
+import { renderDashboard, esc, safeUrl, formatChicago, humanizeWarning } from '../../src/worker/render.js';
 
 // Audit finding M4. Every field on this page is third-party content from ~35
 // vendor status pages. A compromised or merely sloppy vendor page is untrusted
@@ -371,5 +371,63 @@ describe('renderDashboard — favicon', () => {
     // falls back to a 404 and the tab shows a blank icon.
     const html = renderDashboard({ records: [], meta: null });
     expect(html).toContain('<link rel="icon" href="/assets/img/favicon.png" type="image/png">');
+  });
+});
+
+// Warnings serve two audiences. "fetch returned HTTP 404" tells an operator what
+// happened and tells a visitor nothing; config-drift notes are pure maintenance
+// signal. The raw strings stay in /api/status and the logs.
+describe('humanizeWarning', () => {
+  it('translates an HTTP error into plain language', () => {
+    expect(humanizeWarning('fetch returned HTTP 404')).toMatch(/did not return a status/i);
+    expect(humanizeWarning('fetch returned HTTP 404')).not.toMatch(/HTTP|404|fetch/);
+  });
+
+  it('distinguishes a vendor-side failure from a missing response', () => {
+    expect(humanizeWarning('fetch returned HTTP 503')).toMatch(/having trouble/i);
+  });
+
+  it('translates unreachability', () => {
+    expect(humanizeWarning('fetch failed: ECONNRESET')).toMatch(/could not be reached/i);
+    expect(humanizeWarning('fetch failed: ECONNRESET')).not.toMatch(/ECONNRESET/);
+  });
+
+  it('translates a shape change', () => {
+    expect(humanizeWarning('response was not valid JSON')).toMatch(/changed how it publishes/i);
+  });
+
+  it('HIDES operator-only maintenance warnings', () => {
+    expect(humanizeWarning('configured component "DNS" matched no component in the live payload')).toBeNull();
+    expect(humanizeWarning('incident names sub-service "X" ... catalog may be out of date')).toBeNull();
+  });
+
+  it('passes through text already written for readers', () => {
+    const note = 'Covers Microsoft consumer services. Business services such as Exchange are only reported inside each organisation\'s own admin centre.';
+    expect(humanizeWarning(note)).toBe(note);
+  });
+});
+
+describe('renderDashboard — warnings shown to readers', () => {
+  const rec = (warnings) => ({
+    vendor: 'Microsoft', service: 'Microsoft', severity: 'unknown',
+    incidentName: '', description: 'Status could not be determined.',
+    sourceUrl: '', components: [], warnings, checkedAt: '2026-07-31T12:00:00.000Z',
+  });
+
+  it('never shows raw HTTP diagnostics on the page', () => {
+    const html = renderDashboard({ records: [rec(['fetch returned HTTP 404'])], meta: null });
+    expect(html).not.toContain('fetch returned HTTP 404');
+    expect(html).toMatch(/did not return a status/i);
+  });
+
+  it('renders no warning line at all when every warning is operator-only', () => {
+    const html = renderDashboard({
+      records: [rec(['configured component "DNS" matched no component in the live payload'])],
+      meta: null,
+    });
+    // Scope to the card: the class name also appears in the stylesheet.
+    const card = html.slice(html.indexOf('<article'), html.indexOf('</article>'));
+    expect(card).not.toContain('vs-warn');
+    expect(card).not.toContain('DNS');
   });
 });
