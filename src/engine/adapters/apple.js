@@ -44,24 +44,27 @@ export function parseApple(payload, options) {
     return unknownRecord(vendor, 'payload had no services array', { now, sourceUrl: SOURCE_URL, service: 'Apple Services' });
   }
 
-  const affected = data.services.filter((s) =>
+  const isAffected = (s) =>
     Array.isArray(s?.events) &&
-    s.events.some((e) => String(e?.eventStatus ?? '').toLowerCase() !== 'resolved' && e?.eventStatus),
-  );
+    s.events.some((e) => String(e?.eventStatus ?? '').toLowerCase() !== 'resolved' && e?.eventStatus);
 
-  const components = affected.map((s) => ({
+  // Every service, healthy included, so the dashboard can disclose the full
+  // list on demand. Apple publishes ~78.
+  const components = data.services.map((s) => ({
     name: String(s?.serviceName ?? 'Unknown service'),
-    severity: SEVERITY.DEGRADED,
+    severity: isAffected(s) ? SEVERITY.DEGRADED : SEVERITY.OPERATIONAL,
     description: toPlainText(s?.events?.[0]?.messages?.[0]?.message ?? ''),
   }));
+  const affected = components.filter((c) => c.severity !== SEVERITY.OPERATIONAL);
 
-  if (components.length === 0) {
+  if (affected.length === 0) {
     return makeRecord({
       vendor,
       service: 'Apple Services',
       severity: SEVERITY.OPERATIONAL,
       description: 'All services normal.',
       sourceUrl: SOURCE_URL,
+      components,
       now,
     });
   }
@@ -71,7 +74,7 @@ export function parseApple(payload, options) {
     service: 'Apple Services',
     severity: SEVERITY.DEGRADED,
     incidentName: 'Active issue',
-    description: `Affected: ${components.map((c) => c.name).slice(0, 3).join(', ')}.`,
+    description: `Affected: ${affected.map((c) => c.name).slice(0, 3).join(', ')}.`,
     sourceUrl: SOURCE_URL,
     components,
     now,

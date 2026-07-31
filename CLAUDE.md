@@ -54,9 +54,17 @@ a future non-Cloudflare deployment possible.
 - **StatusGator is not used.** Freshdesk, Freshservice and Paylocity are omitted
   entirely because they publish no public endpoint. Do not re-add a row without
   a real data source.
-- **Okta's Atom parsing uses targeted regex** to keep the engine
-  dependency-free. It fails to `unknown` if markup changes. **Do not extend it
-  into general XML handling.**
+- **Okta has no public JSON API** (all of summary.json, index.json,
+  history.atom and history.rss return 401). The adapter parses the incidents the
+  page embeds as JSON, via `indexOf` + a linear bracket walk — NOT regex: the
+  page is ~347 KB against a 10 ms CPU budget. Measured 0.58 ms.
+- **Microsoft publishes no public per-workload enterprise health.** Verified
+  from Microsoft's own feed: `status.cloud.microsoft` reports only when the
+  admin centre itself is unreachable. Exchange/Entra/Intune/Defender health is
+  tenant-scoped by design. Do not go looking again.
+- **Adapters return EVERY component, healthy included** — the dashboard decides
+  what to show. Returning only unhealthy ones breaks the expand-all disclosure
+  (fixed 2026-07-31; the healthy-path early return had omitted them).
 - **404 is retryable.** Unusual, but Microsoft's endpoint measured ~50%
   available. Bounded by an attempt cap and a run-wide budget.
 - **Retries share a run-wide budget** — the Workers *free* plan caps subrequests
@@ -69,7 +77,7 @@ a future non-Cloudflare deployment possible.
 
 `.github/workflows/ci.yml` on every PR and push to `main`:
 
-- `test` — `npm ci` + 146 vitest tests + `wrangler deploy --dry-run` build check
+- `test` — `npm ci` + 165 vitest tests + `wrangler deploy --dry-run` build check
   + `npm audit --audit-level=high`
 - `secret-scan` — gitleaks over full history and working tree
 - `cff-validate` — `CITATION.cff` against the CFF schema
@@ -115,5 +123,13 @@ and `CITATION.cff` (annotated) — all bumped together by the tooling.
 
 **Private.** Release and Scorecard badges are intentionally absent (both would
 render errors on a private repo); re-add per README → *Going public*.
-`main` is currently **unprotected** — worth enabling before adding a second
-writer or publishing.
+
+`main` is **fully protected**: required PR reviews, four required status checks
+(`test`, `docs-render`, `cff-validate`, `secret-scan`), linear history, no force
+pushes, **enforced for admins**. Land work by PR — a direct push or force-push
+is rejected with `protected branch hook declined`.
+
+Note the two different APIs: `repos/{o}/{r}/rules/branches/main` returns `[]`
+here because there are no *rulesets*; the protection is **classic**, at
+`repos/{o}/{r}/branches/main/protection`. Checking only the first will tell you
+the branch is unprotected when it is not.

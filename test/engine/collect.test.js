@@ -275,3 +275,40 @@ describe('collect — bounded retry for transient failures', () => {
     expect(res.unknown).toBe(20);
   });
 });
+
+// Instatus splits page state and components across two endpoints, so a vendor
+// on that platform needs an optional secondary fetch to expose its component
+// list — mirroring Concur's optional banner.
+describe('collect — optional secondary fetches', () => {
+  it('merges an instatus components endpoint into the payload', async () => {
+    const res = await collect(
+      cfg([{ name: 'P', type: 'instatus', url: 'https://p/summary', componentsUrl: 'https://p/components' }]),
+      {
+        fetchFn: stubFetch({
+          'https://p/summary': { body: JSON.stringify({ page: { status: 'UP', url: 'https://p' } }) },
+          'https://p/components': {
+            body: JSON.stringify({ components: [{ name: 'API', status: 'OPERATIONAL', isParent: false }] }),
+          },
+        }),
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    expect(res.records[0].components.map((c) => c.name)).toEqual(['API']);
+  });
+
+  it('still reports page status when the components fetch fails', async () => {
+    const res = await collect(
+      cfg([{ name: 'P', type: 'instatus', url: 'https://p/summary', componentsUrl: 'https://p/components' }]),
+      {
+        fetchFn: stubFetch({
+          'https://p/summary': { body: JSON.stringify({ page: { status: 'UP', url: 'https://p' } }) },
+          'https://p/components': new Error('boom'),
+        }),
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+  });
+});

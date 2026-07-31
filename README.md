@@ -3,7 +3,7 @@
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-07-31 10:21 AM CDT
+Last updated: 2026-07-31 10:47 AM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -155,7 +155,7 @@ network and portable to another runtime.
 
 ```bash
 npm ci
-npm test              # 146 tests
+npm test              # 165 tests
 npm run test:watch
 npx wrangler dev      # local Worker
 ```
@@ -192,7 +192,7 @@ All must pass before merge:
 
 | Job | What it proves |
 |---|---|
-| `test` | 146 unit tests, every adapter pinned against a recorded payload; plus `wrangler --dry-run` build check and `npm audit --audit-level=high` |
+| `test` | 165 unit tests, every adapter pinned against a recorded payload; plus `wrangler --dry-run` build check and `npm audit --audit-level=high` |
 | `secret-scan` | gitleaks over full history **and** working tree |
 | `cff-validate` | `CITATION.cff` against the CFF schema |
 | `docs-render` | every Mermaid block renders (a broken diagram is a broken deliverable) |
@@ -235,13 +235,15 @@ All third-party Actions are SHA-pinned; container tools are digest-pinned.
   Entra, Intune and Defender are absent. The row is labelled accordingly.
   Enterprise tenant health requires the authenticated Microsoft Graph Service
   Health API.
-- **Okta's source is a deprecated FeedBurner property.**
-  `status.okta.com/history.atom` returns 401. The adapter emits a staleness
-  warning so a feed that quietly stops updating cannot rot into a permanent
-  green.
-- **Okta's Atom parsing uses targeted regex, not an XML parser** — a deliberate
-  trade-off to keep the engine dependency-free. It fails to `unknown` if the
-  markup changes. Do not extend it into general XML handling.
+- **Five vendors cannot show a component breakdown.** Google, Okta and Concur
+  publish only current *incidents*; Iorad and Stormboard publish a single
+  page-level state. There is no service catalogue to expand without inventing
+  one, so those rows have no disclosure.
+- **Okta has no public JSON API** — `summary.json`, `index.json`,
+  `history.atom` and `history.rss` all return 401. The adapter parses the
+  incident records the status page embeds as JSON, using `indexOf` plus a linear
+  bracket walk rather than regex, because the page is ~347 KB against a 10 ms
+  CPU budget.
 - **No uptime history UI yet.** History *is* recorded from day one; only the
   reporting is unbuilt.
 
@@ -269,8 +271,9 @@ This repository is **private**. Before flipping it public:
   badge renders after one run.
 - Verify no credential ever entered history (`.clasp.json` and `creds.json` are
   gitignored and were never committed — confirmed at the v2 squash).
-- Consider enabling branch protection on `main` first; it is currently
-  unprotected.
+- Branch protection on `main` is already in place: required PR reviews, four
+  required status checks (`test`, `docs-render`, `cff-validate`, `secret-scan`),
+  linear history, no force pushes, and **enforced for admins**. Nothing to do.
 
 ## License
 

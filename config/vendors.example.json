@@ -85,7 +85,13 @@
     },
 
     { "name": "OpenAI", "type": "statuspage", "url": "https://status.openai.com/api/v2/summary.json" },
-    { "name": "Perplexity", "type": "instatus", "url": "https://status.perplexity.com/summary.json" },
+    {
+      "$comment": "Instatus splits page state and components across two endpoints; summary.json carries only page.status. componentsUrl is advisory - if it fails the page status still decides severity.",
+      "name": "Perplexity",
+      "type": "instatus",
+      "url": "https://status.perplexity.com/summary.json",
+      "componentsUrl": "https://status.perplexity.com/api/v2/components.json"
+    },
     { "name": "Qualtrics", "type": "statuspage", "url": "https://status.qualtrics.com/api/v2/summary.json" },
     { "name": "QuantumWorkplace", "type": "statuspage", "url": "https://status.quantumworkplace.com/api/v2/summary.json" },
     { "name": "Seismic", "type": "statuspage", "url": "https://status.seismic.com/api/v2/summary.json" },

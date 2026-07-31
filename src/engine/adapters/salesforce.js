@@ -33,7 +33,21 @@ export function parseSalesforce(payload, options) {
     return unknownRecord(vendor, 'no active production instances found', { now, sourceUrl: SOURCE_URL });
   }
 
-  const degraded = production.filter((i) => String(i?.status ?? '').toUpperCase() !== 'OK');
+  // Every active production instance, healthy included, so the dashboard can
+  // disclose the full regional list on demand.
+  const components = production.map((i) => {
+    const ok = String(i?.status ?? '').toUpperCase() === 'OK';
+    return {
+      name: `${i.location ?? 'Unknown'} (${i.key ?? '?'})`,
+      severity: ok
+        ? SEVERITY.OPERATIONAL
+        : /MAJOR|OUTAGE/i.test(String(i.status))
+          ? SEVERITY.MAJOR_OUTAGE
+          : SEVERITY.PARTIAL_OUTAGE,
+      description: `Instance status: ${i.status}.`,
+    };
+  });
+  const degraded = components.filter((c) => c.severity !== SEVERITY.OPERATIONAL);
 
   if (degraded.length === 0) {
     return makeRecord({
@@ -42,20 +56,15 @@ export function parseSalesforce(payload, options) {
       severity: SEVERITY.OPERATIONAL,
       description: `All ${production.length} production instances operational.`,
       sourceUrl: SOURCE_URL,
+      components,
       now,
     });
   }
 
-  const components = degraded.map((i) => ({
-    name: `${i.location ?? 'Unknown'} (${i.key ?? '?'})`,
-    severity: /MAJOR|OUTAGE/i.test(String(i.status)) ? SEVERITY.MAJOR_OUTAGE : SEVERITY.PARTIAL_OUTAGE,
-    description: `Instance status: ${i.status}.`,
-  }));
-
   return makeRecord({
     vendor,
     service: payload.name ?? vendor,
-    severity: components.some((c) => c.severity === SEVERITY.MAJOR_OUTAGE)
+    severity: degraded.some((c) => c.severity === SEVERITY.MAJOR_OUTAGE)
       ? SEVERITY.MAJOR_OUTAGE
       : SEVERITY.PARTIAL_OUTAGE,
     incidentName: 'Instance issue',

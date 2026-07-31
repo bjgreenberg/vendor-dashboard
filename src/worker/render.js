@@ -179,6 +179,19 @@ export function renderDashboard({
 
 <main class="wrap vs">
   <h1>Service Status</h1>
+
+  <div class="vs-intro">
+    <p>Most of the software I depend on is somebody else&rsquo;s to keep running.
+    When something stops working, the first question is always whether it&rsquo;s
+    me or them.</p>
+    <p>This page asks ${esc(records.length)} services directly, every 15 minutes,
+    and reports what each one says about itself. Nothing here is inferred, and
+    nothing comes from a third-party aggregator &mdash; each status is read from
+    that vendor&rsquo;s own status page, which you can open from any row.</p>
+    <p>If a check fails, the service is marked <strong>Unknown</strong> rather
+    than green. A check that didn&rsquo;t happen isn&rsquo;t good news.</p>
+  </div>
+
   <p class="vs-headline ${headlineTone}">${esc(headline)}</p>
   ${staleBanner}
   ${checkedBlock}
@@ -195,7 +208,9 @@ export function renderDashboard({
 ${rows || '<p class="vs-empty">No status has been collected yet. The collector runs every 15 minutes; if this persists, the scheduled job is not running.</p>'}
   </div>
 
-  <p class="vs-note">Status is read from each vendor&rsquo;s own public status endpoint. Select a service name to visit it, or expand a card to see all of its components.</p>
+  <p class="vs-note">Select a service name to open its own status page, or expand a
+  card to see every component. Some vendors publish only an overall state or a
+  list of current incidents, so those rows have nothing further to expand.</p>
 </main>
 
 <footer class="site">
@@ -347,7 +362,10 @@ function childLi(c) {
  * without duplicating its palette.
  */
 const STYLES = `
-.vs h1 { margin-bottom: .25rem; }
+.vs h1 { margin-bottom: .5rem; }
+.vs-intro { max-width: 62ch; margin: 0 0 1.5rem; }
+.vs-intro p { margin: 0 0 .6rem; }
+.vs-intro p:last-child { margin-bottom: 0; }
 .vs-headline { font-size: 1.15rem; font-weight: 600; margin: .25rem 0 .5rem; color: #1f7a3d; }
 .vs-headline.headline--impacted { color: #b3261e; }
 .vs-headline.headline--unknown { color: #6b7280; }

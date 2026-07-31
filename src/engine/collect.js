@@ -192,6 +192,21 @@ async function collectOne(vendor, ctx) {
       return unknownRecord(name, 'response was not valid JSON', opts);
     }
 
+    // Instatus splits page state and components across two endpoints; merge
+    // them when a componentsUrl is configured. Advisory, like Concur's banner:
+    // if it fails, the page-level status still stands.
+    if (vendor.type === 'instatus' && vendor.componentsUrl) {
+      try {
+        const res = await fetchFn(vendor.componentsUrl, {
+          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+        });
+        const extra = JSON.parse(await res.text());
+        if (Array.isArray(extra?.components)) payload.components = extra.components;
+      } catch {
+        /* components are advisory; page.status still decides severity */
+      }
+    }
+
     // Concur needs a second, optional payload; a failed banner must not sink it.
     if (vendor.type === 'concur' && vendor.bannerUrl) {
       try {
