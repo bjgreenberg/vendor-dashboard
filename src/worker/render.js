@@ -15,6 +15,9 @@
  * It was harmless writing into a spreadsheet cell and would not have been here.
  */
 
+/** The only host permitted to be indexed. */
+export const CANONICAL_HOST = 'briangreenberg.net';
+
 /** Severity -> presentation. Order matches the sort ranking. */
 const PRESENTATION = {
   major_outage: { label: 'Major outage', tone: 'critical', symbol: '●' },
@@ -43,7 +46,18 @@ export function esc(value) {
  * @param {{records: any[], meta: any, basePath?: string, nonce?: string}} input
  * @returns {string} complete HTML document
  */
-export function renderDashboard({ records = [], meta = null, nonce = '', now = () => new Date() }) {
+export function renderDashboard({
+  records = [],
+  meta = null,
+  nonce = '',
+  now = () => new Date(),
+  host = CANONICAL_HOST,
+}) {
+  // Only the canonical host may be indexed. The workers.dev URL is a backend
+  // address; letting a search engine index it would create a duplicate that
+  // competes with the real page. Canonical still points home from everywhere,
+  // which is exactly what canonical is for.
+  const indexable = host === CANONICAL_HOST;
   const impacted = records.filter(
     (r) => r.severity !== 'operational' && r.severity !== 'unknown',
   ).length;
@@ -85,8 +99,10 @@ export function renderDashboard({ records = [], meta = null, nonce = '', now = (
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Service Status</title>
-<meta name="description" content="Live operational status of ${esc(records.length)} SaaS services.">
+<title>Service Status — live status for ${esc(records.length)} cloud services</title>
+<meta name="description" content="Live operational status for ${esc(records.length)} cloud and SaaS services, refreshed every 15 minutes from each vendor's own public status endpoint.">
+<meta name="robots" content="${indexable ? 'index, follow' : 'noindex, nofollow'}">
+<link rel="canonical" href="https://briangreenberg.net/service-status">
 <style>${STYLES}</style>
 </head>
 <body>

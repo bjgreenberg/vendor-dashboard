@@ -49,7 +49,7 @@ const DEFAULT_RETRY_BUDGET = 10;
  * A stale forged UA is *more* likely to be filtered by bot protection than an
  * honest one, and vendors generally welcome well-behaved status pollers.
  */
-export const USER_AGENT = 'vendor-dashboard/2.0 (+https://briangreenberg.net/status; status monitor)';
+export const USER_AGENT = 'vendor-dashboard/2.0 (+https://briangreenberg.net/service-status; status monitor)';
 
 /**
  * Adapters that consume parsed JSON.

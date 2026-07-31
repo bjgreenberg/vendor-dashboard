@@ -205,3 +205,25 @@ describe('renderDashboard — staleness is surfaced', () => {
     expect(html).toMatch(/may be stale/i);
   });
 });
+
+// The Worker answers on both briangreenberg.net and *.workers.dev. Letting a
+// search engine index the workers.dev address would create a duplicate page
+// competing with the real one.
+describe('renderDashboard — only the canonical host is indexable', () => {
+  const r = [{ vendor: 'V', service: 'V', severity: 'operational', incidentName: '', description: '', sourceUrl: '', components: [], warnings: [], checkedAt: '2026-07-31T12:00:00.000Z' }];
+
+  it('allows indexing on the canonical host', () => {
+    const html = renderDashboard({ records: r, meta: null, host: 'briangreenberg.net' });
+    expect(html).toContain('content="index, follow"');
+  });
+
+  it('blocks indexing on the workers.dev address', () => {
+    const html = renderDashboard({ records: r, meta: null, host: 'vendor-dashboard.gsysd.workers.dev' });
+    expect(html).toContain('content="noindex, nofollow"');
+  });
+
+  it('points canonical at the real URL regardless of which host served it', () => {
+    const html = renderDashboard({ records: r, meta: null, host: 'vendor-dashboard.gsysd.workers.dev' });
+    expect(html).toContain('href="https://briangreenberg.net/service-status"');
+  });
+});

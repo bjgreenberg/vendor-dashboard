@@ -74,7 +74,7 @@ async function handleFetch(request, env) {
     // Per-response nonce gates the single inline script, so the CSP can forbid
     // everything else outright rather than allowing 'unsafe-inline' scripts.
     const nonce = crypto.randomUUID().replace(/-/g, '');
-    return new Response(renderDashboard({ records, meta, basePath: base, nonce }), {
+    return new Response(renderDashboard({ records, meta, basePath: base, nonce, host: url.hostname }), {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'public, max-age=60',

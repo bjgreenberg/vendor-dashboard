@@ -1,7 +1,7 @@
 {
   // vendor-dashboard - SaaS status monitor.
   //
-  // Routing note: this Worker is served at briangreenberg.net/status* via a
+  // Routing note: this Worker is served at briangreenberg.net/service-status* via a
   // Workers ROUTE, configured in the dashboard/API - NOT here. Never declare
   // `custom_domain` in this file: wrangler skips the changeset preview and
   // force-overrides DNS whenever stdout is not a TTY (CI, agent shells), which
@@ -52,7 +52,14 @@
 
   "vars": {
     // Path prefix the Worker is mounted under, so links and asset URLs are
-    // correct whether it runs at /status or at the root in local dev.
-    "BASE_PATH": "/status"
+    // correct whether it runs at /service-status on the live zone or at the
+    // root on workers.dev / in local dev.
+    //
+    // Chosen over the shorter /status deliberately: on any domain, /status
+    // conventionally means "the status of THIS site", so visitors would expect
+    // uptime for briangreenberg.net rather than a board of third-party
+    // services. It also leaves /status free should a GSD app ever need a real
+    // service-health page.
+    "BASE_PATH": "/service-status"
   }
 }
