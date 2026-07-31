@@ -187,7 +187,7 @@ export function renderDashboard({
   const rows = records.map((r) => renderRow(r)).join('\n');
 
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -197,6 +197,24 @@ export function renderDashboard({
 <link rel="canonical" href="https://briangreenberg.net/service-status">
 <link rel="icon" href="/assets/img/favicon.png" type="image/png">
 <link rel="stylesheet" href="/assets/site.css">
+<script${nonce ? ` nonce="${esc(nonce)}"` : ''}>
+/* This page defaults to DARK, unlike the rest of the site which follows the
+   system. It runs BEFORE theme.js and before first paint, so there is no flash.
+
+   It seeds the attribute only — it deliberately does NOT write to localStorage,
+   because that key (bgnet-theme) is shared with briangreenberg.net and writing
+   it would silently change the whole site's default. A visitor who has actually
+   chosen a theme keeps it; theme.js applies their choice a moment later. */
+(function () {
+  try {
+    if (!localStorage.getItem('bgnet-theme')) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  } catch (e) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
+})();
+</script>
 <script src="/assets/js/theme.js"></script>
 <style>${STYLES}</style>
 </head>
@@ -270,6 +288,15 @@ ${rows || '<p class="vs-empty">No status has been collected yet. The collector r
 
 <script${nonce ? ` nonce="${esc(nonce)}"` : ''}>
 (function () {
+  // theme.js re-applies 'system' when no preference is stored, which would undo
+  // the dark seed above. Re-assert it — again without persisting, so the site's
+  // own default is untouched.
+  try {
+    if (!localStorage.getItem('bgnet-theme')) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  } catch (e) { /* storage unavailable; the seed above already applied */ }
+
   // Timestamp: show the VIEWER's own timezone plus a relative age, keeping the
   // server-rendered Chicago time in the title. Progressive enhancement — the
   // Chicago time is already meaningful without this running.
