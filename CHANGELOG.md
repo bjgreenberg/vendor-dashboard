@@ -1,152 +1,110 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+All notable changes to this project are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
----
+> **Note on history.** Git history was squashed at v2.0.0. The prior 1.x line
+> was a single-file Google Apps Script implementation; its source is preserved
+> outside this repository (in the RHR project that still runs it) and in a
+> verified `git bundle` backup. Entries below start at the rewrite. Everything
+> from here forward is append-only.
 
-## [Unreleased]
+## [2.0.0] - 2026-07-31
 
-### Fixed
-- `scripts/render-diagrams.sh` now runs on stock macOS bash 3.2: the
-  bash-4-only `mapfile` (which failed locally with "command not found" —
-  CI's ubuntu bash 5 hid it) replaced with a portable while-read loop, plus
-  an empty-array guard for `set -u`. Same fix as ai-usage-journal PR #3.
-- **Removed the Release and OpenSSF Scorecard badges while the repo is private.**
-  Both badge services (shields.io, securityscorecards.dev) read the repo over the
-  public API and rendered errors ("repo not found" / "invalid repo path") — a
-  broken claim, worse than no badge. Kept the CI and License badges (which render
-  truthfully). Exact markdown to restore both badges is staged in the README's
-  *Going public* section for the moment the repo is made public.
+Complete rewrite from a single-file Google Apps Script to a Cloudflare Worker.
 
----
-
-## [1.1.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v1.0.0...v1.1.0) (2026-07-06)
-
-
-### Features
-
-* Vendor Status Dashboard — Google Apps Script SaaS status monitor ([7e04846](https://github.com/bjgreenberg/vendor-dashboard/commit/7e048463555a63eac05d3ab8d976c54b413c6ec8))
-
-## [Unreleased]
-
-### Changed
-- **Generalized the project into a vendor-neutral, public-ready open-source
-  project** named **"Vendor Status Dashboard"**. The vendor `FEEDS` list is
-  unchanged (all public status endpoints) and is now documented as a
-  configurable example set.
+The rewrite was driven by an extraction audit
+([`docs/audit/2026-07-30-extraction-audit.md`](docs/audit/2026-07-30-extraction-audit.md))
+which found **four independent sources of false green** — vendors reporting
+"Operational" regardless of reality — with a single common cause: no test ever
+asserted an adapter's output against a recorded payload.
 
 ### Added
-- **Release automation with [release-please](https://github.com/googleapis/release-please)**
-  — `release-please-config.json`, `.release-please-manifest.json`, and the
-  `release-please` workflow (third-party action SHA-pinned). Version bumps,
-  `CHANGELOG.md`, and `CITATION.cff` are driven by Conventional Commits; merging
-  the release PR publishes a GitHub Release.
-- **Apache-2.0 `LICENSE`** and a **`CITATION.cff`** (CFF 1.2.0) whose `version`
-  and `date-released` are kept current by release-please via `extra-files`
-  annotations.
-- **Status badge row** in the README (CI, Release, License) plus new
-  **Versioning & releases**, **Citing this project**, **Configuring vendors**,
-  **Contributing**, **Going public**, and **License** sections.
-- **Second and third README visuals** — a render-checked `stateDiagram-v2` of a
-  single vendor row's lifecycle, and an output-schema data-dictionary table.
-- **`.github/dependabot.yml`** — weekly `npm` + `github-actions` update PRs.
-- **SHA-pinned every GitHub Action** (`actions/checkout`, `actions/setup-node`,
-  `release-please-action`) to a full-length commit SHA — supply-chain integrity,
-  and required by the repository's action-pinning policy. Dependabot
-  (`github-actions`) keeps the pins current.
-- **`secret-scan` CI gate** — gitleaks (digest-pinned container) over the full
-  git history and working tree on every PR. Works while the repo is private.
-- **OpenSSF Scorecard workflow + badge** (`.github/workflows/scorecard.yml`) —
-  supply-chain posture analysis. Guarded on repo visibility, so it is a clean
-  skip while private and auto-activates on the first push to `main` after the
-  repo is made public. All Scorecard-workflow actions are SHA-pinned.
-- **`SECURITY.md`** — vulnerability disclosure policy, threat model, and the CI
-  security-gate matrix.
 
-### Security
-- **Declared explicit least-privilege `oauthScopes` in `appsscript.json`**
-  (`spreadsheets.currentonly` + `script.external_request`) instead of relying on
-  Apps Script scope auto-detection, which over-reaches. The script only uses
-  `SpreadsheetApp` (active sheet) and `UrlFetchApp`.
-  **Note:** adding explicit scopes forces re-authorization on the next `clasp
-  push` / deploy. If the bound-sheet write ever fails, widen
-  `spreadsheets.currentonly` → `spreadsheets`.
+- **Runtime-agnostic engine** (`src/engine/`) with `fetchFn` and `now()`
+  injected, so every adapter is testable without a network or a Worker runtime.
+- **Ordered severity model** — `major_outage > partial_outage > degraded >
+  unknown > maintenance > operational` — replacing a binary
+  Operational/Degraded that discarded the gradations vendors already publish.
+  `unknown` deliberately outranks `operational`.
+- **Component scoping** by group or exact name, with drift warnings when a
+  configured name matches nothing live.
+- **Roll-up with progressive disclosure** — healthy vendors collapse to one row;
+  unhealthy ones break out only the affected children. Zoom publishes 283
+  components.
+- **Ten adapters**: Statuspage, Instatus, Google, Apple, Okta (Atom),
+  Salesforce, Concur, SorryApp, Better Stack, Microsoft — each pinned against a
+  recorded payload.
+- **Bounded retry** with a run-wide budget, sized against the Workers free-plan
+  50-subrequest ceiling.
+- **D1 persistence** — snapshot replaced transactionally in one batch, plus an
+  append-only history table.
+- **Dashboard** with client-side search, severity-ordered rows, a persisted
+  three-state System/Light/Dark control, skip link, and accessible markup.
+- **Staleness banner** — the dead-man's switch for the collector itself.
+- **146 tests**, all written red-first.
 
 ### Fixed
-- **`package.json` metadata** — removed the bogus `node` **runtime** dependency
-  (`node@^25.6.1`, a mistaken install), set `license` to `Apache-2.0`, and added
-  `author`, `description`, `keywords`, `repository`, `bugs`, and `homepage`. The
-  `test` script no longer exits non-zero for a project with no unit tests.
-  Regenerated `package-lock.json` (2 packages, 0 vulnerabilities).
 
-### Added (prior, unreleased)
-- **Architecture data-flow diagram + a "How it works" section** in the README:
-  a render-checked Mermaid `flowchart` of the trigger → `refreshVendorStatus()`
-  → per-vendor adapter dispatch (Statuspage-v2 default + the custom adapters,
-  each in its own `try/catch`) → normalize → validate column count → clear,
-  write, multi-sort the Google Sheet.
-- **`docs-render` CI job + `scripts/render-diagrams.sh`** — render-checks every
-  ` ```mermaid ` block via the digest-pinned `mermaid-cli` container; promoted
-  to a required status check alongside `test`.
-- **`Last updated:` stamp** under the README H1.
-
-### Fixed
-- **Stale trigger name in the README.** Setup step 5 told users to schedule a
-  trigger on `fetchAllStatuses`, which does not exist in `Code.js` — the actual
-  entry point is `refreshVendorStatus()`. Corrected, and clarified the entry
-  point in the Project Structure table.
-- **Renamed `jsconfig.json.` → `jsconfig.json`** — the file had a stray trailing
-  dot in its name, so editors never picked it up for Apps Script IDE type
-  support. Content was already a valid jsconfig; only the filename was wrong.
-  Removed the corresponding note from the README's Known Issues.
-
----
-
-## 2026-06-10
-
-### Added
-- `ci`: GitHub Actions CI workflow (`test` job) — `node --check` on all tracked JS + `npm audit --audit-level=high`, every PR and push to `main`. README CI section updated; `test` becomes the required branch-protection check.
-
----
-
-## 2026-02-22
+- **H1 — Microsoft was hardcoded green.** The adapter fetched the endpoint,
+  discarded the result, and returned a literal `"Operational"` row; Microsoft
+  had displayed healthy 100% of the time since the tool was written. Now parses
+  the payload, and is labelled **"Microsoft (Consumer Services)"** because that
+  endpoint omits Exchange, SharePoint, Entra, Intune and Defender.
+- **H2 — the malformed-row guard caused the crash it existed to prevent.**
+  `const rows` was reassigned, throwing a `TypeError` precisely when an adapter
+  returned a bad row, so nothing was written and stale data persisted silently.
+- **H3 — component scoping was inert.** Measured live in both directions:
+  Cloudflare under-reported (46 non-operational components, almost all routine
+  edge re-routing), KnowBe4 over-reported (an incident about their online store
+  while the vendor's own indicator read `none`).
+- **H4 — error handling failed open.** A network failure returned a row whose
+  status column read `Operational`. All failure paths now yield `unknown`.
+- **H6 — Stormboard was permanently green.** The vendor migrated to Better
+  Stack; the fallback tested `/\boperational\b/` against the whole document — a
+  word appearing 7 times in that markup regardless of status. Now parses the
+  structural status marker and fails closed.
+- **H7 — Concur was permanently green.** The status page became a client-side
+  app serving an empty shell; the scraped strings appeared zero times, and the
+  sanity guard passed because "Concur" sits in the shell's `<title>`. Now uses
+  the JSON API the app itself calls.
+- **M1** — severity gradations preserved, making severity-ordered sorting
+  possible at all.
+- **M2** — component-level outages are detected; the page indicator is read.
+- **M3** — the snapshot write is transactional; a mid-write failure can no
+  longer leave an empty board.
+- **M4** — all vendor-supplied content is escaped on output, behind a strict CSP
+  with a per-response nonce.
+- **M5** — vendors are fetched concurrently with per-request deadlines.
+- **L1–L4** — dead code removed, honest User-Agent, full header validation,
+  config-drift detection.
+- **An empty board no longer renders as "All systems operational."** Caught on
+  the first live deploy: zero records means nothing was checked.
 
 ### Changed
-- Removed `AGENTS.md` from repository and added to `.gitignore`
 
----
-
-## 2026-02-20
-
-### Added
-- 1Password, Tableau, Iorad, Okta status feeds
-- StatusGator scraping for Freshdesk and Freshservice
-- QuantumWorkplace status API URL
-- Script to discover Freshworks API endpoints
-
-### Changed
-- Migrated NetSuite to Statuspage API
-- Refined incident parsing for Concur and generic Statuspage feeds
-- Improved Google Workspace status parsing using `status_impact` and `most_recent_update` fields
-- Enhanced text cleaning for better readability
-- Updated incident status logic
+- Deployment is `wrangler deploy`; the Apps Script `clasp push` flow is gone.
+- Vendor configuration moved out of source entirely into
+  `config/vendors.example.json`.
+- CI gates on real unit tests and a build check rather than syntax validity.
+- Served at `/service-status` rather than `/status`, which conventionally means
+  "the status of this site".
 
 ### Removed
-- Obsolete Google test scripts
-- `test-fresh.js`
 
----
+- **StatusGator**, a third-party aggregator, and with it Freshdesk, Freshservice
+  and Paylocity — none publishes a public machine-readable status endpoint. A
+  monitored row with no real data source reports health it never verified.
+- `Code.js`, `appsscript.json`, `jsconfig.json` — the Apps Script
+  implementation, fully superseded.
 
-## 2026-02-19
+### Security
 
-### Changed
-- Sync update from home machine
-
----
-
-## 2026-02-13
-
-### Added
-- Qualtrics feed enabled
-- Initial commit from Antigravity (work machine)
+- Vendor incident text is treated as untrusted third-party input and escaped at
+  the render boundary; strict CSP (`default-src 'none'`) with a per-response
+  nonce.
+- Only the canonical host is indexable; the `workers.dev` address serves
+  `noindex` so it cannot compete as a duplicate.
+- No credential has ever entered this repository's history — `.clasp.json` and
+  `creds.json` are gitignored and were verified never committed.

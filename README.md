@@ -3,279 +3,277 @@
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-07-05 09:09 PM CDT
+Last updated: 2026-07-31 10:47 AM CDT
 
-A Google Apps Script / Node.js project that monitors the live status of a SaaS
-vendor ecosystem by polling each vendor's public status API and writing the
-results to a Google Sheet.
+Monitors the live operational status of a configurable set of SaaS and cloud
+services by polling each vendor's own public status endpoint, and serves a
+single-pane dashboard. Runs as a Cloudflare Worker on a 15-minute schedule.
 
-> **Note on badges:** the **Release** (shields.io) and **OpenSSF Scorecard**
-> badges are intentionally omitted while the repository is **private** — both
-> services read the repo over the public API and would render an error
-> ("repo not found" / "invalid repo path"), which is worse than no badge. They
-> are added back the moment the repo goes public (a one-line edit each, staged
-> in [Going public](#going-public)). The CI badge renders to authenticated
-> collaborators now and to everyone once public.
+Live at **<https://briangreenberg.net/service-status>**.
 
-## Purpose
+> **Note on badges:** the **Release** and **OpenSSF Scorecard** badges are
+> intentionally absent while this repository is **private** — both services read
+> the repo over the public API and would render an error, which is worse than no
+> badge. They are staged in [Going public](#going-public).
 
-Provides a single-pane view of operational health across 30+ vendors. The set of
-vendors is fully configurable — see [Configuring vendors](#configuring-vendors).
-The default `FEEDS` map ships a broad, working example set (1Password, Alteryx,
-Apple, Calendly, Celigo, Cloudflare, Concur, Docusign, Freshdesk/Freshservice,
-GitHub, Google Workspace, HubSpot, Jamf, KnowBe4, Microsoft, Monday.com, Okta,
-Seismic, Zoom, and more), all of which expose public status endpoints.
+## Contents
+
+- [Why it exists](#why-it-exists)
+- [How it works](#how-it-works)
+- [Configuring vendors](#configuring-vendors)
+- [Project structure](#project-structure)
+- [Development](#development)
+- [Deployment](#deployment)
+- [CI gates](#ci-gates)
+- [Design decisions](#design-decisions)
+- [Known limitations](#known-limitations)
+- [Troubleshooting](#troubleshooting)
+- [Going public](#going-public)
+- [License](#license)
+
+## Why it exists
+
+A status board is only worth having if you can trust it. The predecessor to this
+tool — a single-file Google Apps Script — was audited in July 2026 and found to
+have **four independent sources of false green**: vendors that displayed
+"Operational" regardless of reality.
+
+| Finding | Vendor | Mechanism |
+|---|---|---|
+| H1 | Microsoft | fetched the endpoint, discarded the result, returned a hardcoded literal |
+| H6 | Stormboard | vendor moved to Better Stack; a bare `/\boperational\b/` matched its markup |
+| H7 | Concur | vendor became a JS app; the scraped strings vanished and the sanity guard was defeated by the page `<title>` |
+| H4 | Concur, others | a network error returned a row whose status column read `Operational` |
+
+The common cause was not any single bug: it was the absence of any test
+asserting an adapter's output against a recorded payload. Every one of those
+would have failed red on the first fixture-pinned assertion.
+
+The full report is in [`docs/audit/`](docs/audit/). Its findings are the
+acceptance criteria for this rewrite, and the fixes are pinned by tests.
+
+**The governing rule: an unverifiable status is `unknown`, never `operational`.**
+Failing closed is the whole point.
 
 ## How it works
 
-A time-based Apps Script trigger runs `refreshVendorStatus()`, which polls each
-vendor in `FEEDS` and writes a normalized row set to the sheet. Most vendors
-expose a standard **Statuspage v2** summary, parsed by one generic adapter
-(`fetchStatuspageSummary_`, with an optional `FILTERS` component allowlist);
-vendors that don't (Google, Microsoft, Apple, Concur, Tableau/Salesforce, Okta
-RSS, SorryApp, Stormboard, StatusGator-scraped) get their own adapter. **Every
-adapter call is wrapped in its own `try/catch`**, so one vendor's outage or API
-change degrades that one row, never the whole run.
+A Cron Trigger fires every 15 minutes. The Worker fetches every configured
+vendor concurrently, normalizes each response into a common record, writes a
+snapshot transactionally to D1, and serves a rendered dashboard.
 
 ```mermaid
 flowchart TB
-    trig["Time-based trigger<br/>e.g. every 15 min"] --> entry["refreshVendorStatus()"]
-    entry --> hdr["ensureHeaders_(sheet)"]
-    hdr --> disp{"per vendor: pick adapter<br/>(each in its own try/catch)"}
-    disp -->|"Statuspage v2 — default"| a1["fetchStatuspageSummary_<br/>+ FILTERS allowlist"]
-    disp -->|"Google / Microsoft / Apple"| a2["vendor-specific JSON adapters"]
-    disp -->|"Concur / Tableau via Salesforce"| a3["custom API adapters"]
-    disp -->|"Okta RSS / SorryApp / Stormboard"| a4["feed + HTML adapters"]
-    disp -->|"Freshdesk / Freshservice / Paylocity"| a5["fetchStatusGator_ scrape"]
-    a1 --> fetch["fetchJson_ via UrlFetchApp"]
-    a2 --> fetch
-    a3 --> fetch
-    a4 --> fetch
-    a5 --> fetch
-    fetch -->|HTTP| ext(["vendor status endpoints"])
-    ext --> norm["normalizeStatus_ then collect rows"]
-    norm --> valid{"every row has 10 columns?"}
-    valid -->|no| drop["log + drop malformed rows"]
-    valid -->|yes| write["clear data rows, write,<br/>multi-sort by status, vendor, service"]
-    drop --> write
-    write --> flag["flagTableauRow_"]
-    flag --> sheet[("Google Sheet:<br/>Vendor System Status")]
+    cron["Cron Trigger<br/>*/15 * * * *"] --> collect["collect()<br/>concurrent + per-vendor deadline"]
+    collect --> adapters{"dispatch by type"}
+    adapters -->|"Statuspage v2"| a1["statuspage"]
+    adapters -->|"Instatus"| a2["instatus"]
+    adapters -->|"bespoke"| a3["google · apple · okta<br/>salesforce · concur<br/>sorryapp · betterstack · microsoft"]
+    a1 --> norm["severity + scope + roll-up"]
+    a2 --> norm
+    a3 --> norm
+    norm --> d1[("D1<br/>snapshot + history")]
+    d1 --> render["render()<br/>escape on output"]
+    render --> page["/service-status"]
 ```
 
-### Lifecycle of a single vendor row
+**Severity** is an ordered enum, not a boolean:
 
-Each vendor is processed independently; the diagram below traces one vendor
-through a refresh. A fetch/parse error is isolated to that vendor (the row is
-skipped), and a row that doesn't match the 10-column schema is dropped rather
-than written.
-
-```mermaid
-stateDiagram-v2
-    [*] --> Fetching: refreshVendorStatus() iterates FEEDS
-    Fetching --> Parsed: adapter returns row(s)
-    Fetching --> Errored: try/catch logs, vendor skipped
-    Parsed --> Normalized: normalizeStatus_ → Operational | Degraded
-    Normalized --> Validated: row has 10 columns?
-    Validated --> Written: yes → setValues + multi-sort
-    Validated --> Dropped: no → log + drop
-    Errored --> [*]
-    Dropped --> [*]
-    Written --> [*]
+```
+major_outage > partial_outage > degraded > unknown > maintenance > operational
 ```
 
-### Output schema (data dictionary)
+`unknown` deliberately outranks `operational` — a check that failed is not
+evidence of health — and sits below `maintenance` in urgency terms only because
+planned maintenance is a *known* benign state.
 
-Each refresh clears the data rows and rewrites them. Every row has exactly these
-10 columns, in order (`HEADERS` in `Code.js`); a row that doesn't match is
-dropped:
+**How a vendor's status is decided:**
 
-| Column | Meaning |
-|--------|---------|
-| `vendor` | Vendor name (the `FEEDS` key). |
-| `service` | Component/service within the vendor, or the vendor itself when no sub-component is reported. |
-| `status` | Normalized to **`Operational`** or **`Degraded`** by `normalizeStatus_`. |
-| `incident_name` | Title of the active incident, if any. |
-| `description` | Cleaned incident description text. |
-| `impact` | Vendor-reported impact level (e.g. `minor`, `major`, `critical`). |
-| `started_at` | Incident start timestamp, when provided. |
-| `updated_at` | Incident last-updated timestamp, when provided. |
-| `source_url` | The status endpoint the row was derived from. |
-| `last_checked` | ISO timestamp of this refresh run. |
+- **With a scope configured** — severity is the worst of the *in-scope
+  components only*. The vendor's own page indicator is ignored, because the
+  operator has declared what they care about.
+- **Without a scope** — severity is the worst of the page indicator and all
+  components.
+- **Incidents never contribute to severity**, only to context. Deriving status
+  from incidents alone caused errors in both directions in the predecessor.
 
-## Tech Stack
-
-- **Runtime:** Google Apps Script (V8)
-- **Output:** Google Sheets (`Vendor System Status` tab)
-- **Status sources:** Statuspage v2 API, StatusGator scraping, vendor-specific APIs
-- **Dev tooling:** `@types/google-apps-script` for IDE type support
-
-## Prerequisites
-
-- Google Workspace account with Apps Script access
-- [clasp](https://github.com/google/clasp) for local development (`npm install -g @google/clasp`)
-- Node.js (for type checking / dev tooling only — not used at runtime)
-
-## Setup
-
-1. Clone the repo and install dev dependencies:
-   ```bash
-   git clone https://github.com/bjgreenberg/vendor-dashboard.git
-   cd vendor-dashboard
-   npm install
-   ```
-2. Authenticate clasp:
-   ```bash
-   clasp login
-   ```
-3. Link to your Apps Script project:
-   ```bash
-   clasp clone <scriptId>
-   # or push to an existing project:
-   clasp push
-   ```
-4. In Apps Script → Project Settings, confirm the script is bound to the correct Google Sheet.
-5. Set up a time-based trigger to run `refreshVendorStatus` on your desired schedule (e.g. every 15 minutes). _(This is the single entry point — see [How it works](#how-it-works).)_
+**Roll-up:** a vendor is a parent over many sub-services. All healthy renders one
+collapsed row; anything unhealthy renders the parent plus **only** the affected
+children. Zoom publishes 283 components — you should never see 283 green rows.
 
 ## Configuring vendors
 
-The vendor list lives in the `FEEDS` map at the top of `Code.js` — a `"Vendor
-Name": "https://status-endpoint"` object. To adapt the dashboard to your own
-stack:
+The monitored set lives entirely in [`config/vendors.example.json`](config/vendors.example.json).
+**No vendor list exists in source code.** That separation is what lets one
+codebase serve different deployments with different configs.
 
-- **Add a vendor** that exposes a Statuspage v2 summary (`…/api/v2/summary.json`):
-  add one line to `FEEDS`. The generic `fetchStatuspageSummary_` adapter handles it.
-- **Narrow the components** reported for a noisy vendor: add an allowlist entry to
-  `FILTERS` (e.g. `"Cloudflare": ["Dashboard", "DNS", "Workers"]`).
-- **Add a non-Statuspage vendor** (custom JSON, RSS, or scraped): follow the
-  existing per-vendor adapters (`fetchGoogleAppsStatus_`, `fetchMicrosoftStatus_`,
-  `fetchAppleStatus_`, `fetchStatusGator_`, …) as templates and wire the call into
-  `refreshVendorStatus()` inside its own `try/catch`.
-
-## Secrets
-
-No API keys are hardcoded. Any credentials required by specific vendor APIs should
-be stored in Apps Script **Script Properties** (Project Settings → Script
-Properties), not in source code.
-
-## Security
-
-- **Least-privilege OAuth scopes** are declared explicitly in `appsscript.json`
-  (`spreadsheets.currentonly` + `script.external_request`) instead of relying on
-  Apps Script's over-reaching scope auto-detection. If you extend the script to
-  touch other spreadsheets, widen `spreadsheets.currentonly` → `spreadsheets`.
-- **No inbound surface:** the script only makes outbound HTTPS calls to public
-  status endpoints and treats every response as untrusted (per-adapter
-  `try/catch`; malformed rows dropped).
-- **CI security gates:** `secret-scan` (gitleaks over history + tree), `npm
-  audit`, plus OpenSSF Scorecard once public. Full policy and reporting process:
-  [`SECURITY.md`](SECURITY.md).
-
-## Project Structure
-
-| File | Purpose |
-|------|---------|
-| `Code.js` | Main script — `FEEDS`/`FILTERS`/`HEADERS` config, the `refreshVendorStatus()` entry point, and all per-vendor fetch/parse adapters |
-| `appsscript.json` | Apps Script manifest |
-| `package.json` / `package-lock.json` | Dev dependencies (`@types/google-apps-script`) + project metadata |
-| `LICENSE` | Apache-2.0 license text |
-| `CITATION.cff` | Machine-readable citation metadata (powers GitHub's "Cite this repository") |
-| `SECURITY.md` | Vulnerability disclosure policy + security posture |
-| `CHANGELOG.md` | Keep a Changelog history |
-| `release-please-config.json` / `.release-please-manifest.json` | Release automation config (see [Versioning & releases](#versioning--releases)) |
-| `.github/workflows/` | `ci.yml` (syntax + audit + secret-scan + cff-validate + docs-render), `release-please.yml`, `scorecard.yml` |
-| `.github/dependabot.yml` | Weekly npm + github-actions update PRs |
-| `scripts/render-diagrams.sh` | Render-checks every Mermaid block (the `docs-render` gate) |
-| `.gitignore` | Excludes `node_modules/`, `.clasp.json`, `creds.json`, `AGENTS.md` |
-
-## Versioning & releases
-
-Releases are automated with
-[release-please](https://github.com/googleapis/release-please). On every push to
-`main` the `release-please` workflow reads the
-[Conventional Commits](https://www.conventionalcommits.org/) since the last
-release and maintains a **release PR** that:
-
-- bumps the version in `package.json` and `CITATION.cff`, and
-- prepends the new version section to `CHANGELOG.md`.
-
-Merging that release PR tags the version and publishes a **GitHub Release** with
-generated notes — the version then appears on the repository's Releases panel
-(and, once the repo is public, in a Release badge). Versions are never hand-tagged.
-
-Commit types drive the bump: `feat:` → minor, `fix:` → patch, `feat!:`/`BREAKING
-CHANGE:` → major. `docs:`, `chore:`, `ci:`, etc. do not cut a release on their own.
-
-## Citing this project
-
-Citation metadata lives in [`CITATION.cff`](CITATION.cff); the version and
-release date are kept current by release-please, so they never drift from the
-tagged release. On GitHub, use **"Cite this repository"** (right sidebar) to
-export APA/BibTeX.
-
-## Contributing
-
-`main` is protected — all changes go **branch → PR → squash-merge**. The CI
-workflow's `test`, `cff-validate`, and `docs-render` jobs must be green before a
-PR can merge. Use Conventional Commit messages so release automation can classify
-the change. Before opening a PR, run the diagram render-check locally:
-
-```bash
-scripts/render-diagrams.sh
+```jsonc
+{
+  "name": "Cloudflare",
+  "type": "statuspage",
+  "url": "https://www.cloudflarestatus.com/api/v2/summary.json",
+  "scope": { "groups": ["Cloudflare Sites and Services"] }
+}
 ```
 
-## CI
+| Field | Purpose |
+|---|---|
+| `type` | Which adapter parses the feed (see the file's own `$comment`) |
+| `url` | The status endpoint |
+| `scope` | Optional. Restrict which components count, by `groups` or exact `components` names |
+| `dataCenters` | Concur only — restrict to named data centres |
+| `bannerUrl` | Concur only — its secondary "something is wrong" signal |
 
-Every pull request, and every push to `main`, runs the CI workflow
-([.github/workflows/ci.yml](.github/workflows/ci.yml)), which has four jobs:
+**Scoping matters more than it looks.** Cloudflare publishes ~470 components,
+most of them edge PoPs. Without a scope, routine re-routing in Arica or Guam —
+the redundancy working as designed — drags the row amber. Measured 2026-07-30:
+unscoped 46 non-operational, services-only 0.
 
-- **`test`** — `node --check` on every tracked `.js` file (syntax gate — Apps
-  Script code has no unit tests yet) and `npm audit --audit-level=high` against
-  the committed lockfile.
-- **`secret-scan`** — scans the full git history and the working tree for
-  committed secrets via the digest-pinned `gitleaks` container.
-- **`cff-validate`** — validates `CITATION.cff` against the CFF schema via the
-  digest-pinned `cffconvert` container, so a broken "Cite this repository" button
-  can't merge.
-- **`docs-render`** — renders every Mermaid diagram in the repo's Markdown via
-  the digest-pinned `mermaid-cli` container (`scripts/render-diagrams.sh`), so an
-  unrenderable diagram can't merge.
+If a configured component name matches nothing in the live payload, the run
+emits a warning rather than silently ignoring it.
 
-All GitHub Actions are pinned to full-length commit SHAs (supply-chain integrity).
+## Project structure
 
-Two more workflows run on pushes to `main`: `release-please`
-([.github/workflows/release-please.yml](.github/workflows/release-please.yml))
-maintains the release PR, and `scorecard`
-([.github/workflows/scorecard.yml](.github/workflows/scorecard.yml)) runs the
-OpenSSF Scorecard analysis once the repository is public. See
-[Security](#security) for the full security posture.
+| Path | Purpose |
+|---|---|
+| `src/engine/` | **Runtime-agnostic.** Pure functions, no platform APIs. Testable in plain Node |
+| `src/engine/adapters/` | One module per feed format |
+| `src/engine/severity.js` | Ordered enum, vendor-vocabulary normalization |
+| `src/engine/scope.js` | Component/group allowlist + drift detection |
+| `src/engine/rollup.js` | Parent roll-up and progressive disclosure |
+| `src/engine/collect.js` | Orchestrator: concurrency, deadlines, bounded retry |
+| `src/worker/` | Cloudflare bindings **only** — `scheduled()`, `fetch()`, D1, rendering |
+| `config/` | Vendor configuration |
+| `db/schema.sql` | D1 schema |
+| `test/fixtures/` | Recorded vendor payloads (golden fixtures) |
+| `docs/audit/` | The extraction audit driving this rewrite |
 
-## Branch protection
+The engine deliberately contains **no** Worker, GCP, or Apps Script APIs. The
+caller injects `fetchFn` and `now`, which is what makes it testable without a
+network and portable to another runtime.
 
-`main` is protected: changes go branch → PR → **squash-merge**, never a direct
-push. The CI jobs (`test`, `secret-scan`, `cff-validate`, `docs-render`) must pass
-before a PR can merge. Linear history is enforced, including for admins. All
-GitHub Actions are SHA-pinned per repository policy.
+## Development
+
+```bash
+npm ci
+npm test              # 165 tests
+npm run test:watch
+npx wrangler dev      # local Worker
+```
+
+Tests run against recorded fixtures — no network required, and deterministic
+because the clock is injected.
+
+## Deployment
+
+```bash
+npx wrangler deploy
+```
+
+Requires `wrangler login` (OAuth) or `CLOUDFLARE_API_TOKEN`.
+
+Routing is declared in [`wrangler.jsonc`](wrangler.jsonc) as a **route**, not a
+Custom Domain. `briangreenberg.net` is itself a Custom Domain bound to a
+different Worker; a route on a sub-path runs *before* the Custom Domain Worker,
+so `/service-status*` is intercepted and every other path reaches the site
+untouched.
+
+> ⚠️ **Never declare `custom_domain` in `wrangler.jsonc`.** Wrangler skips the
+> changeset preview and force-overrides DNS whenever stdout is not a TTY (CI,
+> agent shells) — on a zone a live site depends on. A plain route does not touch
+> DNS.
+
+⚠️ **Deploys take 20–30 seconds to propagate.** Testing sooner produces
+convincing false failures — 404s on paths that are configured correctly.
+Cache-busting does not help, because it is not caching.
+
+## CI gates
+
+All must pass before merge:
+
+| Job | What it proves |
+|---|---|
+| `test` | 165 unit tests, every adapter pinned against a recorded payload; plus `wrangler --dry-run` build check and `npm audit --audit-level=high` |
+| `secret-scan` | gitleaks over full history **and** working tree |
+| `cff-validate` | `CITATION.cff` against the CFF schema |
+| `docs-render` | every Mermaid block renders (a broken diagram is a broken deliverable) |
+
+All third-party Actions are SHA-pinned; container tools are digest-pinned.
+
+## Design decisions
+
+- **Config is not code.** The vendor list lives in JSON so one codebase can
+  serve multiple deployments.
+- **The engine is runtime-agnostic on purpose.** Costs nothing, and keeps a
+  future non-Cloudflare deployment possible.
+- **Fail closed, everywhere.** Null, malformed, unrecognised, unreachable — all
+  become `unknown`. A green row must mean something was actually verified.
+- **An empty board is not a healthy board.** Zero records renders "No status
+  data", never "All systems operational".
+- **Staleness is surfaced.** If the newest snapshot is older than two collection
+  intervals, the page says so — the dead-man's switch for our own cron.
+- **Vendor content is untrusted input.** ~35 third-party feeds are escaped on
+  output; a strict CSP with a per-response nonce is the second line.
+- **404 is treated as retryable**, unusually. Microsoft's endpoint was measured
+  at ~50% availability; the cost of being wrong is bounded because the answer
+  after the cap is still `unknown`.
+- **Retries share a run-wide budget**, because the Workers free plan caps
+  subrequests at 50 per invocation.
+- **Honest User-Agent.** The predecessor forged a Chrome 91 string from 2021; a
+  stale forged UA is *more* likely to be bot-filtered than an honest one.
+
+## Known limitations
+
+- **Freshdesk, Freshservice and Paylocity are not monitored.** None publishes a
+  public machine-readable status endpoint (verified 2026-07-30: Freshworks'
+  Statuspage returns 401 "page is inactive", `status.freshworks.com` is a JS
+  shell, `status.paylocity.com` redirects to a login portal). They were
+  previously sourced via StatusGator, a third-party aggregator, which is no
+  longer used. **A monitored row with no real data source reports health it
+  never verified**, so they are omitted rather than faked.
+- **Microsoft covers consumer services only.** That endpoint reports
+  Outlook.com, OneDrive, Phone Link and Teams Free. Exchange Online, SharePoint,
+  Entra, Intune and Defender are absent. The row is labelled accordingly.
+  Enterprise tenant health requires the authenticated Microsoft Graph Service
+  Health API.
+- **Five vendors cannot show a component breakdown.** Google, Okta and Concur
+  publish only current *incidents*; Iorad and Stormboard publish a single
+  page-level state. There is no service catalogue to expand without inventing
+  one, so those rows have no disclosure.
+- **Okta has no public JSON API** — `summary.json`, `index.json`,
+  `history.atom` and `history.rss` all return 401. The adapter parses the
+  incident records the status page embeds as JSON, using `indexOf` plus a linear
+  bracket walk rather than regex, because the page is ~347 KB against a 10 ms
+  CPU budget.
+- **No uptime history UI yet.** History *is* recorded from day one; only the
+  reporting is unbuilt.
+
+## Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| Paths 404 right after deploy | Propagation lag. Wait 20–30 s and retest before debugging |
+| A vendor shows `unknown` | Read its `warnings` in `/service-status/api/status` — it names the HTTP status or parse failure |
+| Board reads "No status data" | The cron has not run yet, or is failing. Check `wrangler tail` and `run_meta` in D1 |
+| "This data may be stale" banner | Collection has not succeeded in >30 minutes. The collector, not the vendors, is the problem |
+| `Apple` unknown locally but fine in production | A host with no IPv6 egress. Node's fetch tries AAAA first; Apple is the only vendor publishing AAAA records |
+| Deploy fails: "CPU limits are not supported for the Free plan" | The `limits` block is paid-only. It is commented out in `wrangler.jsonc` |
 
 ## Going public
 
-This repository is being generalized from an internal tool into a public
-open-source project. The [OpenSSF Scorecard](https://github.com/ossf/scorecard-action)
-workflow is already committed but inert while private. When the repo is flipped
-to public:
+This repository is **private**. Before flipping it public:
 
-- **Re-add the Release and Scorecard badges** to the badge row at the top of this
-  README (removed while private because the badge services can't read a private
-  repo). Paste these two lines back between the CI and License badges:
+- Re-add the **Release** and **OpenSSF Scorecard** badges to the badge row:
   ```markdown
-  [![Release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard?sort=semver)](https://github.com/bjgreenberg/vendor-dashboard/releases)
+  [![Release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard)](https://github.com/bjgreenberg/vendor-dashboard/releases)
   [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bjgreenberg/vendor-dashboard/badge)](https://securityscorecards.dev/viewer/?uri=github.com/bjgreenberg/vendor-dashboard)
   ```
 - The `scorecard` workflow activates on the next push to `main`; confirm the
-  Scorecard badge renders (allow one run to complete).
-- Enable Dependabot **alerts + security updates** and **secret scanning + push
-  protection** in repository settings (the committed `dependabot.yml` handles
-  version-update PRs; the CI `secret-scan` job is the in-tree complement).
-- Confirm the CI and Release badges render for anonymous visitors.
+  badge renders after one run.
+- Verify no credential ever entered history (`.clasp.json` and `creds.json` are
+  gitignored and were never committed — confirmed at the v2 squash).
+- Branch protection on `main` is already in place: required PR reviews, four
+  required status checks (`test`, `docs-render`, `cff-validate`, `secret-scan`),
+  linear history, no force pushes, and **enforced for admins**. Nothing to do.
 
 ## License
 

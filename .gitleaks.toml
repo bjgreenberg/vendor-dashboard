@@ -1,0 +1,34 @@
+# gitleaks configuration.
+#
+# The secret-scan gate runs over full git history AND the working tree, and must
+# stay green. This file exists for exactly one narrow false positive; it is NOT
+# a place to silence real findings.
+
+[extend]
+useDefault = true
+
+[[rules]]
+# Re-declare the stock rule so an allowlist can be attached to it specifically,
+# rather than weakening scanning globally.
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)(?:key|api|token|secret|client|passwd|password|auth|access)(?:[0-9a-z\-_\t .]{0,20})(?:[\s|']|[\s|"]){0,3}(?:=|>|:{1,3}=|\|\||:|<=|=>|:=|\?=)(?:'|\"|\s|=|\x60){0,5}([0-9a-z\-_.=]{10,150})(?:['|\"|\n|\r|\s|\x60|;]|$)'''
+keywords = ["key", "api", "token", "secret", "client", "passwd", "password", "auth", "access"]
+
+  [rules.allowlist]
+  description = """
+  Recorded vendor status payloads contain opaque public identifiers that match the
+  generic-api-key heuristic. Google's products.json, for example, publishes
+  {"title":"Gemini","id":"npdyhgECDJ6tB66MxXyo"} - a public product id, served
+  unauthenticated from a public status feed, with no credential value whatsoever.
+
+  Scoped deliberately:
+    - ONE rule (generic-api-key), not a blanket suppression
+    - ONE directory (test/fixtures), which contains only responses captured from
+      public vendor status endpoints
+  Every other rule still applies to these files, and every rule still applies
+  everywhere else. This project holds no runtime secrets: the Worker
+  authenticates to nothing, and .clasp.json / creds.json are gitignored and were
+  verified never committed.
+  """
+  paths = ['''^test/fixtures/.*''']

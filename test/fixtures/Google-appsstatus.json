@@ -1,0 +1,531 @@
+[
+  {
+    "id": "AWyE1SfEzpe8Qed49Rog",
+    "number": "12918412236754833550",
+    "begin": "2026-06-30T09:03:00+00:00",
+    "created": "2026-06-30T11:56:57+00:00",
+    "end": "2026-07-01T03:45:00+00:00",
+    "modified": "2026-07-01T04:58:32+00:00",
+    "external_desc": "**Title**\nInbound emails from customers to Google Support are experiencing issues.\n**Description**\nWe are experiencing an issue with Google Cloud Support beginning on Tuesday, 2026-06-30 02:03 PDT.\nOur engineering team continues to investigate the issue.\nWe will provide an update by Tuesday, 2026-06-30 05:30 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Symptoms**\nInbound emails from customers to Google Support are experiencing issues.\nCase creation continues to work.\n**Workaround**\nNone at this time.",
+    "updates": [
+      {
+        "created": "2026-07-01T04:58:32+00:00",
+        "modified": "2026-07-01T04:58:32+00:00",
+        "when": "2026-07-01T04:58:32+00:00",
+        "text": "**Title**\n[Resolved] Inbound emails from customers to Google Support were experiencing issues.\n**Description**\nThe issue with inbound emails to Google Cloud Support has been resolved for all affected customers as of Tuesday, 2026-06-30 20:45 PDT.\nFrom preliminary analysis, the engineering team identified a recent change which was preventing incoming emails from being processed. We have successfully rolled back the change to mitigate the impact.\nBacklog processing of all the affected emails is now complete.\nWe thank you for your patience while we worked on resolving the issue.\n**Symptoms**\nInbound emails from customers to Google Support were experiencing issues.\nCase creation and updates continued to work without any issues.\n**Workaround**\nNone as the issue is resolved.",
+        "status": "AVAILABLE"
+      },
+      {
+        "created": "2026-07-01T00:44:02+00:00",
+        "modified": "2026-07-01T04:58:32+00:00",
+        "when": "2026-07-01T00:44:02+00:00",
+        "text": "**Title**\nInbound emails from customers to Google Support are experiencing issues.\n**Description**\nThe mitigation rollout was completed as of 09:00 AM PDT on 30 June 2026, and all incoming emails are currently being processed without further disruption.\nOur engineers are continuing to work replaying the inbound messages that were impacted between 25 June 2026 and 09:00 AM PDT on 30 June 2026. We expect the email replays to take several hours, please be advised that this backlog processing may cause case statuses to update dynamically or cause certain closed cases to temporarily reopen.\nWe will provide more information by Tuesday, 2026-06-30 21:30 PDT.\n**Symptoms**\nInbound emails from customers to Google Support after 09:00 AM PDT on 30 June 2026 are working as expected. The affected emails from the time of the issue are being replayed.\nCase creation and updates continues to work without any issues.\n**Workaround**\nCustomers can continue to use the portal to add comments / notes.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-30T19:03:19+00:00",
+        "modified": "2026-07-01T00:44:02+00:00",
+        "when": "2026-06-30T19:03:19+00:00",
+        "text": "**Title**\nInbound emails from customers to Google Support are experiencing issues.\n**Description**\nThe mitigation rollout was completed as of 09:00 AM PDT on 30 June 2026, and all incoming emails are currently being processed without further disruption.\nOur engineers are continuing to work replaying the inbound messages that were impacted between 25 June 2026 and 09:00 AM PDT on 30 June 2026. We expect the email replays to take several hours, please be advised that this backlog processing may cause case statuses to update dynamically or cause certain closed cases to temporarily reopen.\nWe will provide more information by Tuesday, 2026-06-30 17:00 PDT.\n**Symptoms**\nInbound emails from customers to Google Support after 09:00 AM PDT on 30 June 2026 are working as expected. The affected emails from the time of the issue are being replayed.\nCase creation and updates continues to work without any issues.\n**Workaround**\nCustomers can continue to use the portal to add comments / notes.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-30T17:53:29+00:00",
+        "modified": "2026-06-30T19:03:19+00:00",
+        "when": "2026-06-30T17:53:29+00:00",
+        "text": "**Title**\nInbound emails from customers to Google Support are experiencing issues.\n**Description**\nThe mitigation rollout was completed as of 09:00 AM PDT on 30 June 2026, and all incoming emails are currently being processed without further disruption.\nOur engineers are continuing to work replaying the inbound messages that were impacted between 25 June 2026 and 09:00 AM PDT on 30 June 2026. We expect the email replays to take several hours, please be advised that this backlog processing may cause case statuses to update dynamically or cause certain closed cases to temporarily reopen.\nWe will provide more information by Tuesday, 2026-06-30 12:15 PDT.\n**Symptoms**\nInbound emails from customers to Google Support are experiencing issues.\nCase creation and updates continues to work without any issues.\n**Workaround**\nCustomers can continue to use the portal to add comments / notes.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-30T16:36:46+00:00",
+        "modified": "2026-06-30T17:53:29+00:00",
+        "when": "2026-06-30T16:36:46+00:00",
+        "text": "**Title**\nInbound emails from customers to Google Support are experiencing issues.\n**Description**\nThe mitigation rollout was completed as of 09:00 AM PDT on 30 June 2026, and all incoming emails are currently being processed without further disruption.\nOur engineering teams have shifted focus to replaying the inbound messages that were impacted between 25 June 2026 and 09:00 AM PDT on 30 June 2026.\nWhile there is currently no specific ETA for the email replay to finish, please be advised that this backlog processing may cause case statuses to update dynamically or cause certain closed cases to temporarily reopen.\nWe will provide more information by Tuesday, 2026-06-30 11:00 PDT.\n**Symptoms**\nInbound emails from customers to Google Support are experiencing issues.\nCase creation and updates continues to work without any issues.\n**Workaround**\nCustomers can continue to use the portal to add comments / notes.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-30T15:48:35+00:00",
+        "modified": "2026-06-30T16:36:46+00:00",
+        "when": "2026-06-30T15:48:35+00:00",
+        "text": "**Title**\nInbound emails from customers to Google Support are experiencing issues.\n**Description**\nMitigation work is currently underway by our engineering team.\nThe mitigation is expected to complete by Tuesday, 2026-06-30 09:45 PDT.\nWe will provide more information by Tuesday, 2026-06-30 10:00 PDT.\n**Symptoms**\nInbound emails from customers to Google Support are experiencing issues.\nCase creation and updates continues to work without any issues.\n**Workaround**\nCustomers can continue to use the portal to add comments / notes.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-30T14:51:10+00:00",
+        "modified": "2026-06-30T15:48:35+00:00",
+        "when": "2026-06-30T14:51:10+00:00",
+        "text": "**Title**\nInbound emails from customers to Google Support are experiencing issues.\n**Description**\nMitigation work is currently underway by our engineering team.\nWe do not have an ETA for mitigation at this point.\nWe will provide more information by Tuesday, 2026-06-30 08:45 PDT.\n**Symptoms**\nInbound emails from customers to Google Support are experiencing issues.\nCase creation and updates continues to work without any issues.\n**Workaround**\nCustomers can continue to use the portal to add comments / notes.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-30T14:06:26+00:00",
+        "modified": "2026-06-30T14:51:10+00:00",
+        "when": "2026-06-30T14:06:26+00:00",
+        "text": "**Title**\nInbound emails from customers to Google Support are experiencing issues.\n**Description**\nWe are experiencing an issue with Google Cloud Support beginning on Tuesday, 2026-06-30 02:03 PDT.\nOur engineering team continues to investigate the issue.\nWe will provide an update by Tuesday, 2026-06-30 08:00 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Symptoms**\nInbound emails from customers to Google Support are experiencing issues.\nCase creation continues to work.\n**Workaround**\nCustomers can continue to use the portal to add comments / notes.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-30T13:28:46+00:00",
+        "modified": "2026-06-30T14:06:26+00:00",
+        "when": "2026-06-30T13:28:46+00:00",
+        "text": "**Title**\nInbound emails from customers to Google Support are experiencing issues.\n**Description**\nWe believe the issue with Google Support is mitigated.\nOur engineering team continues to investigate the root cause.\nCustomers are being advised if they have an urgent issue to resend previous communication to Google Support.\nWe will provide an update by Tuesday, 2026-06-30 08:00 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Symptoms**\nInbound emails from customers to Google Support are experiencing issues.\nCase creation continues to work.\n**Workaround**\nCustomers can continue to use the portal to add comments / notes.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-30T12:28:59+00:00",
+        "modified": "2026-06-30T13:28:46+00:00",
+        "when": "2026-06-30T12:28:59+00:00",
+        "text": "**Title**\nInbound emails from customers to Google Support are experiencing issues.\n**Description**\nWe believe the issue with Google Support is mitigated.\nOur engineering team continues to investigate the root cause.\nCustomers are being advised if they have an urgent issue to resend previous communication to Google Support.\nWe will provide an update by Tuesday, 2026-06-30 06:30 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Symptoms**\nInbound emails from customers to Google Support are experiencing issues.\nCase creation continues to work.\n**Workaround**\nCustomers can continue to use the portal to add comments / notes.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-30T12:17:19+00:00",
+        "modified": "2026-06-30T12:28:59+00:00",
+        "when": "2026-06-30T12:17:19+00:00",
+        "text": "**Title**\nInbound emails from customers to Google Support are experiencing issues.\n**Description**\nWe believe the issue with Google Support is mitigated.\nOur engineering team continues to investigate the root cause.\nCustomers are being advised if they have an urgent issue to resend previous communication to Google Support.\nWe will provide an update by Tuesday, 2026-06-30 06:30 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Symptoms**\nInbound emails from customers to Google Support are experiencing issues.\nCase creation continues to work.\n**Workaround**\nNone at this time.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-30T11:56:57+00:00",
+        "modified": "2026-06-30T12:17:19+00:00",
+        "when": "2026-06-30T11:56:57+00:00",
+        "text": "**Title**\nInbound emails from customers to Google Support are experiencing issues.\n**Description**\nWe are experiencing an issue with Google Cloud Support beginning on Tuesday, 2026-06-30 02:03 PDT.\nOur engineering team continues to investigate the issue.\nWe will provide an update by Tuesday, 2026-06-30 05:30 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Symptoms**\nInbound emails from customers to Google Support are experiencing issues.\nCase creation continues to work.\n**Workaround**\nNone at this time.",
+        "status": "SERVICE_DISRUPTION"
+      }
+    ],
+    "most_recent_update": {
+      "created": "2026-07-01T04:58:32+00:00",
+      "modified": "2026-07-01T04:58:32+00:00",
+      "when": "2026-07-01T04:58:32+00:00",
+      "text": "**Title**\n[Resolved] Inbound emails from customers to Google Support were experiencing issues.\n**Description**\nThe issue with inbound emails to Google Cloud Support has been resolved for all affected customers as of Tuesday, 2026-06-30 20:45 PDT.\nFrom preliminary analysis, the engineering team identified a recent change which was preventing incoming emails from being processed. We have successfully rolled back the change to mitigate the impact.\nBacklog processing of all the affected emails is now complete.\nWe thank you for your patience while we worked on resolving the issue.\n**Symptoms**\nInbound emails from customers to Google Support were experiencing issues.\nCase creation and updates continued to work without any issues.\n**Workaround**\nNone as the issue is resolved.",
+      "status": "AVAILABLE"
+    },
+    "status_impact": "SERVICE_DISRUPTION",
+    "severity": "medium",
+    "service_key": "dnz8HVUHoMMcW9wV91LY",
+    "service_name": "Google Workspace Support",
+    "affected_products": [
+      {
+        "title": "Google Workspace Support",
+        "id": "dnz8HVUHoMMcW9wV91LY"
+      }
+    ],
+    "uri": "incidents/AWyE1SfEzpe8Qed49Rog"
+  },
+  {
+    "id": "qqWhZSpoVLJWur1GfHfu",
+    "number": "6760817193806533896",
+    "begin": "2026-06-22T19:30:00+00:00",
+    "created": "2026-06-22T22:28:55+00:00",
+    "end": "2026-06-23T00:46:00+00:00",
+    "modified": "2026-06-23T01:08:59+00:00",
+    "external_desc": "**Title**\nSome consumer Google Voice users are experiencing account suspensions.\n**Description**\nWe are experiencing an issue with Google Voice beginning at Monday, 2026-06-22 12:30 PDT.\nOur engineering team has identified the root cause and is actively working to mitigate the issue.\nWe will provide an update by Monday, 2026-06-22 17:30 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Customer Symptoms**\nSome consumer Google Voice users are experiencing account suspensions",
+    "updates": [
+      {
+        "created": "2026-06-23T01:08:59+00:00",
+        "modified": "2026-06-23T01:08:59+00:00",
+        "when": "2026-06-23T01:08:59+00:00",
+        "text": "**Title**\nSome consumer Google Voice users experienced account suspensions.\n**Description**\nThe issue with Google Voice has been resolved for all affected users as of Monday, 2026-06-22 17:46 PDT\nOur engineers have mitigated the issue by rolling back to a previous version and reinstating suspended accounts.\nWe thank you for your patience while we worked on resolving the issue.\n**Symptoms**\nSome consumer Google Voice users experienced account suspensions\n**Workaround**\nThe issue is now mitigated.",
+        "status": "AVAILABLE"
+      },
+      {
+        "created": "2026-06-23T00:29:23+00:00",
+        "modified": "2026-06-23T01:08:59+00:00",
+        "when": "2026-06-23T00:29:23+00:00",
+        "text": "**Title**\nSome consumer Google Voice users are experiencing account suspensions.\n**Description**\nWe are experiencing an issue with Google Voice beginning at Monday, 2026-06-22 12:30 PDT.\nOur engineering team has identified a mitigation strategy and is actively working on mitigation.\nWe do not have an ETA for mitigation at this time.\nWe will provide an update by Monday, 2026-06-22 22:30 PDT with current details.\n**Symptoms**\nSome consumer Google Voice users are experiencing account suspensions\n**Workaround**\nNone at this time.",
+        "status": "SERVICE_INFORMATION"
+      },
+      {
+        "created": "2026-06-22T22:28:55+00:00",
+        "modified": "2026-06-23T00:29:23+00:00",
+        "when": "2026-06-22T22:28:55+00:00",
+        "text": "**Title**\nSome consumer Google Voice users are experiencing account suspensions.\n**Description**\nWe are experiencing an issue with Google Voice beginning at Monday, 2026-06-22 12:30 PDT.\nOur engineering team has identified the root cause and is actively working to mitigate the issue.\nWe will provide an update by Monday, 2026-06-22 17:30 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Customer Symptoms**\nSome consumer Google Voice users are experiencing account suspensions",
+        "status": "SERVICE_INFORMATION"
+      }
+    ],
+    "most_recent_update": {
+      "created": "2026-06-23T01:08:59+00:00",
+      "modified": "2026-06-23T01:08:59+00:00",
+      "when": "2026-06-23T01:08:59+00:00",
+      "text": "**Title**\nSome consumer Google Voice users experienced account suspensions.\n**Description**\nThe issue with Google Voice has been resolved for all affected users as of Monday, 2026-06-22 17:46 PDT\nOur engineers have mitigated the issue by rolling back to a previous version and reinstating suspended accounts.\nWe thank you for your patience while we worked on resolving the issue.\n**Symptoms**\nSome consumer Google Voice users experienced account suspensions\n**Workaround**\nThe issue is now mitigated.",
+      "status": "AVAILABLE"
+    },
+    "status_impact": "SERVICE_INFORMATION",
+    "severity": "low",
+    "service_key": "gh79SrQk6wqonWoxPdCm",
+    "service_name": "Google Voice",
+    "affected_products": [
+      {
+        "title": "Google Voice",
+        "id": "gh79SrQk6wqonWoxPdCm"
+      }
+    ],
+    "uri": "incidents/qqWhZSpoVLJWur1GfHfu"
+  },
+  {
+    "id": "CzZUn98mhTcEiCJo27Kv",
+    "number": "11672950073358311792",
+    "begin": "2026-06-10T10:20:00+00:00",
+    "created": "2026-06-10T12:40:45+00:00",
+    "end": "2026-06-10T17:30:00+00:00",
+    "modified": "2026-06-16T17:41:16+00:00",
+    "external_desc": "**Title**\nGemini App in Workspace and Gemini Side Panel (Gemini in Workspace) customers are experiencing “Something Went Wrong” errors.\n**Description**\nWe are experiencing an issue with Gemini beginning on Wednesday, 2026-06-10 03:26 PDT.\nOur engineering team continues to investigate the issue.\nWe will provide an update by Wednesday, 2026-06-10 06:30 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Symptoms**\nGemini App in Workspace and Gemini Side Panel (Gemini in Workspace) customers are experiencing “Something Went Wrong” errors.\n**Workaround**\nNone at this time.",
+    "updates": [
+      {
+        "created": "2026-06-16T17:41:16+00:00",
+        "modified": "2026-06-16T17:41:17+00:00",
+        "when": "2026-06-16T17:41:16+00:00",
+        "text": "# Incident Report\n## Summary\nOn Wednesday, June 10, 2026, at 03:30 US/Pacific, an incident occurred affecting the availability of Gemini services across all surfaces, including web, mobile (iOS and Android), and integrations within Google Chrome. The incident resulted in an elevated error rate for approximately 6 hours and 55 minutes, with full service restoration confirmed after a total duration of 14 hours and 49 minutes.\nWe sincerely apologize for the disruption this incident caused to your business. We know how much you rely on Google Cloud, and we regret the impact on your productivity. We are working to address the root cause and prevent this from occurring in the future.\n## Root Cause\nThe disruption was caused by extreme read contention within the foundational database service that manages tool deployment metadata.\nThe primary cause was an index design issue within the database where a column used for tracking deployment expirations contained a high volume of rows with similar values. This resulted in \"hotspotting,\" where traffic was concentrated on a very small number of database shards, overwhelming them. Additionally, the service utilized an in-memory cache with a very short Time To Live (TTL) of only one minute, requiring frequent database refreshes.\nThe failure sequence was as follows:\n1. **Technical Trigger:** The trigger was an upward spike in the Queries Per Second (QPS) from the frontend. The underlying system was already running close to maximum usage and the incoming QPS crossed a tipping threshold beyond which the underlying spanner started getting overloaded.\n2. **Systemic Effect:** This short window, combined with an indexing anomaly where specific metadata fields containing empty values were clustered on a single database partition, led to a \"hot shard\" condition.\n3. **Contention and Latency:** As request volume increased, the internal tool management service experienced a more than 10x surge in database calls because the cache hit rate dropped significantly.\n4. **Failure State:** The underlying storage layer reached its capacity for handling incoming queries, and database failure rates skyrocketed to 60%. This led to cache hit rate dropping down to 50%.\nAutomated validation failed to prevent this because the indexing strategy did not sufficiently account for the concentration of data rows when specific identifiers were absent.\n## Remediation and Prevention\nThe issue was detected by internal real-time monitoring alerts indicating high processing error rates. Engineering teams performed several targeted actions to restore the service:\n* **Throttling:** Applied Rate Access Control Lists (RateACLs) to the most affected database shards to allow internal caches to recover.\n* **Index Redistribution:** Gradually redistributed common values in the database index to random values in a specific target range, effectively spreading the load across multiple shards.\n* **Cache Policy Update:** Deployed a configuration change to increase the in-memory cache Time To Live (TTL) from 1 minute to 20 minutes, significantly reducing database load.\n* **Deadline Adjustment:** Shortened the Remote Procedure Call (RPC) deadlines for database queries to prevent request pile-ups during periods of high latency.\n## Prevention\nTo prevent a recurrence, Google engineering will be implementing the following actions:\n* **Index Design Standards:** Restructure of database index to prevent \"hotspotting\".\n* **Adaptive Cache Tuning:** Implement more robust cache policies that prevent load amplification during periods of backend stress.\n* **Enhanced Hotspot Monitoring:** Deploy improved monitoring and alerting specifically designed to detect uneven database load distribution before it impacts user traffic.\n* **Service Resiliency:** Implement advanced load protection mechanisms, such as smart task resizing and query coalescing for preventing spanner overloads.\n## Detailed Description of Impact\nThe impact window occurred between 03:30 US/Pacific and 10:25 US/Pacific on June 10, 2026\\.\n**Gemini App (Web and Mobile):**\n* High Failure Rates: Users experienced a 50% error rate when attempting to send prompts, receiving \"Something went wrong\" messages .\n* Service Unavailability: The issue affected both consumer accounts and enterprise Google Workspace customers .\n* Enterprise Google Workspace Users encountered disruptions when attempting to attach assets from Google Drive within the web application (gemini.google.com). Affected users observed the \"Add from Drive\" functionality to be visually disabled and unresponsive following interaction with the \"+\" prompt.\n**Integrations:**\n* **Google Chrome Integration:** The Gemini Side Panel and integrated conversational features encountered persistent timeouts.",
+        "status": "AVAILABLE"
+      },
+      {
+        "created": "2026-06-12T11:14:34+00:00",
+        "modified": "2026-06-16T17:41:16+00:00",
+        "when": "2026-06-12T11:14:34+00:00",
+        "text": "# Preliminary Incident Report\nWe apologize for the inconvenience this service disruption may have caused. We would like to provide some information about this incident below. Please note, this information is based on our best knowledge at the time of posting and is subject to change as our investigation continues. A final Incident Report with preventative actions will be posted once our investigation is complete. If you have experienced an impact outside of what is listed below, please reach out to Google Workspace Support using the help article [https://support.google.com/a/answer/1047213](https://support.google.com/a/answer/1047213).\n## Date/Time of the Issue (All time US/Pacific)\nIncident Start: 10 June 2026 03:20\nIncident End: 10 June 2026 10:25\nDuration: 7 hours, 5 minutes\n## Summary\nOn Wednesday, 10 June 2026 03:20 US/Pacific, an incident occurred affecting the availability of Gemini services across all surfaces, including web, mobile (iOS and Android), and integrations within Google Chrome. The incident resulted in an elevated error rate for 7 hours and 5 minutes.\n## Preliminary Root Cause\nThe disruption was caused by extreme read contention within the foundational database service that manages tool deployment metadata.\nThe primary cause was back-pressure on specific database replicas that experienced high loads. The issue was made worse because of an index design issue within the database where a column used for tracking deployment expirations contained a high volume of rows with a similar fixed value. This resulted in a condition where traffic was concentrated on a very small number of database instances, overwhelming them. Additionally, the service utilized an in-memory cache with a short Time To Live (TTL) of only one minute, requiring frequent database refreshes.\nThe failure sequence was as follows:\n1. **Technical Trigger:** The database service became overloaded, causing back-pressure on specific replicas.\n2. **Systemic Effect:** An application level caching layer configuration is set to a short 1-minute expiration window for deployed tools. This short window, combined with an indexing anomaly where specific metadata fields containing empty values were clustered on a single database partition. The failed DB queries resulted in failure to populate application level cache.\n3. **Contention and Latency:** As request volume increased, the internal tool management service experienced >10x surge in database calls because the cache hit rate dropped significantly.\n4. **Failure State:** The underlying storage layer reached its transaction limits, with database response success rates dropping as low as 10% on the affected partitions.\n## Remediation\nThe issue was detected by internal real-time monitoring alerts indicating high processing error rates. Engineering teams performed several targeted actions to restore the service:\n* **Throttling:** Applied rate limiting to the most affected database instances to allow internal caches to recover.\n* **Index Redistribution:** Gradually redistributed fixed index values in the database to random values in a specific range, effectively spreading the load across multiple instances.\n* **Cache Policy Update:** Deployed a configuration change to increase the in-memory cache Time To Live (TTL) from 1 minute to 20 minutes, significantly reducing database load.\n* **Deadline Adjustment:** Shortened the Remote Procedure Call (RPC) deadlines for database queries to prevent request pile-ups during periods of high latency.\n## Description of Impact\nThe impact window occurred between 03:20 US/Pacific and 10:25 US/Pacific on 10 June 2026.\n**Gemini App (Web and Mobile):**\n* Users experienced a 50% error rate when attempting to send prompts, receiving \"Something went wrong\" messages. The issue affected both consumer accounts and enterprise Google Workspace customers .\n**Integrations:**\n* **Google Chrome Integration:** The Gemini Side Panel and integrated conversational features encountered persistent timeouts.",
+        "status": "AVAILABLE"
+      },
+      {
+        "created": "2026-06-11T01:07:25+00:00",
+        "modified": "2026-06-12T11:14:34+00:00",
+        "when": "2026-06-11T01:07:25+00:00",
+        "text": "**Title**\nGemini App in Workspace users were experiencing “Something Went Wrong” errors.\n**Description**\nThe issue with Gemini has been resolved for all the affected users as of Wednesday, 2026-06-10 10:30 US/Pacific.\nFrom preliminary analysis, the issue was triggered by a performance issue in our backend database which impacted the retrieval of Gemini App tools catalog.\nOur engineers mitigated the issue by optimizing the load distribution across our backend database fleet.\nWe thank you for your patience while we worked on resolving the issue.\n**Symptoms**\nAffected users may have seen \"Something went wrong\" errors (codes 1099, 1076) when prompting Gemini while using the following services.\nGemini App in Workspace includes the following platforms: - Web, MacOS, iOS and Android - Gemini in Chrome\n**Workaround**\nNone as the issue is now resolved.",
+        "status": "AVAILABLE"
+      },
+      {
+        "created": "2026-06-10T20:19:31+00:00",
+        "modified": "2026-06-11T01:07:25+00:00",
+        "when": "2026-06-10T20:19:31+00:00",
+        "text": "**Title**\nGemini App in Workspace customers are experiencing “Something Went Wrong” errors.\n**Description**\nWe are experiencing an issue with Gemini beginning on Wednesday, 2026-06-10 03:26 PDT.\nOur engineering team has applied mitigations to reduce impact and confirmed the majority of users are no longer observing impact as of Wednesday, 2026-06-10 10:30 PDT. We will continue to monitor the service for stability.\nWe will provide an update by Wednesday, 2026-06-10 20:30 PDT with current details.\n**Symptoms**\nThe following services are experiencing “Something Went Wrong 1099 or 1076” errors:\nGemini app in Workspace includes the following platforms:\n* Web, MacOS, iOS and Android\n* Gemini in Chrome\n**Workaround**\nNone at this time.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-10T18:37:53+00:00",
+        "modified": "2026-06-10T20:19:31+00:00",
+        "when": "2026-06-10T18:37:53+00:00",
+        "text": "**Title**\nGemini App in Workspace customers are experiencing “Something Went Wrong” errors.\n**Description**\nWe are experiencing an issue with Gemini beginning on Wednesday, 2026-06-10 03:26 PDT.\nOur engineering team has applied mitigations to reduce impact and continues to investigate the root cause. We are seeing signs of recovery and will continue to monitor progress.\nWe will provide an update by Wednesday, 2026-06-10 14:30 PDT with current details.\n**Symptoms**\nThe following services are experiencing “Something Went Wrong 1099 or 1076” errors:\nGemini app in Workspace includes the following platforms:\n* Web, MacOS, iOS and Android\n* Gemini in Chrome\n**Workaround**\nNone at this time.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-10T16:24:54+00:00",
+        "modified": "2026-06-10T18:37:53+00:00",
+        "when": "2026-06-10T16:24:54+00:00",
+        "text": "**Title**\nGemini App in Workspace customers are experiencing “Something Went Wrong” errors.\n**Description**\nWe are experiencing an issue with Gemini beginning on Wednesday, 2026-06-10 03:26 PDT.\nOur engineering team has identified a mitigation which is currently in progress. We do not have an ETA for mitigation at this time.\nWe will provide an update by Wednesday, 2026-06-10 12:30 PDT with current details.\n**Symptoms**\nThe following services are experiencing “Something Went Wrong 1099 or 1076” errors:\nGemini app in Workspace includes the following platforms:\n* Web, MacOS, iOS and Android\n* Gemini in Chrome\n**Workaround**\nNone at this time.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-10T15:10:52+00:00",
+        "modified": "2026-06-10T16:24:54+00:00",
+        "when": "2026-06-10T15:10:52+00:00",
+        "text": "**Title**\nGemini App in Workspace customers are experiencing “Something Went Wrong” errors.\n**Description**\nWe are experiencing an issue with Gemini beginning on Wednesday, 2026-06-10 03:26 PDT.\nOur engineering team continues to investigate the issue and identify a mitigation strategy.\nWe will provide an update by Wednesday, 2026-06-10 09:30 PDT with current details.\n**Symptoms**\nThe following services are experiencing “Something Went Wrong” errors.:\n* Gemini app in Workspace includes the following platforms;\n* Web, MacOS, iOS and Android\n* Gemini in Chrome\n**Workaround**\nNone at this time.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-10T13:21:18+00:00",
+        "modified": "2026-06-10T15:10:52+00:00",
+        "when": "2026-06-10T13:21:18+00:00",
+        "text": "**Title**\nGemini App in Workspace and Gemini Side Panel (Gemini in Workspace) customers are experiencing “Something Went Wrong” errors.\n**Description**\nWe are experiencing an issue with Gemini beginning on Wednesday, 2026-06-10 03:26 PDT.\nOur engineering team continues to investigate the issue.\nWe will provide an update by Wednesday, 2026-06-10 08:00 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Symptoms**\nGemini App in Workspace and Gemini Side Panel (Gemini in Workspace) customers are experiencing “Something Went Wrong” errors.\n**Workaround**\nNone at this time.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-06-10T12:40:45+00:00",
+        "modified": "2026-06-10T13:21:18+00:00",
+        "when": "2026-06-10T12:40:45+00:00",
+        "text": "**Title**\nGemini App in Workspace and Gemini Side Panel (Gemini in Workspace) customers are experiencing “Something Went Wrong” errors.\n**Description**\nWe are experiencing an issue with Gemini beginning on Wednesday, 2026-06-10 03:26 PDT.\nOur engineering team continues to investigate the issue.\nWe will provide an update by Wednesday, 2026-06-10 06:30 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Symptoms**\nGemini App in Workspace and Gemini Side Panel (Gemini in Workspace) customers are experiencing “Something Went Wrong” errors.\n**Workaround**\nNone at this time.",
+        "status": "SERVICE_DISRUPTION"
+      }
+    ],
+    "most_recent_update": {
+      "created": "2026-06-16T17:41:16+00:00",
+      "modified": "2026-06-16T17:41:17+00:00",
+      "when": "2026-06-16T17:41:16+00:00",
+      "text": "# Incident Report\n## Summary\nOn Wednesday, June 10, 2026, at 03:30 US/Pacific, an incident occurred affecting the availability of Gemini services across all surfaces, including web, mobile (iOS and Android), and integrations within Google Chrome. The incident resulted in an elevated error rate for approximately 6 hours and 55 minutes, with full service restoration confirmed after a total duration of 14 hours and 49 minutes.\nWe sincerely apologize for the disruption this incident caused to your business. We know how much you rely on Google Cloud, and we regret the impact on your productivity. We are working to address the root cause and prevent this from occurring in the future.\n## Root Cause\nThe disruption was caused by extreme read contention within the foundational database service that manages tool deployment metadata.\nThe primary cause was an index design issue within the database where a column used for tracking deployment expirations contained a high volume of rows with similar values. This resulted in \"hotspotting,\" where traffic was concentrated on a very small number of database shards, overwhelming them. Additionally, the service utilized an in-memory cache with a very short Time To Live (TTL) of only one minute, requiring frequent database refreshes.\nThe failure sequence was as follows:\n1. **Technical Trigger:** The trigger was an upward spike in the Queries Per Second (QPS) from the frontend. The underlying system was already running close to maximum usage and the incoming QPS crossed a tipping threshold beyond which the underlying spanner started getting overloaded.\n2. **Systemic Effect:** This short window, combined with an indexing anomaly where specific metadata fields containing empty values were clustered on a single database partition, led to a \"hot shard\" condition.\n3. **Contention and Latency:** As request volume increased, the internal tool management service experienced a more than 10x surge in database calls because the cache hit rate dropped significantly.\n4. **Failure State:** The underlying storage layer reached its capacity for handling incoming queries, and database failure rates skyrocketed to 60%. This led to cache hit rate dropping down to 50%.\nAutomated validation failed to prevent this because the indexing strategy did not sufficiently account for the concentration of data rows when specific identifiers were absent.\n## Remediation and Prevention\nThe issue was detected by internal real-time monitoring alerts indicating high processing error rates. Engineering teams performed several targeted actions to restore the service:\n* **Throttling:** Applied Rate Access Control Lists (RateACLs) to the most affected database shards to allow internal caches to recover.\n* **Index Redistribution:** Gradually redistributed common values in the database index to random values in a specific target range, effectively spreading the load across multiple shards.\n* **Cache Policy Update:** Deployed a configuration change to increase the in-memory cache Time To Live (TTL) from 1 minute to 20 minutes, significantly reducing database load.\n* **Deadline Adjustment:** Shortened the Remote Procedure Call (RPC) deadlines for database queries to prevent request pile-ups during periods of high latency.\n## Prevention\nTo prevent a recurrence, Google engineering will be implementing the following actions:\n* **Index Design Standards:** Restructure of database index to prevent \"hotspotting\".\n* **Adaptive Cache Tuning:** Implement more robust cache policies that prevent load amplification during periods of backend stress.\n* **Enhanced Hotspot Monitoring:** Deploy improved monitoring and alerting specifically designed to detect uneven database load distribution before it impacts user traffic.\n* **Service Resiliency:** Implement advanced load protection mechanisms, such as smart task resizing and query coalescing for preventing spanner overloads.\n## Detailed Description of Impact\nThe impact window occurred between 03:30 US/Pacific and 10:25 US/Pacific on June 10, 2026\\.\n**Gemini App (Web and Mobile):**\n* High Failure Rates: Users experienced a 50% error rate when attempting to send prompts, receiving \"Something went wrong\" messages .\n* Service Unavailability: The issue affected both consumer accounts and enterprise Google Workspace customers .\n* Enterprise Google Workspace Users encountered disruptions when attempting to attach assets from Google Drive within the web application (gemini.google.com). Affected users observed the \"Add from Drive\" functionality to be visually disabled and unresponsive following interaction with the \"+\" prompt.\n**Integrations:**\n* **Google Chrome Integration:** The Gemini Side Panel and integrated conversational features encountered persistent timeouts.",
+      "status": "AVAILABLE"
+    },
+    "status_impact": "SERVICE_DISRUPTION",
+    "severity": "medium",
+    "service_key": "npdyhgECDJ6tB66MxXyo",
+    "service_name": "Gemini",
+    "affected_products": [
+      {
+        "title": "Gemini",
+        "id": "npdyhgECDJ6tB66MxXyo"
+      }
+    ],
+    "uri": "incidents/CzZUn98mhTcEiCJo27Kv"
+  },
+  {
+    "id": "vagmms1y6yRxwg6RMQZp",
+    "number": "6811500350919047262",
+    "begin": "2026-05-31T03:28:00+00:00",
+    "created": "2026-05-31T04:59:04+00:00",
+    "end": "2026-05-31T04:24:00+00:00",
+    "modified": "2026-06-04T20:11:26+00:00",
+    "external_desc": "**Title**\nMultiple Workspace Products experiencing Issues.\n**Description**\nWe are experiencing an issue with Google Voice, Google Meet, Google Drive, Google Chat, Google Calendar, Gmail, Google Docs beginning on Saturday, 2026-05-30 20:28 PDT.\nOur engineering team continues to investigate the issue.\nWe will provide an update by Saturday, 2026-05-30 22:10 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Symptoms**\nCustomers may experience issues loading the application/ intermittent high latency or errors while using the application.\n**Workaround**\nNone at this time.",
+    "updates": [
+      {
+        "created": "2026-06-04T20:11:26+00:00",
+        "modified": "2026-06-04T20:11:27+00:00",
+        "when": "2026-06-04T20:11:26+00:00",
+        "text": "# Incident Report\n## Summary\nStarting at 20:15 US/Pacific on Saturday, 30 May 2026, various Google Workspace services encountered service-level disruptions lasting approximately 75 minutes. The scope of impact spanned several products, specifically affecting Gmail, Google Docs, Drive, Calendar, Chat, Meet, and Google Voice.\nThroughout the duration of this event, users faced obstacles while attempting to initialize applications, in addition to experiencing sporadic instances of elevated latency and request failures.\nGoogle offers a sincere apology for the operational interference this issue introduced to your organization. Recognizing the critical nature of Google Cloud to your daily operations, we deeply regret any resulting loss in productivity. Engineering efforts are currently focused on remediating the underlying cause to ensure future stability.\n## Root Cause\nThe disruption originated from failures in a critical cluster infrastructure component responsible for Google's service discovery and configuration management systems. This system facilitates resource synchronization, manages shared data access, and coordinates background tasks for numerous Google services.\nA high volume of rapid configuration changes triggered the regional failure in Workspace Services, preventing Workspace servers from reliably processing traffic. To mitigate the impact, Google Workspace traffic was redirected to alternative regions.\n## Remediation and Prevention\nGoogle engineers were alerted to the issue via automated monitoring on Saturday, 30 May 2026 at 20:28 US/Pacific and immediately began an investigation. The investigation identified elevated error rates and high latency affecting multiple Google Workspace backend services. Upon investigation our engineering team confirmed errors were primarily originating from some regional servers due to coordination service failures in the region.\nTo mitigate the impact, Google engineers redirected traffic away from the affected servers.\nGoogle is committed preventing a repeat of this issue in the future and is completing the following actions:\n- Prevent recurrence of this incident by rolling out the fix for the latent encryption library issue, which improves the handling of internal log compaction compactions during active file writes, to prevent recurrence of the cluster instability.\n- Investigating additional resilience in our database layer.\n## Detailed Description of Impact\nOn 30 May 2026 from 20:15 to 21:30 US/Pacific, affected customers encountered difficulties while loading applications or experienced failures when performing tasks within the following products:\n- Gmail\n- Google Calendar\n- Google Chat\n- Google Docs\n- Google Drive\n- Google Meet\n- Google Voice",
+        "status": "AVAILABLE"
+      },
+      {
+        "created": "2026-06-02T03:50:13+00:00",
+        "modified": "2026-06-04T20:11:26+00:00",
+        "when": "2026-06-02T03:50:13+00:00",
+        "text": "# Preliminary Incident Report\nWe sincerely apologize for the disruption this incident caused to your business. We know how much you rely on Google Workspace, and we regret the impact on your productivity. We are working to address the root cause and prevent this from occurring in the future.\nPlease note, this information is based on our best knowledge at the time of posting and is subject to change as our investigation continues. A final Incident Report with preventative actions will be posted once our investigation is complete.\nIf you have experienced impact outside of what is listed below, please reach out to Google Workspace Support using help article https://support.google.com/a/answer/1047213\n## Date/Time of the Issue (All time US/Pacific)\nIncident Start: 30 May 2026 20:15\nIncident End: 30 May 2026 21:30\nDuration: 1 hour, 15 minutes\n## Summary\nStarting on Saturday, 30 May 2026 at 20:15 US/Pacific, multiple Google Workspace products experienced service disruptions for a duration of 1 hour and 15 minutes. The affected services included Google Voice, Google Meet, Google Drive, Google Chat, Google Calendar, Gmail, and Google Docs. During this incident, customers encountered difficulties loading applications, as well as intermittent high latency or errors.\n## Preliminary Root Cause\nThe disruption originated from failures in a regional infrastructure component responsible for Google's distributed lock service. This critical system facilitates resource synchronization, manages shared data access, and coordinates background tasks for numerous Google services.\nA high volume of rapid configuration changes triggered the regional failure, preventing Workspace servers from reliably processing traffic. To mitigate the impact, Google Workspace traffic was redirected to alternative regions.\nGoogle engineers have begun a full root cause analysis and will provide additional information once it is available.\n## Remediation\nGoogle engineers were alerted to the issue via automated monitoring at 20:28 US/Pacific on Saturday, 30 May 2026, and immediately began an investigation. The investigation identified elevated error rates and high latency affecting multiple Google Workspace backend services. Upon investigation our engineering team confirmed errors were primarily originating from some regional servers due to coordination service failures in the region.\nTo mitigate the impact, Google engineers redirected traffic away from the affected servers.\n## Description of Impact\nAffected customers encountered difficulties loading applications or experienced failures when performing tasks within the following products:\n* Gmail\n* Google Calendar\n* Google Chat\n* Google Docs\n* Google Drive\n* Google Meet\n* Google Voice",
+        "status": "AVAILABLE"
+      },
+      {
+        "created": "2026-05-31T05:11:14+00:00",
+        "modified": "2026-06-02T03:50:13+00:00",
+        "when": "2026-05-31T05:11:14+00:00",
+        "text": "**Title**\n[Mitigated] Multiple Workspace Products experienced Issues.\n**Description**\nThe issue with Google Voice, Google Meet, Google Drive, Google Chat, Google Calendar, Gmail, Google Docs has been resolved for all affected users as of Saturday, 2026-05-30 21:30 PDT.\nWe thank you for your patience while we worked on resolving the issue.\n**Symptoms**\nCustomers may have experienced issues loading the application/ intermittent high latency or errors while using the application.\n**Workaround**\nNone at this time as the issue stands mitigated",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-05-31T04:59:04+00:00",
+        "modified": "2026-05-31T05:11:14+00:00",
+        "when": "2026-05-31T04:59:04+00:00",
+        "text": "**Title**\nMultiple Workspace Products experiencing Issues.\n**Description**\nWe are experiencing an issue with Google Voice, Google Meet, Google Drive, Google Chat, Google Calendar, Gmail, Google Docs beginning on Saturday, 2026-05-30 20:28 PDT.\nOur engineering team continues to investigate the issue.\nWe will provide an update by Saturday, 2026-05-30 22:10 PDT with current details.\nWe apologize to all who are affected by the disruption.\n**Symptoms**\nCustomers may experience issues loading the application/ intermittent high latency or errors while using the application.\n**Workaround**\nNone at this time.",
+        "status": "SERVICE_DISRUPTION"
+      }
+    ],
+    "most_recent_update": {
+      "created": "2026-06-04T20:11:26+00:00",
+      "modified": "2026-06-04T20:11:27+00:00",
+      "when": "2026-06-04T20:11:26+00:00",
+      "text": "# Incident Report\n## Summary\nStarting at 20:15 US/Pacific on Saturday, 30 May 2026, various Google Workspace services encountered service-level disruptions lasting approximately 75 minutes. The scope of impact spanned several products, specifically affecting Gmail, Google Docs, Drive, Calendar, Chat, Meet, and Google Voice.\nThroughout the duration of this event, users faced obstacles while attempting to initialize applications, in addition to experiencing sporadic instances of elevated latency and request failures.\nGoogle offers a sincere apology for the operational interference this issue introduced to your organization. Recognizing the critical nature of Google Cloud to your daily operations, we deeply regret any resulting loss in productivity. Engineering efforts are currently focused on remediating the underlying cause to ensure future stability.\n## Root Cause\nThe disruption originated from failures in a critical cluster infrastructure component responsible for Google's service discovery and configuration management systems. This system facilitates resource synchronization, manages shared data access, and coordinates background tasks for numerous Google services.\nA high volume of rapid configuration changes triggered the regional failure in Workspace Services, preventing Workspace servers from reliably processing traffic. To mitigate the impact, Google Workspace traffic was redirected to alternative regions.\n## Remediation and Prevention\nGoogle engineers were alerted to the issue via automated monitoring on Saturday, 30 May 2026 at 20:28 US/Pacific and immediately began an investigation. The investigation identified elevated error rates and high latency affecting multiple Google Workspace backend services. Upon investigation our engineering team confirmed errors were primarily originating from some regional servers due to coordination service failures in the region.\nTo mitigate the impact, Google engineers redirected traffic away from the affected servers.\nGoogle is committed preventing a repeat of this issue in the future and is completing the following actions:\n- Prevent recurrence of this incident by rolling out the fix for the latent encryption library issue, which improves the handling of internal log compaction compactions during active file writes, to prevent recurrence of the cluster instability.\n- Investigating additional resilience in our database layer.\n## Detailed Description of Impact\nOn 30 May 2026 from 20:15 to 21:30 US/Pacific, affected customers encountered difficulties while loading applications or experienced failures when performing tasks within the following products:\n- Gmail\n- Google Calendar\n- Google Chat\n- Google Docs\n- Google Drive\n- Google Meet\n- Google Voice",
+      "status": "AVAILABLE"
+    },
+    "status_impact": "SERVICE_DISRUPTION",
+    "severity": "medium",
+    "service_key": "zall",
+    "service_name": "Multiple Products",
+    "affected_products": [
+      {
+        "title": "Gmail",
+        "id": "prPt2Yra2CbGsbEm9cpC"
+      },
+      {
+        "title": "Google Calendar",
+        "id": "n5hVexuq1PM9onY9qrmo"
+      },
+      {
+        "title": "Google Chat",
+        "id": "Ht9Vx5PFzDPHYvrnrvSk"
+      },
+      {
+        "title": "Google Docs",
+        "id": "wNHuVFtZEWU5Mmj2eRCK"
+      },
+      {
+        "title": "Google Drive",
+        "id": "VHNA7p3Z5p3iakj5sA8V"
+      },
+      {
+        "title": "Google Meet",
+        "id": "sUH4BQXzYXma7NiS94Hi"
+      },
+      {
+        "title": "Google Voice",
+        "id": "gh79SrQk6wqonWoxPdCm"
+      }
+    ],
+    "uri": "incidents/vagmms1y6yRxwg6RMQZp"
+  },
+  {
+    "id": "CzVZ5zk2Gf2ixPSt6RT3",
+    "number": "17128406613861610004",
+    "begin": "2026-05-21T07:00:00+00:00",
+    "created": "2026-05-21T15:37:18+00:00",
+    "end": "2026-05-21T15:47:00+00:00",
+    "modified": "2026-05-21T16:10:17+00:00",
+    "external_desc": "**Summary**\nGmail users are experiencing delayed delivery of messages sent from the bank.in domains.\n**Description**\nWe are experiencing an issue with Gmail beginning on Thursday, 2026-05-21 at 00:00 PDT.\nMitigation efforts are currently underway by our engineering team.\nWe will provide the next update by Thursday, 2026-05-21 at 09:30 PDT.\n**Diagnosis / Customer Symptoms**\nGmail users are experiencing delayed delivery of messages sent from the bank.in domains.\n**Workaround**\nNone at this time.",
+    "updates": [
+      {
+        "created": "2026-05-21T16:09:55+00:00",
+        "modified": "2026-05-21T16:10:17+00:00",
+        "when": "2026-05-21T16:09:55+00:00",
+        "text": "**Summary**\nGmail users experienced delayed delivery of messages sent from the bank.in domains.\n**Description**\nOur internal telemetry shows that the issue with Gmail has been resolved for all affected users as of Thursday, 2026-05-21 at 08:47 US/Pacific.\nOur engineering team is actively monitoring the system to ensure continued stability.\n**Diagnosis / Customer Symptoms**\nCustomers should expect new messages to be delivered normally, older emails could take some time as the senders continue to retry.\n**Workaround**\nThis issue is now mitigated.",
+        "status": "AVAILABLE"
+      },
+      {
+        "created": "2026-05-21T15:37:18+00:00",
+        "modified": "2026-05-21T16:09:55+00:00",
+        "when": "2026-05-21T15:37:18+00:00",
+        "text": "**Summary**\nGmail users are experiencing delayed delivery of messages sent from the bank.in domains.\n**Description**\nWe are experiencing an issue with Gmail beginning on Thursday, 2026-05-21 at 00:00 PDT.\nMitigation efforts are currently underway by our engineering team.\nWe will provide the next update by Thursday, 2026-05-21 at 09:30 PDT.\n**Diagnosis / Customer Symptoms**\nGmail users are experiencing delayed delivery of messages sent from the bank.in domains.\n**Workaround**\nNone at this time.",
+        "status": "SERVICE_DISRUPTION"
+      }
+    ],
+    "most_recent_update": {
+      "created": "2026-05-21T16:09:55+00:00",
+      "modified": "2026-05-21T16:10:17+00:00",
+      "when": "2026-05-21T16:09:55+00:00",
+      "text": "**Summary**\nGmail users experienced delayed delivery of messages sent from the bank.in domains.\n**Description**\nOur internal telemetry shows that the issue with Gmail has been resolved for all affected users as of Thursday, 2026-05-21 at 08:47 US/Pacific.\nOur engineering team is actively monitoring the system to ensure continued stability.\n**Diagnosis / Customer Symptoms**\nCustomers should expect new messages to be delivered normally, older emails could take some time as the senders continue to retry.\n**Workaround**\nThis issue is now mitigated.",
+      "status": "AVAILABLE"
+    },
+    "status_impact": "SERVICE_DISRUPTION",
+    "severity": "medium",
+    "service_key": "prPt2Yra2CbGsbEm9cpC",
+    "service_name": "Gmail",
+    "affected_products": [
+      {
+        "title": "Gmail",
+        "id": "prPt2Yra2CbGsbEm9cpC"
+      }
+    ],
+    "uri": "incidents/CzVZ5zk2Gf2ixPSt6RT3"
+  },
+  {
+    "id": "jjs1U2FFkRyhjaacpvVv",
+    "number": "5992867175517871811",
+    "begin": "2026-05-19T22:29:00+00:00",
+    "created": "2026-05-20T01:07:59+00:00",
+    "end": "2026-05-20T04:04:00+00:00",
+    "modified": "2026-05-20T04:38:08+00:00",
+    "external_desc": "**Summary**\nNotebookLM customers are experiencing an issue where account tiers are being incorrectly downgraded. Affected Ultra & Pro tier users are seeing Free tier features.\n**Description**\nWe are continuing to investigate an issue with NotebookLM where customers may experience a temporary downgrade in their account tier.\nOur engineering team has identified a potential root cause related to a recent software update and is currently working on a mitigation plan.\nWe will provide an update by Tuesday, 2026-05-19 20:30 PDT with current details.\n**Customer Symtomps**\nCustomers may notice lower resource limits (e.g., hitting limits for Studio artifacts, source count per notebook, etc) and the absence of premium features like advanced sharing and analytics.\n**Workaround**\nNone at this time",
+    "updates": [
+      {
+        "created": "2026-05-20T04:38:08+00:00",
+        "modified": "2026-05-20T04:38:08+00:00",
+        "when": "2026-05-20T04:38:08+00:00",
+        "text": "**Title**\nNotebookLM customers may have experienced an issue where all premium account tiers are being incorrectly downgraded to free.\n**Description**\nThe issue with NotebookLM has been resolved for all affected users as of Tuesday, 2026-05-19 21:04 PDT.\nFrom preliminary analysis, the issue was triggered by a recent software update resulting in accounts on premium plans being incorrectly recognized as free accounts.\nThe issue was mitigated by restoring the system to a previous stable state, which successfully reinstated the appropriate service tiers for all affected accounts.\nWe thank you for your patience while we worked on resolving the issue.\n**Symptoms**\nCustomers may have noticed lower resource limits (e.g., hitting limits for Studio artifacts, source count per notebook, etc) and the absence of premium features like advanced sharing and analytics.\n**Workaround**\nNone at this time.",
+        "status": "AVAILABLE"
+      },
+      {
+        "created": "2026-05-20T03:20:15+00:00",
+        "modified": "2026-05-20T04:38:08+00:00",
+        "when": "2026-05-20T03:20:15+00:00",
+        "text": "**Title**\nNotebookLM customers are experiencing an issue where all premium account tiers are being incorrectly downgraded to free.\n**Description**\nWe are continuing to investigate an issue with NotebookLM where customers may experience a temporary downgrade in their account tier.\nOur engineering team has identified a potential root cause related to a recent software update and is currently working on a mitigation plan.\nWe will provide an update by Tuesday, 2026-05-19 22:00 PDT with current details.\n**Symptoms**\nCustomers may notice lower resource limits (e.g., hitting limits for Studio artifacts, source count per notebook, etc) and the absence of premium features like advanced sharing and analytics.\n**Workaround**\nNone at this time.",
+        "status": "SERVICE_DISRUPTION"
+      },
+      {
+        "created": "2026-05-20T01:07:59+00:00",
+        "modified": "2026-05-20T03:20:15+00:00",
+        "when": "2026-05-20T01:07:59+00:00",
+        "text": "**Summary**\nNotebookLM customers are experiencing an issue where account tiers are being incorrectly downgraded. Affected Ultra & Pro tier users are seeing Free tier features.\n**Description**\nWe are continuing to investigate an issue with NotebookLM where customers may experience a temporary downgrade in their account tier.\nOur engineering team has identified a potential root cause related to a recent software update and is currently working on a mitigation plan.\nWe will provide an update by Tuesday, 2026-05-19 20:30 PDT with current details.\n**Customer Symtomps**\nCustomers may notice lower resource limits (e.g., hitting limits for Studio artifacts, source count per notebook, etc) and the absence of premium features like advanced sharing and analytics.\n**Workaround**\nNone at this time",
+        "status": "SERVICE_INFORMATION"
+      }
+    ],
+    "most_recent_update": {
+      "created": "2026-05-20T04:38:08+00:00",
+      "modified": "2026-05-20T04:38:08+00:00",
+      "when": "2026-05-20T04:38:08+00:00",
+      "text": "**Title**\nNotebookLM customers may have experienced an issue where all premium account tiers are being incorrectly downgraded to free.\n**Description**\nThe issue with NotebookLM has been resolved for all affected users as of Tuesday, 2026-05-19 21:04 PDT.\nFrom preliminary analysis, the issue was triggered by a recent software update resulting in accounts on premium plans being incorrectly recognized as free accounts.\nThe issue was mitigated by restoring the system to a previous stable state, which successfully reinstated the appropriate service tiers for all affected accounts.\nWe thank you for your patience while we worked on resolving the issue.\n**Symptoms**\nCustomers may have noticed lower resource limits (e.g., hitting limits for Studio artifacts, source count per notebook, etc) and the absence of premium features like advanced sharing and analytics.\n**Workaround**\nNone at this time.",
+      "status": "AVAILABLE"
+    },
+    "status_impact": "SERVICE_DISRUPTION",
+    "severity": "medium",
+    "service_key": "sqTm5ZmzCmb66kvyzcNS",
+    "service_name": "Gemini Notebook",
+    "affected_products": [
+      {
+        "title": "Gemini Notebook",
+        "id": "sqTm5ZmzCmb66kvyzcNS"
+      }
+    ],
+    "uri": "incidents/jjs1U2FFkRyhjaacpvVv"
+  },
+  {
+    "id": "ajqAKWeAiXrf8ezJ6CkK",
+    "number": "1320682224844797245",
+    "begin": "2026-05-12T16:01:00+00:00",
+    "created": "2026-05-13T17:55:42+00:00",
+    "end": "2026-05-12T22:16:00+00:00",
+    "modified": "2026-05-13T17:55:56+00:00",
+    "external_desc": "**Summary**\nSome Cameyo by Google customers could not start their sessions after rolling out the new channel version.\n**Description**\nWe were experiencing an issue with Cameyo by Google, beginning on Tuesday, 12 May 2026 09:01 US/Pacific.\nThe issue was mitigated on Tuesday, 12 May 2026 15:16 US/Pacific by restarting the RAP system service, and performing full server reboots.\nFrom preliminary investigation, this was caused by a faulty code for logging improvement on the Player VMs. Log files were unexpectedly duplicated until the disk was full leading to the session failures.\nSome customers were recovered automatically after the channel binaries were rolled back, while the others were required to restart their VMs manually.\nCurrently, the issue is fully mitigated and change is rolled back.\nWe apologise to those who were impacted by this issue.\n**Customer Symptoms**\nThe customers were experiencing an issue that couldn’t connect to the Player VMs normally. The disk utilization on the affected VMs reaches 99% or even 100%.\n**Workaround**\nNot needed because all affected servers have been mitigated.",
+    "updates": [
+      {
+        "created": "2026-05-13T17:55:42+00:00",
+        "modified": "2026-05-13T17:55:56+00:00",
+        "when": "2026-05-13T17:55:42+00:00",
+        "text": "**Summary**\nSome Cameyo by Google customers could not start their sessions after rolling out the new channel version.\n**Description**\nWe were experiencing an issue with Cameyo by Google, beginning on Tuesday, 12 May 2026 09:01 US/Pacific.\nThe issue was mitigated on Tuesday, 12 May 2026 15:16 US/Pacific by restarting the RAP system service, and performing full server reboots.\nFrom preliminary investigation, this was caused by a faulty code for logging improvement on the Player VMs. Log files were unexpectedly duplicated until the disk was full leading to the session failures.\nSome customers were recovered automatically after the channel binaries were rolled back, while the others were required to restart their VMs manually.\nCurrently, the issue is fully mitigated and change is rolled back.\nWe apologise to those who were impacted by this issue.\n**Customer Symptoms**\nThe customers were experiencing an issue that couldn’t connect to the Player VMs normally. The disk utilization on the affected VMs reaches 99% or even 100%.\n**Workaround**\nNot needed because all affected servers have been mitigated.",
+        "status": "AVAILABLE"
+      }
+    ],
+    "most_recent_update": {
+      "created": "2026-05-13T17:55:42+00:00",
+      "modified": "2026-05-13T17:55:56+00:00",
+      "when": "2026-05-13T17:55:42+00:00",
+      "text": "**Summary**\nSome Cameyo by Google customers could not start their sessions after rolling out the new channel version.\n**Description**\nWe were experiencing an issue with Cameyo by Google, beginning on Tuesday, 12 May 2026 09:01 US/Pacific.\nThe issue was mitigated on Tuesday, 12 May 2026 15:16 US/Pacific by restarting the RAP system service, and performing full server reboots.\nFrom preliminary investigation, this was caused by a faulty code for logging improvement on the Player VMs. Log files were unexpectedly duplicated until the disk was full leading to the session failures.\nSome customers were recovered automatically after the channel binaries were rolled back, while the others were required to restart their VMs manually.\nCurrently, the issue is fully mitigated and change is rolled back.\nWe apologise to those who were impacted by this issue.\n**Customer Symptoms**\nThe customers were experiencing an issue that couldn’t connect to the Player VMs normally. The disk utilization on the affected VMs reaches 99% or even 100%.\n**Workaround**\nNot needed because all affected servers have been mitigated.",
+      "status": "AVAILABLE"
+    },
+    "status_impact": "SERVICE_INFORMATION",
+    "severity": "low",
+    "service_key": "FgMhGMnEFLxxhX8bP4Mi",
+    "service_name": "Cameyo by Google",
+    "affected_products": [
+      {
+        "title": "Cameyo by Google",
+        "id": "FgMhGMnEFLxxhX8bP4Mi"
+      }
+    ],
+    "uri": "incidents/ajqAKWeAiXrf8ezJ6CkK"
+  },
+  {
+    "id": "kWSuRqLdsXGzT7Qxjdmz",
+    "number": "2567059455157928785",
+    "begin": "2026-05-06T16:00:00+00:00",
+    "created": "2026-05-16T02:05:03+00:00",
+    "end": "2026-05-21T22:00:00+00:00",
+    "modified": "2026-05-22T18:57:41+00:00",
+    "external_desc": "**Summary**\nGmail Android users using Microsoft Exchange Online may fail to log in due to authentication issues.\n**Description**\nWe are experiencing an issue with Gmail beginning on Saturday 2026-05-06.\nOur engineering team continues to investigate the issue.\nWe will provide more information by Monday, 2026-05-18 15:00 US/Pacific with current details.\nWe apologize to all who are affected by the disruption.\n**Customer Symptoms**\nImpacted users may experience authentication failures while logging in to Microsoft Exchange Online through\nGmail App on Android devices.\n**Workaround**\nAffected users can use Microsoft web app to access the Inbox.",
+    "updates": [
+      {
+        "created": "2026-05-22T18:57:24+00:00",
+        "modified": "2026-05-22T18:57:41+00:00",
+        "when": "2026-05-22T18:57:24+00:00",
+        "text": "**Summary**\n[Resolved] Gmail Android users utilizing Microsoft Exchange Online accounts experienced authentication and synchronization failures.\n**Description**\nThe issue with Gmail has been resolved in the new Gmail android release (version 2026.05.11) as of Thursday, 2026-05-21 15:00 PDT.\nOur engineering team identified the issue and released a new version of the Gmail Android application to the Google Play Store, which contains a fix to unblock affected users.\nIf you are currently encountering this issue, please upgrade to the latest version of the Gmail Android app. Users operating on the new app version will be able to successfully log in and sync their accounts.\nWe thank you for your patience while we worked on resolving the issue.\n**Symptoms**\nImpacted users might have experienced authentication and sync failures while using Microsoft Exchange Online accounts through Gmail App on Android devices.\n**Workaround**\nUpdate to the latest version of Gmail Android (2026.05.11) in Google Play Store.",
+        "status": "AVAILABLE"
+      },
+      {
+        "created": "2026-05-22T00:04:40+00:00",
+        "modified": "2026-05-22T18:57:24+00:00",
+        "when": "2026-05-22T00:04:40+00:00",
+        "text": "**Summary**\nGmail Android users using Microsoft Exchange Online accounts may fail to Log In and Sync due to authentication issues.\n**Description**\nOur engineering team identified the issue and released a new version of the Gmail Android application (version 2026.05.11) to the Google Play Store, which contains a fix to unblock affected users.\nIf you are currently encountering this issue, please upgrade to the latest version of the Gmail Android app. Users operating on the new app version should be able to successfully log in and sync their accounts.\nWe will provide more information by Friday, 2026-05-22 17:00 US/Pacific with current details.\nWe thank you for your patience while we are working on resolving the issue.\n**Symptoms**\nImpacted users may experience authentication and sync failures while using Microsoft Exchange Online accounts through Gmail App on Android devices.\n**Workaround**\nAffected users could update to the latest version of Gmail Android (version 2026.05.11) in Google Play Store.",
+        "status": "SERVICE_INFORMATION"
+      },
+      {
+        "created": "2026-05-19T21:55:32+00:00",
+        "modified": "2026-05-22T00:04:40+00:00",
+        "when": "2026-05-19T21:55:32+00:00",
+        "text": "**Summary**\nGmail Android users using Microsoft Exchange Online accounts may fail to Log In and Sync due to authentication issues.\n**Description**\nWe are experiencing an issue with Gmail Android client connecting with Microsoft Exchange Online accounts beginning on Saturday 2026-05-06.\nOur engineering team has identified the issue and started rolling out a new version of Gmail Android release that contains the fix to unblock users.\nUsers already on the new app version will be able to Log In and Sync their accounts successfully.\nWe will provide more information by Thursday, 2026-05-21 17:00 US/Pacific with current details.\nWe apologize to all who are affected by the disruption.\n**Customer Symptoms**\nImpacted users may experience authentication and sync failures while using Microsoft Exchange Online accounts through Gmail App on Android devices.\n**Workaround**\nAffected users can use Microsoft Web App to access the Inbox.",
+        "status": "SERVICE_INFORMATION"
+      },
+      {
+        "created": "2026-05-18T21:45:35+00:00",
+        "modified": "2026-05-19T21:55:32+00:00",
+        "when": "2026-05-18T21:45:35+00:00",
+        "text": "**Summary**\nGmail Android users using Microsoft Exchange Online accounts may fail to Log In and Sync due to authentication issues.\n**Description**\nWe are experiencing an issue with Gmail Android client connecting with Microsoft Exchange Online accounts beginning on Saturday 2026-05-06.\nOur engineering team has identified the issue and is actively working on rolling out a fix to unblock all the affected customers.\nWe will provide more information by Tuesday, 2026-05-19 15:00 US/Pacific with current details.\nWe apologize to all who are affected by the disruption.\n**Customer Symptoms**\nImpacted users may experience authentication and sync failures while using Microsoft Exchange Online accounts through Gmail App on Android devices.\n**Workaround**\nAffected users can use Microsoft Web App to access the Inbox.",
+        "status": "SERVICE_INFORMATION"
+      },
+      {
+        "created": "2026-05-16T02:05:03+00:00",
+        "modified": "2026-05-18T21:45:35+00:00",
+        "when": "2026-05-16T02:05:03+00:00",
+        "text": "**Summary**\nGmail Android users using Microsoft Exchange Online may fail to log in due to authentication issues.\n**Description**\nWe are experiencing an issue with Gmail beginning on Saturday 2026-05-06.\nOur engineering team continues to investigate the issue.\nWe will provide more information by Monday, 2026-05-18 15:00 US/Pacific with current details.\nWe apologize to all who are affected by the disruption.\n**Customer Symptoms**\nImpacted users may experience authentication failures while logging in to Microsoft Exchange Online through\nGmail App on Android devices.\n**Workaround**\nAffected users can use Microsoft web app to access the Inbox.",
+        "status": "SERVICE_INFORMATION"
+      }
+    ],
+    "most_recent_update": {
+      "created": "2026-05-22T18:57:24+00:00",
+      "modified": "2026-05-22T18:57:41+00:00",
+      "when": "2026-05-22T18:57:24+00:00",
+      "text": "**Summary**\n[Resolved] Gmail Android users utilizing Microsoft Exchange Online accounts experienced authentication and synchronization failures.\n**Description**\nThe issue with Gmail has been resolved in the new Gmail android release (version 2026.05.11) as of Thursday, 2026-05-21 15:00 PDT.\nOur engineering team identified the issue and released a new version of the Gmail Android application to the Google Play Store, which contains a fix to unblock affected users.\nIf you are currently encountering this issue, please upgrade to the latest version of the Gmail Android app. Users operating on the new app version will be able to successfully log in and sync their accounts.\nWe thank you for your patience while we worked on resolving the issue.\n**Symptoms**\nImpacted users might have experienced authentication and sync failures while using Microsoft Exchange Online accounts through Gmail App on Android devices.\n**Workaround**\nUpdate to the latest version of Gmail Android (2026.05.11) in Google Play Store.",
+      "status": "AVAILABLE"
+    },
+    "status_impact": "SERVICE_INFORMATION",
+    "severity": "low",
+    "service_key": "prPt2Yra2CbGsbEm9cpC",
+    "service_name": "Gmail",
+    "affected_products": [
+      {
+        "title": "Gmail",
+        "id": "prPt2Yra2CbGsbEm9cpC"
+      }
+    ],
+    "uri": "incidents/kWSuRqLdsXGzT7Qxjdmz"
+  }
+]

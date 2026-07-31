@@ -1,10 +1,12 @@
 {
   "name": "vendor-dashboard",
-  "version": "1.1.0",
-  "description": "Google Apps Script tool that monitors the live status of a SaaS vendor ecosystem via each vendor's public status API and writes results to a Google Sheet.",
+  "version": "2.0.0",
+  "description": "Monitors the live status of a configurable SaaS vendor set by polling each vendor's public status endpoint. Cloudflare Worker + runtime-agnostic engine.",
   "main": "Code.js",
   "scripts": {
-    "test": "echo \"No unit tests (Google Apps Script); CI gates on node --check + npm audit\" && exit 0"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint ."
   },
   "keywords": [
     "google-apps-script",
@@ -24,8 +26,9 @@
     "url": "https://github.com/bjgreenberg/vendor-dashboard/issues"
   },
   "homepage": "https://github.com/bjgreenberg/vendor-dashboard#readme",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
-    "@types/google-apps-script": "^2.0.8"
+    "@types/google-apps-script": "^2.0.8",
+    "vitest": "^3.2.7"
   }
 }

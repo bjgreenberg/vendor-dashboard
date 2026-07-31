@@ -1,0 +1,301 @@
+{
+  "$comment": [
+    "Vendor configuration. This file is the ONLY place the monitored set is declared;",
+    "no vendor list lives in source code. Copy to vendors.json and edit, or supply your",
+    "own at deploy time.",
+    "",
+    "type: which adapter parses the feed.",
+    "  statuspage  Atlassian Statuspage v2 summary.json (most vendors)",
+    "  instatus    Instatus summary.json (page.status UP/HASISSUES)",
+    "  google      Google appsstatus incidents.json",
+    "  apple       Apple system_status_en_US.js",
+    "  microsoft   portal.office.com servicestatus (CONSUMER services only)",
+    "  okta        Atom feed",
+    "  salesforce  api.status.salesforce.com product instances",
+    "  concur      open.concur.com JSON API",
+    "  sorryapp    SorryApp status.json",
+    "  betterstack Better Stack HTML status page",
+    "",
+    "scope (optional): restrict which components count, by group or exact name.",
+    "  Without it, the vendor's own page-level indicator is trusted.",
+    "  With it, only the listed components decide the status.",
+    "",
+    "NOT INCLUDED and why: Freshdesk, Freshservice and Paylocity publish no public",
+    "machine-readable status endpoint (verified 2026-07-30 - Freshworks' Statuspage",
+    "returns 401 'page is inactive', status.freshworks.com is a JS shell, and",
+    "status.paylocity.com redirects to their login portal). They were previously",
+    "sourced from StatusGator, a third-party aggregator, which is no longer used.",
+    "A monitored row with no real data source reports health it never verified.",
+    "",
+    "ADOBE is NOT included, and the reason is a hard limit rather than a preference.",
+    "status.adobe.com is a JS app; its real data lives at data.status.adobe.com",
+    "(SnowServiceRegistry 2.2MB, StatusEvents 5.5MB). Parsing those costs ~70ms of",
+    "CPU, measured - against a Workers FREE-plan ceiling of 10ms for the ENTIRE",
+    "collection run across all vendors. Adobe alone would exceed the budget 7x and",
+    "kill the run for everyone else. It becomes viable on Workers Paid (30s CPU).",
+    "",
+    "SOCIAL / MESSAGING - what is and is not available (probed 2026-07-31):",
+    "  Discord    Statuspage, 30 components                            INCLUDED",
+    "  LinkedIn   Statuspage, 11 components (www.linkedin-status.com)  INCLUDED",
+    "  Slack      publishes JSON but in its own format, not Statuspage; needs a",
+    "             dedicated adapter before it can be added",
+    "  Meta       metastatus.com serves HTML only - no machine-readable feed",
+    "  X/Twitter  api.twitterstat.us returns 401; the feed is no longer public",
+    "  Signal     status.signal.org serves HTML only",
+    "  Telegram   no status endpoint resolves at all",
+    "  WhatsApp   no separate endpoint; Meta does not publish one",
+    "A row with no real data source reports health it never verified, so the",
+    "unavailable ones are omitted rather than faked."
+  ],
+  "vendors": [
+    {
+      "name": "1Password",
+      "type": "statuspage",
+      "url": "https://status.1password.com/api/v2/summary.json"
+    },
+    {
+      "name": "Alteryx",
+      "type": "statuspage",
+      "url": "https://status.alteryxcloud.com/api/v2/summary.json"
+    },
+    {
+      "name": "Anthropic",
+      "type": "statuspage",
+      "url": "https://status.anthropic.com/api/v2/summary.json"
+    },
+    {
+      "name": "Apple",
+      "type": "apple",
+      "url": "https://www.apple.com/support/systemstatus/data/system_status_en_US.js"
+    },
+    {
+      "name": "Calendly",
+      "type": "statuspage",
+      "url": "https://www.calendlystatus.com/api/v2/summary.json"
+    },
+    {
+      "name": "Celigo",
+      "type": "statuspage",
+      "url": "https://status.celigo.com/api/v2/summary.json"
+    },
+    {
+      "name": "Centage",
+      "type": "statuspage",
+      "url": "https://status.centage.com/api/v2/summary.json"
+    },
+    {
+      "$comment": "Cloudflare publishes ~470 components, most of them edge PoPs. Routine re-routing in far-flung data centres is the redundancy WORKING, not an outage, so scope to the services group. Measured 2026-07-30: unscoped = 46 non-operational (false red); services only = 0.",
+      "name": "Cloudflare",
+      "type": "statuspage",
+      "url": "https://www.cloudflarestatus.com/api/v2/summary.json",
+      "scope": {
+        "groups": [
+          "Cloudflare Sites and Services"
+        ]
+      }
+    },
+    {
+      "$comment": "Uses the JSON API the Concur Open React app calls. Scrapes of the HTML page return an empty JS shell (audit finding H7).",
+      "name": "Concur",
+      "type": "concur",
+      "url": "https://open.concur.com/api/open/incidents",
+      "bannerUrl": "https://open.concur.com/api/v3/banner",
+      "dataCenters": [
+        "US2"
+      ]
+    },
+    {
+      "name": "Couchdrop",
+      "type": "statuspage",
+      "url": "https://couchdropstatus.statuspage.io/api/v2/summary.json"
+    },
+    {
+      "name": "Discord",
+      "type": "statuspage",
+      "url": "https://discordstatus.com/api/v2/summary.json"
+    },
+    {
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "name": "Docusign",
+      "type": "statuspage",
+      "url": "https://status.docusign.com/api/v2/summary.json",
+      "componentLevel": "group"
+    },
+    {
+      "name": "Dropbox",
+      "type": "statuspage",
+      "url": "https://status.dropbox.com/api/v2/summary.json"
+    },
+    {
+      "name": "GitHub",
+      "type": "statuspage",
+      "url": "https://www.githubstatus.com/api/v2/summary.json"
+    },
+    {
+      "$comment": "Google publishes its product catalogue separately from its incidents feed; componentsUrl supplies the list so every product can be shown, with open incidents marked.",
+      "name": "Google",
+      "type": "google",
+      "url": "https://www.google.com/appsstatus/dashboard/incidents.json",
+      "componentsUrl": "https://www.google.com/appsstatus/dashboard/products.json"
+    },
+    {
+      "name": "HubSpot",
+      "type": "statuspage",
+      "url": "https://status.hubspot.com/api/v2/summary.json"
+    },
+    {
+      "name": "Iorad",
+      "type": "sorryapp",
+      "url": "https://status.iorad.com/api/v1/status.json"
+    },
+    {
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "name": "Jamf",
+      "type": "statuspage",
+      "url": "https://status.jamf.com/api/v2/summary.json",
+      "componentLevel": "group"
+    },
+    {
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "name": "KnowBe4",
+      "type": "statuspage",
+      "url": "https://status.knowbe4.com/api/v2/summary.json",
+      "componentLevel": "group"
+    },
+    {
+      "name": "LinkedIn",
+      "type": "statuspage",
+      "url": "https://www.linkedin-status.com/api/v2/summary.json"
+    },
+    {
+      "name": "Loopio",
+      "type": "statuspage",
+      "url": "https://www.loopiostatus.com/api/v2/summary.json"
+    },
+    {
+      "name": "Lucid",
+      "type": "statuspage",
+      "url": "https://status.lucid.co/api/v2/summary.json"
+    },
+    {
+      "$comment": "CONSUMER services only - Outlook.com, OneDrive, Phone Link, Teams Free. Exchange Online, SharePoint, Entra, Intune and Defender are NOT in this feed. The adapter labels the row accordingly and warns. Enterprise tenant health needs the authenticated Microsoft Graph Service Health API.",
+      "name": "Microsoft",
+      "type": "microsoft",
+      "url": "https://portal.office.com/api/servicestatus/index"
+    },
+    {
+      "name": "Monday.com",
+      "type": "statuspage",
+      "url": "https://status.monday.com/api/v2/summary.json"
+    },
+    {
+      "name": "Navan",
+      "type": "statuspage",
+      "url": "https://status.navan.com/api/v2/summary.json"
+    },
+    {
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "name": "NetSuite",
+      "type": "statuspage",
+      "url": "https://status.netsuite.com/api/v2/summary.json",
+      "componentLevel": "group"
+    },
+    {
+      "$comment": "Okta runs on Salesforce Experience Cloud with no public JSON API (summary.json, index.json, history.atom and history.rss all 401). The page embeds its incidents as JSON and the adapter parses that. The previous FeedBurner Atom source returned 200 but its newest entry was 456 days old - a feed that reports healthy forever is the same silent rot as findings H6 and H7.",
+      "name": "Okta",
+      "type": "okta",
+      "url": "https://status.okta.com/",
+      "pageUrl": "https://status.okta.com",
+      "serviceCatalog": [
+        "Core Platform",
+        "Access Gateway",
+        "Advanced Server Access",
+        "API Services",
+        "MFA",
+        "Single Sign-On",
+        "Workflows",
+        "OIG Access Certifications",
+        "OIG Access Requests",
+        "OIG Reporting",
+        "Privileged Access",
+        "Identity Threat Protection",
+        "ISPM",
+        "Okta Aerial",
+        "Realms and Partner Portal",
+        "Okta for AI Agents",
+        "Third Party"
+      ]
+    },
+    {
+      "name": "OpenAI",
+      "type": "statuspage",
+      "url": "https://status.openai.com/api/v2/summary.json"
+    },
+    {
+      "$comment": "Instatus splits page state and components across two endpoints; summary.json carries only page.status. componentsUrl is advisory - if it fails the page status still decides severity.",
+      "name": "Perplexity",
+      "type": "instatus",
+      "url": "https://status.perplexity.com/summary.json",
+      "componentsUrl": "https://status.perplexity.com/api/v2/components.json"
+    },
+    {
+      "name": "Proton",
+      "type": "statuspage",
+      "url": "https://status.proton.me/api/v2/summary.json"
+    },
+    {
+      "name": "Qualtrics",
+      "type": "statuspage",
+      "url": "https://status.qualtrics.com/api/v2/summary.json"
+    },
+    {
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "name": "QuantumWorkplace",
+      "type": "statuspage",
+      "url": "https://status.quantumworkplace.com/api/v2/summary.json",
+      "componentLevel": "group"
+    },
+    {
+      "$comment": "Seismic publishes 54 region names and no groups - infrastructure with no service breakdown. componentLevel none suppresses the list rather than showing data centres as though they were services.",
+      "name": "Seismic",
+      "type": "statuspage",
+      "url": "https://status.seismic.com/api/v2/summary.json",
+      "componentLevel": "none"
+    },
+    {
+      "name": "SendGrid",
+      "type": "statuspage",
+      "url": "https://status.sendgrid.com/api/v2/summary.json"
+    },
+    {
+      "$comment": "Stormboard migrated from Statuspage to Better Stack; the old summary.json now returns HTML (audit finding H6).",
+      "name": "Stormboard",
+      "type": "betterstack",
+      "url": "https://status.stormboard.com/",
+      "pageUrl": "https://status.stormboard.com"
+    },
+    {
+      "$comment": "Salesforce publishes Tableau as per-region instances with no sub-service breakdown; instances drive severity but are not listed as components.",
+      "name": "Tableau",
+      "type": "salesforce",
+      "url": "https://api.status.salesforce.com/v1/products/Tableau"
+    },
+    {
+      "name": "Tailscale",
+      "type": "statuspage",
+      "url": "https://status.tailscale.com/api/v2/summary.json"
+    },
+    {
+      "name": "Zapier",
+      "type": "statuspage",
+      "url": "https://status.zapier.com/api/v2/summary.json"
+    },
+    {
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "name": "Zoom",
+      "type": "statuspage",
+      "url": "https://status.zoom.us/api/v2/summary.json",
+      "componentLevel": "group"
+    }
+  ]
+}
