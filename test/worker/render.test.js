@@ -157,3 +157,51 @@ describe('renderDashboard — presentation contract', () => {
     expect(html).toContain(':root[data-theme="light"]');
   });
 });
+
+// Regression: the deployed Worker rendered "All systems operational" against an
+// EMPTY board before the first collection had run. Zero records means nothing
+// was checked -- reporting that as health is exactly the false-green failure
+// this rewrite exists to eliminate (findings H1, H4, H6, H7). Caught on the
+// first live deploy, 2026-07-31.
+describe('renderDashboard — an empty board is not a healthy board', () => {
+  it('does NOT claim all systems operational when there are no records', () => {
+    const html = renderDashboard({ records: [], meta: null });
+    expect(html).not.toContain('All systems operational');
+  });
+
+  it('says explicitly that no data has been collected', () => {
+    const html = renderDashboard({ records: [], meta: null });
+    expect(html).toMatch(/no status data|awaiting first collection/i);
+  });
+
+  it('marks the empty state as unknown, not ok', () => {
+    const html = renderDashboard({ records: [], meta: null });
+    expect(html).toContain('headline--unknown');
+  });
+});
+
+// A dashboard that shows hour-old data as though it were current is the same
+// silent rot in a different place: the collector can stop and the page keeps
+// looking fine. This is the dead-man's switch for our own cron.
+describe('renderDashboard — staleness is surfaced', () => {
+  const fresh = '2026-07-31T12:00:00.000Z';
+  const record = { vendor: 'V', service: 'V', severity: 'operational', incidentName: '', description: '', sourceUrl: '', components: [], warnings: [], checkedAt: fresh };
+
+  it('does not warn when the snapshot is recent', () => {
+    const html = renderDashboard({
+      records: [record],
+      meta: { checked_at: fresh },
+      now: () => new Date('2026-07-31T12:05:00.000Z'),
+    });
+    expect(html).not.toMatch(/may be stale/i);
+  });
+
+  it('warns when the snapshot is older than two collection intervals', () => {
+    const html = renderDashboard({
+      records: [record],
+      meta: { checked_at: fresh },
+      now: () => new Date('2026-07-31T13:30:00.000Z'),
+    });
+    expect(html).toMatch(/may be stale/i);
+  });
+});

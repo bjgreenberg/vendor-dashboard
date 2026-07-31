@@ -30,6 +30,18 @@ import { parseMicrosoft } from './adapters/microsoft.js';
 /** Default per-vendor deadline. A hung status page must not stall the run. */
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+/** Base backoff between retries; multiplied by attempt number and jittered. */
+const DEFAULT_RETRY_DELAY_MS = 250;
+
+/**
+ * Total retries allowed across ALL vendors in one run.
+ *
+ * Sized against the Workers free-plan ceiling of 50 subrequests per invocation:
+ * ~34 vendors plus Concur's banner is ~35 first attempts, leaving roughly 15 of
+ * headroom. 10 keeps a margin for redirect chains, which also count.
+ */
+const DEFAULT_RETRY_BUDGET = 10;
+
 /**
  * Identify ourselves honestly.
  *
@@ -64,6 +76,82 @@ const TEXT_ADAPTERS = {
 };
 
 /**
+ * HTTP statuses worth a second look.
+ *
+ * 404 is deliberately included, which is unusual. Microsoft's status endpoint
+ * was measured at roughly 50% availability on 2026-07-31 — the same URL
+ * returning 200, then 404, then 404 within seconds, and its sibling on
+ * admin.microsoft.com alternating 404/200/404/200. Treating that as permanent
+ * would render a healthy vendor UNKNOWN half the time: technically fail-closed,
+ * but the kind of noise that trains an operator to stop reading the board.
+ *
+ * The cost of being wrong is bounded — after the attempt cap the answer is
+ * still UNKNOWN, never a green row.
+ */
+const RETRYABLE_STATUS = new Set([404, 408, 425, 429, 500, 502, 503, 504]);
+
+/** Attempts per vendor, including the first. */
+const MAX_ATTEMPTS = 3;
+
+/**
+ * Fetch with bounded retry.
+ *
+ * Retries consume a budget SHARED across the whole run, not just per vendor.
+ * On the Workers free plan the subrequest ceiling is 50 per invocation; 34
+ * vendors each retrying twice would be 102 and the run would be killed
+ * mid-flight. The shared budget makes the worst case arithmetic rather than
+ * hopeful.
+ *
+ * @param {string} url
+ * @param {object} ctx
+ * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string}>}
+ */
+async function fetchWithRetry(url, ctx) {
+  const { fetchFn, timeoutMs, retryDelayMs, budget } = ctx;
+  let lastReason = 'fetch failed';
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    if (attempt > 1) {
+      // Budget is shared and mutable; when it runs out, stop retrying.
+      if (budget.remaining <= 0) break;
+      budget.remaining -= 1;
+      if (retryDelayMs > 0) {
+        // Backoff with jitter so a flaky vendor is not hammered in lockstep.
+        const wait = retryDelayMs * attempt * (0.5 + Math.random());
+        await new Promise((resolve) => setTimeout(resolve, wait));
+      }
+    }
+
+    try {
+      // AbortSignal.timeout exists in Workers and modern Node. Guard anyway so
+      // an environment lacking it degrades to "no deadline" rather than crashing.
+      const signal =
+        typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+          ? AbortSignal.timeout(timeoutMs)
+          : undefined;
+
+      const response = await fetchFn(url, {
+        signal,
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json, text/xml, text/html' },
+      });
+
+      if (response && response.ok === false) {
+        lastReason = `fetch returned HTTP ${response.status}`;
+        if (RETRYABLE_STATUS.has(response.status)) continue;
+        return { ok: false, reason: lastReason };
+      }
+
+      return { ok: true, body: await response.text() };
+    } catch (error) {
+      // A network-level failure is transient by nature; retry it.
+      lastReason = `fetch failed: ${error?.message ?? String(error)}`;
+    }
+  }
+
+  return { ok: false, reason: lastReason };
+}
+
+/**
  * Fetch and parse a single vendor. Never throws — every failure path returns an
  * UNKNOWN record so the caller always gets one row per configured vendor.
  *
@@ -88,27 +176,11 @@ async function collectOne(vendor, ctx) {
     return unknownRecord(name, `no adapter registered for type "${vendor?.type}"`, opts);
   }
 
-  let body;
-  try {
-    // AbortSignal.timeout is available in Workers and modern Node. Guard anyway
-    // so an environment lacking it degrades to "no deadline" rather than crashing.
-    const signal =
-      typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
-        ? AbortSignal.timeout(timeoutMs)
-        : undefined;
-
-    const response = await fetchFn(vendor.url, {
-      signal,
-      headers: { 'User-Agent': USER_AGENT, Accept: 'application/json, text/xml, text/html' },
-    });
-
-    if (response && response.ok === false) {
-      return unknownRecord(name, `fetch returned HTTP ${response.status}`, opts);
-    }
-    body = await response.text();
-  } catch (error) {
-    return unknownRecord(name, `fetch failed: ${error?.message ?? String(error)}`, opts);
+  const attempt = await fetchWithRetry(vendor.url, ctx);
+  if (!attempt.ok) {
+    return unknownRecord(name, attempt.reason, opts);
   }
+  const body = attempt.body;
 
   try {
     if (isText) return TEXT_ADAPTERS[vendor.type](body, opts);
@@ -154,7 +226,13 @@ async function collectOne(vendor, ctx) {
  * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[]}>}
  */
 export async function collect(config, ctx) {
-  const { fetchFn, now = () => new Date(), timeoutMs = DEFAULT_TIMEOUT_MS } = ctx ?? {};
+  const {
+    fetchFn,
+    now = () => new Date(),
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    retryDelayMs = DEFAULT_RETRY_DELAY_MS,
+    retryBudget = DEFAULT_RETRY_BUDGET,
+  } = ctx ?? {};
 
   if (!config || !Array.isArray(config.vendors)) {
     throw new Error('collect: config.vendors must be an array');
@@ -170,8 +248,11 @@ export async function collect(config, ctx) {
 
   // Concurrent by design (finding M5). allSettled is belt-and-braces: collectOne
   // already swallows its own failures, but a bug there must still not lose rows.
+  // Shared, mutable retry budget. Bounds total subrequests for the whole run.
+  const budget = { remaining: retryBudget };
+
   const settled = await Promise.allSettled(
-    config.vendors.map((v) => collectOne(v, { fetchFn, now, timeoutMs })),
+    config.vendors.map((v) => collectOne(v, { fetchFn, now, timeoutMs, retryDelayMs, budget })),
   );
 
   const records = settled.map((outcome, i) =>

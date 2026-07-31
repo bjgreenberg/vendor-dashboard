@@ -43,18 +43,40 @@ export function esc(value) {
  * @param {{records: any[], meta: any, basePath?: string, nonce?: string}} input
  * @returns {string} complete HTML document
  */
-export function renderDashboard({ records = [], meta = null, nonce = '' }) {
+export function renderDashboard({ records = [], meta = null, nonce = '', now = () => new Date() }) {
   const impacted = records.filter(
     (r) => r.severity !== 'operational' && r.severity !== 'unknown',
   ).length;
   const unknown = records.filter((r) => r.severity === 'unknown').length;
 
-  const headline =
-    impacted > 0
+  // An EMPTY board is not a healthy board. Zero records means nothing was
+  // checked, and rendering that as "All systems operational" is precisely the
+  // false-green failure this rewrite exists to eliminate (findings H1, H4, H6,
+  // H7). Caught on the first live deploy, 2026-07-31, before any data existed.
+  const empty = records.length === 0;
+
+  // Staleness is the dead-man's switch for our OWN collector. If the cron stops
+  // firing, the last snapshot would otherwise keep rendering as current — the
+  // same silent rot, one layer up. Two collection intervals is the threshold:
+  // one missed run is noise, two is a signal.
+  const STALE_AFTER_MS = 2 * 15 * 60 * 1000;
+  const checkedAtMs = meta?.checked_at ? Date.parse(meta.checked_at) : NaN;
+  const stale =
+    !Number.isNaN(checkedAtMs) && now().getTime() - checkedAtMs > STALE_AFTER_MS;
+
+  const headline = empty
+    ? 'No status data — awaiting first collection'
+    : impacted > 0
       ? `${impacted} service${impacted === 1 ? '' : 's'} impacted`
       : unknown > 0
         ? `All monitored services operational (${unknown} unchecked)`
         : 'All systems operational';
+
+  const headlineTone = empty ? 'headline--unknown' : impacted > 0 ? 'headline--impacted' : '';
+
+  const staleBanner = stale
+    ? `<p class="stale" role="status">This data may be stale — the last successful collection was ${esc(meta.checked_at)}, more than two update intervals ago.</p>`
+    : '';
 
   const rows = records.map((r) => renderRow(r)).join('\n');
 
@@ -78,7 +100,8 @@ export function renderDashboard({ records = [], meta = null, nonce = '' }) {
       <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
     </div>
   </div>
-  <p class="headline ${impacted > 0 ? 'headline--impacted' : ''}">${esc(headline)}</p>
+  <p class="headline ${headlineTone}">${esc(headline)}</p>
+  ${staleBanner}
   <p class="meta">
     ${meta?.checked_at ? `Last checked <time datetime="${esc(meta.checked_at)}">${esc(meta.checked_at)}</time>.` : 'No collection has run yet.'}
     Updates every 15 minutes.
@@ -93,7 +116,7 @@ export function renderDashboard({ records = [], meta = null, nonce = '' }) {
 </header>
 
 <main id="board" class="board">
-${rows || '<p class="empty">No services configured.</p>'}
+${rows || '<p class="empty">No status has been collected yet. The collector runs every 15 minutes; if this persists, the scheduled job is not running.</p>'}
 </main>
 
 <footer class="foot">
@@ -253,6 +276,12 @@ body {
 h1 { font-size: clamp(1.5rem, 4vw, 2rem); margin: 0; }
 .headline { font-size: 1.1rem; font-weight: 600; margin: 1rem 0 .25rem; color: var(--ok); }
 .headline--impacted { color: var(--critical); }
+.headline--unknown { color: var(--unknown); }
+.stale {
+  margin: .5rem 0; padding: .6rem .8rem; font-size: .875rem;
+  color: var(--minor); background: var(--surface);
+  border: 1px solid var(--minor); border-radius: var(--radius);
+}
 .meta, .hint { color: var(--text-dim); font-size: .875rem; margin: .25rem 0; }
 
 .theme { display: flex; gap: .25rem; }

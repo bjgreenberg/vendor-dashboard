@@ -23,12 +23,21 @@
   // inference.
   "observability": { "enabled": true, "head_sampling_rate": 1 },
 
-  // Runaway guards. ~35 vendors plus redirects sits far below these; the point
-  // is to bound a bug or a redirect loop rather than to permit normal load.
-  "limits": {
-    "subrequests": 200,
-    "cpu_ms": 30000
-  },
+  // NOTE: the `limits` block is PAID-PLAN ONLY. Deploying it on the Free plan
+  // fails outright with "CPU limits are not supported for the Free plan"
+  // (code 100328), so it is commented out rather than deleted.
+  //
+  // Free-plan ceilings that actually bind this workload:
+  //   CPU per Cron Trigger        10 ms   (Paid: 30 s)
+  //   Subrequests per invocation  50      (Paid: 10,000)
+  //   Simultaneous connections    6       (same on both plans)
+  //
+  // ~35 vendors sits under the subrequest ceiling but redirects count toward
+  // it, and parsing 34 payloads — Cloudflare alone is ~200 KB across 470
+  // components — is the part at risk of exceeding 10 ms of CPU. Measure with
+  // observability before assuming either way.
+  //
+  // "limits": { "subrequests": 200, "cpu_ms": 30000 },
 
   "d1_databases": [
     {

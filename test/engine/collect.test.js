@@ -71,6 +71,7 @@ describe('collect — failure isolation (H4)', () => {
     const res = await collect(config, {
       fetchFn: stubFetch({ 'https://good': { body: GITHUB }, 'https://broken': new Error('ECONNRESET') }),
       now,
+      retryDelayMs: 0,
     });
     expect(res.records).toHaveLength(2);
     const broken = res.records.find((r) => r.vendor === 'Broken');
@@ -84,6 +85,7 @@ describe('collect — failure isolation (H4)', () => {
     const res = await collect(config, {
       fetchFn: stubFetch({ 'https://v': { status: 503, body: 'gateway error' } }),
       now,
+      retryDelayMs: 0,
     });
     expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
     expect(res.records[0].warnings.join(' ')).toMatch(/503/);
@@ -159,6 +161,7 @@ describe('collect — run metadata', () => {
     const res = await collect(config, {
       fetchFn: stubFetch({ 'https://good': { body: GITHUB }, 'https://broken': new Error('boom') }),
       now,
+      retryDelayMs: 0,
     });
     expect(res.checkedAt).toBe('2026-07-30T12:00:00.000Z');
     expect(res.total).toBe(2);
@@ -178,5 +181,97 @@ describe('collect — run metadata', () => {
     ]);
     const res = await collect(config, { fetchFn: stubFetch({ 'https://cf': { body: cloudflare } }), now });
     expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+  });
+});
+
+// Live finding, 2026-07-31: Microsoft's status endpoint is ~50% flaky. The same
+// URL returned 200 then 404 then 404 seconds apart, and admin.microsoft.com
+// (same backend) alternated 404/200/404/200. Without a retry, a healthy vendor
+// renders UNKNOWN roughly half the time - technically fail-closed, but noise
+// that trains you to ignore the board.
+//
+// Retries are bounded by a SHARED budget, not just per-vendor, because the
+// free-plan subrequest ceiling is 50 per invocation and 34 vendors each
+// retrying twice would be 102.
+describe('collect — bounded retry for transient failures', () => {
+  const GH = readFileSync(new URL('../fixtures/GitHub.json', import.meta.url), 'utf8');
+
+  it('retries a transient 404 and succeeds on the second attempt', async () => {
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      if (calls === 1) return { ok: false, status: 404, text: async () => '' };
+      return { ok: true, status: 200, text: async () => GH };
+    };
+    const res = await collect(cfg([{ name: 'Flaky', type: 'statuspage', url: 'https://f' }]), {
+      fetchFn,
+      now,
+      retryDelayMs: 0,
+    });
+    expect(calls).toBe(2);
+    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('retries a network error', async () => {
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      if (calls === 1) throw new Error('ECONNRESET');
+      return { ok: true, status: 200, text: async () => GH };
+    };
+    const res = await collect(cfg([{ name: 'Flaky', type: 'statuspage', url: 'https://f' }]), {
+      fetchFn,
+      now,
+      retryDelayMs: 0,
+    });
+    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('gives up after the attempt cap and reports UNKNOWN, never OPERATIONAL', async () => {
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      return { ok: false, status: 404, text: async () => '' };
+    };
+    const res = await collect(cfg([{ name: 'Dead', type: 'statuspage', url: 'https://d' }]), {
+      fetchFn,
+      now,
+      retryDelayMs: 0,
+    });
+    expect(calls).toBeLessThanOrEqual(3);
+    expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
+  });
+
+  it('does NOT retry a 200 that simply fails to parse — that is not transient', async () => {
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      return { ok: true, status: 200, text: async () => '<html>not json</html>' };
+    };
+    const res = await collect(cfg([{ name: 'V', type: 'statuspage', url: 'https://v' }]), {
+      fetchFn,
+      now,
+      retryDelayMs: 0,
+    });
+    expect(calls).toBe(1);
+    expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
+  });
+
+  it('caps TOTAL retries across the run so the subrequest ceiling cannot be blown', async () => {
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      return { ok: false, status: 503, text: async () => '' };
+    };
+    const vendors = Array.from({ length: 20 }, (_, i) => ({
+      name: `V${i}`,
+      type: 'statuspage',
+      url: `https://v${i}`,
+    }));
+    const res = await collect(cfg(vendors), { fetchFn, now, retryDelayMs: 0, retryBudget: 5 });
+    // 20 first attempts + at most 5 retries.
+    expect(calls).toBeLessThanOrEqual(25);
+    expect(res.records).toHaveLength(20);
+    expect(res.unknown).toBe(20);
   });
 });
