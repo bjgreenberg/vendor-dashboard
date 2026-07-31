@@ -1,0 +1,5 @@
+node_modules/
+.DS_Store
+.clasp.json
+creds.json
+AGENTS.md

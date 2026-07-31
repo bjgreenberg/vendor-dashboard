@@ -1,0 +1,106 @@
+{
+  "$comment": [
+    "Vendor configuration. This file is the ONLY place the monitored set is declared;",
+    "no vendor list lives in source code. Copy to vendors.json and edit, or supply your",
+    "own at deploy time.",
+    "",
+    "type: which adapter parses the feed.",
+    "  statuspage  Atlassian Statuspage v2 summary.json (most vendors)",
+    "  instatus    Instatus summary.json (page.status UP/HASISSUES)",
+    "  google      Google appsstatus incidents.json",
+    "  apple       Apple system_status_en_US.js",
+    "  microsoft   portal.office.com servicestatus (CONSUMER services only)",
+    "  okta        Atom feed",
+    "  salesforce  api.status.salesforce.com product instances",
+    "  concur      open.concur.com JSON API",
+    "  sorryapp    SorryApp status.json",
+    "  betterstack Better Stack HTML status page",
+    "",
+    "scope (optional): restrict which components count, by group or exact name.",
+    "  Without it, the vendor's own page-level indicator is trusted.",
+    "  With it, only the listed components decide the status.",
+    "",
+    "NOT INCLUDED and why: Freshdesk, Freshservice and Paylocity publish no public",
+    "machine-readable status endpoint (verified 2026-07-30 - Freshworks' Statuspage",
+    "returns 401 'page is inactive', status.freshworks.com is a JS shell, and",
+    "status.paylocity.com redirects to their login portal). They were previously",
+    "sourced from StatusGator, a third-party aggregator, which is no longer used.",
+    "A monitored row with no real data source reports health it never verified."
+  ],
+
+  "vendors": [
+    { "name": "1Password", "type": "statuspage", "url": "https://status.1password.com/api/v2/summary.json" },
+    { "name": "Alteryx", "type": "statuspage", "url": "https://status.alteryxcloud.com/api/v2/summary.json" },
+    { "name": "Anthropic", "type": "statuspage", "url": "https://status.anthropic.com/api/v2/summary.json" },
+    { "name": "Apple", "type": "apple", "url": "https://www.apple.com/support/systemstatus/data/system_status_en_US.js" },
+    { "name": "Calendly", "type": "statuspage", "url": "https://www.calendlystatus.com/api/v2/summary.json" },
+    { "name": "Celigo", "type": "statuspage", "url": "https://status.celigo.com/api/v2/summary.json" },
+    { "name": "Centage", "type": "statuspage", "url": "https://status.centage.com/api/v2/summary.json" },
+
+    {
+      "$comment": "Cloudflare publishes ~470 components, most of them edge PoPs. Routine re-routing in far-flung data centres is the redundancy WORKING, not an outage, so scope to the services group. Measured 2026-07-30: unscoped = 46 non-operational (false red); services only = 0.",
+      "name": "Cloudflare",
+      "type": "statuspage",
+      "url": "https://www.cloudflarestatus.com/api/v2/summary.json",
+      "scope": { "groups": ["Cloudflare Sites and Services"] }
+    },
+
+    {
+      "$comment": "Uses the JSON API the Concur Open React app calls. Scrapes of the HTML page return an empty JS shell (audit finding H7).",
+      "name": "Concur",
+      "type": "concur",
+      "url": "https://open.concur.com/api/open/incidents",
+      "bannerUrl": "https://open.concur.com/api/v3/banner",
+      "dataCenters": ["US2"]
+    },
+
+    { "name": "Couchdrop", "type": "statuspage", "url": "https://couchdropstatus.statuspage.io/api/v2/summary.json" },
+    { "name": "Docusign", "type": "statuspage", "url": "https://status.docusign.com/api/v2/summary.json" },
+    { "name": "GitHub", "type": "statuspage", "url": "https://www.githubstatus.com/api/v2/summary.json" },
+    { "name": "Google", "type": "google", "url": "https://www.google.com/appsstatus/dashboard/incidents.json" },
+    { "name": "HubSpot", "type": "statuspage", "url": "https://status.hubspot.com/api/v2/summary.json" },
+    { "name": "Iorad", "type": "sorryapp", "url": "https://status.iorad.com/api/v1/status.json" },
+    { "name": "Jamf", "type": "statuspage", "url": "https://status.jamf.com/api/v2/summary.json" },
+    { "name": "KnowBe4", "type": "statuspage", "url": "https://status.knowbe4.com/api/v2/summary.json" },
+    { "name": "Loopio", "type": "statuspage", "url": "https://www.loopiostatus.com/api/v2/summary.json" },
+    { "name": "Lucid", "type": "statuspage", "url": "https://status.lucid.co/api/v2/summary.json" },
+
+    {
+      "$comment": "CONSUMER services only - Outlook.com, OneDrive, Phone Link, Teams Free. Exchange Online, SharePoint, Entra, Intune and Defender are NOT in this feed. The adapter labels the row accordingly and warns. Enterprise tenant health needs the authenticated Microsoft Graph Service Health API.",
+      "name": "Microsoft",
+      "type": "microsoft",
+      "url": "https://portal.office.com/api/servicestatus/index"
+    },
+
+    { "name": "Monday.com", "type": "statuspage", "url": "https://status.monday.com/api/v2/summary.json" },
+    { "name": "Navan", "type": "statuspage", "url": "https://status.navan.com/api/v2/summary.json" },
+    { "name": "NetSuite", "type": "statuspage", "url": "https://status.netsuite.com/api/v2/summary.json" },
+
+    {
+      "$comment": "Okta runs on Salesforce Experience Cloud with no public JSON API (summary.json, index.json, history.atom and history.rss all 401). The page embeds its incidents as JSON and the adapter parses that. The previous FeedBurner Atom source returned 200 but its newest entry was 456 days old - a feed that reports healthy forever is the same silent rot as findings H6 and H7.",
+      "name": "Okta",
+      "type": "okta",
+      "url": "https://status.okta.com/",
+      "pageUrl": "https://status.okta.com"
+    },
+
+    { "name": "OpenAI", "type": "statuspage", "url": "https://status.openai.com/api/v2/summary.json" },
+    { "name": "Perplexity", "type": "instatus", "url": "https://status.perplexity.com/summary.json" },
+    { "name": "Qualtrics", "type": "statuspage", "url": "https://status.qualtrics.com/api/v2/summary.json" },
+    { "name": "QuantumWorkplace", "type": "statuspage", "url": "https://status.quantumworkplace.com/api/v2/summary.json" },
+    { "name": "Seismic", "type": "statuspage", "url": "https://status.seismic.com/api/v2/summary.json" },
+    { "name": "SendGrid", "type": "statuspage", "url": "https://status.sendgrid.com/api/v2/summary.json" },
+
+    {
+      "$comment": "Stormboard migrated from Statuspage to Better Stack; the old summary.json now returns HTML (audit finding H6).",
+      "name": "Stormboard",
+      "type": "betterstack",
+      "url": "https://status.stormboard.com/",
+      "pageUrl": "https://status.stormboard.com"
+    },
+
+    { "name": "Tableau", "type": "salesforce", "url": "https://api.status.salesforce.com/v1/products/Tableau" },
+    { "name": "Zapier", "type": "statuspage", "url": "https://status.zapier.com/api/v2/summary.json" },
+    { "name": "Zoom", "type": "statuspage", "url": "https://status.zoom.us/api/v2/summary.json" }
+  ]
+}

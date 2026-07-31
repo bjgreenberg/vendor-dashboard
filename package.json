@@ -1,0 +1,34 @@
+{
+  "name": "vendor-dashboard",
+  "version": "2.0.0",
+  "description": "Monitors the live status of a configurable SaaS vendor set by polling each vendor's public status endpoint. Cloudflare Worker + runtime-agnostic engine.",
+  "main": "Code.js",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint ."
+  },
+  "keywords": [
+    "google-apps-script",
+    "status-monitoring",
+    "statuspage",
+    "vendor-status",
+    "google-sheets",
+    "observability"
+  ],
+  "author": "Brian Greenberg <bjg@acm.org> (https://briangreenberg.net)",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bjgreenberg/vendor-dashboard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bjgreenberg/vendor-dashboard/issues"
+  },
+  "homepage": "https://github.com/bjgreenberg/vendor-dashboard#readme",
+  "type": "module",
+  "devDependencies": {
+    "@types/google-apps-script": "^2.0.8",
+    "vitest": "^3.2.7"
+  }
+}

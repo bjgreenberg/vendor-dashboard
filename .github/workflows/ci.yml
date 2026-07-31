@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Real unit tests. The predecessor was Apps Script, which cannot be
+      # tested off-platform, so CI could only gate on syntax validity. Every
+      # adapter is now pinned against a recorded vendor payload — the gate that
+      # would have caught findings H1, H6 and H7 before they shipped.
+      - name: Run tests
+        run: npm test
+
+      # Catch bundling/binding errors without deploying. --dry-run needs no
+      # Cloudflare credentials.
+      - name: Build check (wrangler dry-run)
+        run: npx wrangler deploy --dry-run --outdir=/tmp/build
+
+      - name: Audit dependencies (high+)
+        run: npm audit --audit-level=high
+
+  # Secret-scan the full git history AND the working tree. Complements
+  # Scorecard (which is public-only) — this gate works while the repo is
+  # private. Digest-pinned gitleaks container; runs as root inside the
+  # ephemeral container to avoid git "dubious ownership" on the mounted repo.
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0   # full history for the git-log scan
+
+      - name: gitleaks (history + tree)
+        run: |
+          docker run --rm -v "$PWD:/repo" --user root \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git /repo --no-banner
+
+  # Validate CITATION.cff against the CFF schema. An invalid file silently
+  # breaks GitHub's "Cite this repository" button — a broken deliverable, so it
+  # is gated like a test. Digest-pinned cffconvert container (bump deliberately).
+  cff-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Validate CITATION.cff
+        run: |
+          docker run --rm -v "$PWD:/app" -w /app \
+            citationcff/cffconvert@sha256:f8c5dc5fa8013e5c3635b1c2695bf54eac4d319719f8acdbb7b7ad7a778e46ea \
+            --validate
+
+  # Render-check every ```mermaid block in the repo's Markdown. A diagram that
+  # fails to render is a broken deliverable (a red box for every reader), so it
+  # is gated like a test. Uses the digest-pinned mermaid-cli container — no Node
+  # or Chrome on the runner. Docker is preinstalled on ubuntu-latest.
+  docs-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Render-check Mermaid diagrams
+        run: scripts/render-diagrams.sh

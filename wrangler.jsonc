@@ -1,0 +1,90 @@
+{
+  // vendor-dashboard - SaaS status monitor.
+  //
+  // Routing note: this Worker is served at briangreenberg.net/service-status* via a
+  // Workers ROUTE, configured in the dashboard/API - NOT here. Never declare
+  // `custom_domain` in this file: wrangler skips the changeset preview and
+  // force-overrides DNS whenever stdout is not a TTY (CI, agent shells), which
+  // can silently rewrite records on a zone a live site depends on.
+  "name": "vendor-dashboard",
+  "main": "src/worker/index.js",
+  "compatibility_date": "2026-07-01",
+
+  // Served at briangreenberg.net/service-status* via a ROUTE (not a Custom
+  // Domain). briangreenberg.net itself is a Custom Domain bound to the
+  // `briangreenberg-net` Worker; per Cloudflare's docs a Worker on a Custom
+  // Domain is treated as an ORIGIN, and a route on a sub-path runs BEFORE it.
+  // So this route intercepts /service-status* and every other path still
+  // reaches the site Worker untouched.
+  //
+  // `zone_name` (not `custom_domain`) is deliberate: a route does not create or
+  // modify DNS records. Declaring `custom_domain` here would let wrangler
+  // force-override DNS with no changeset preview whenever stdout is not a TTY
+  // — on the zone the live site depends on.
+  //
+  // Rollback: delete this block and redeploy, or remove the route in the
+  // dashboard. The site is unaffected either way.
+  "routes": [
+    {
+      "pattern": "briangreenberg.net/service-status*",
+      "zone_name": "briangreenberg.net"
+    }
+  ],
+
+  // Keep the workers.dev address alive as a preview/diagnostic surface. It is
+  // served `noindex` so it cannot compete with the canonical URL.
+  "workers_dev": true,
+
+  // Collect every 15 minutes. Cron invocations get a 15-minute wall-time
+  // budget, against a run that completes in seconds - the vendors are fetched
+  // concurrently, not serially.
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+
+  // Workers Logs on from day one. The 2026-07-25 Turnstile false alarm ran
+  // three days with ZERO retained logs; enabling observability is what turns
+  // the next silent failure into a five-minute query instead of days of
+  // inference.
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+
+  // NOTE: the `limits` block is PAID-PLAN ONLY. Deploying it on the Free plan
+  // fails outright with "CPU limits are not supported for the Free plan"
+  // (code 100328), so it is commented out rather than deleted.
+  //
+  // Free-plan ceilings that actually bind this workload:
+  //   CPU per Cron Trigger        10 ms   (Paid: 30 s)
+  //   Subrequests per invocation  50      (Paid: 10,000)
+  //   Simultaneous connections    6       (same on both plans)
+  //
+  // ~35 vendors sits under the subrequest ceiling but redirects count toward
+  // it, and parsing 34 payloads — Cloudflare alone is ~200 KB across 470
+  // components — is the part at risk of exceeding 10 ms of CPU. Measure with
+  // observability before assuming either way.
+  //
+  // "limits": { "subrequests": 200, "cpu_ms": 30000 },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vendor-dashboard",
+      // Created 2026-07-30, primary location ENAM. A D1 database id is not a
+      // secret (it is an account-scoped identifier, useless without account
+      // credentials) and must be committed for the deploy to be reproducible.
+      "database_id": "09c68a33-7b96-42c2-ab4b-6cec3c33f4bc"
+    }
+  ],
+
+  "vars": {
+    // Path prefix the Worker is mounted under, so links and asset URLs are
+    // correct whether it runs at /service-status on the live zone or at the
+    // root on workers.dev / in local dev.
+    //
+    // Chosen over the shorter /status deliberately: on any domain, /status
+    // conventionally means "the status of THIS site", so visitors would expect
+    // uptime for briangreenberg.net rather than a board of third-party
+    // services. It also leaves /status free should a GSD app ever need a real
+    // service-health page.
+    "BASE_PATH": "/service-status"
+  }
+}

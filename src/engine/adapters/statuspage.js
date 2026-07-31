@@ -1,0 +1,167 @@
+/**
+ * Atlassian Statuspage v2 adapter — the generic path most vendors use.
+ *
+ * Runtime-agnostic: pure function over a parsed payload. No fetching, no
+ * platform APIs. The caller supplies the payload and an injected clock, which
+ * is what makes this deterministically testable against recorded fixtures.
+ *
+ * Resolves audit findings M1, M2, H3, H4 and L4.
+ */
+
+import { SEVERITY, normalizeSeverity, worst } from '../severity.js';
+import { selectComponents } from '../scope.js';
+
+/**
+ * @typedef {import('../severity.js').Severity} Severity
+ */
+
+/**
+ * @typedef {object} StatusRecord
+ * @property {string}   vendor
+ * @property {string}   service
+ * @property {Severity} severity
+ * @property {string}   incidentName
+ * @property {string}   description
+ * @property {string}   sourceUrl
+ * @property {string}   checkedAt      ISO-8601
+ * @property {string[]} warnings       config drift and parse notes
+ */
+
+/**
+ * Strip HTML tags and collapse whitespace for a plain-text summary.
+ *
+ * NOTE: this is a *display* cleaner, not a sanitizer, and is deliberately not
+ * relied upon for safety. Audit finding M4: vendor incident text is
+ * attacker-influenced content from third parties, so the render layer escapes
+ * on output rather than trusting anything cleaned here. Never inject the
+ * result of this function into HTML unescaped.
+ *
+ * @param {unknown} text
+ * @returns {string}
+ */
+function toPlainText(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Severity from the vendor's own page-level indicator.
+ * @param {any} payload
+ * @returns {Severity}
+ */
+function indicatorSeverity(payload) {
+  const indicator = payload?.status?.indicator;
+  return typeof indicator === 'string' ? normalizeSeverity(indicator) : SEVERITY.UNKNOWN;
+}
+
+/**
+ * Parse a Statuspage v2 `summary.json` payload into one status record.
+ *
+ * **How severity is decided** — this is the core correction from the audit:
+ *
+ * - **Scope configured** -> severity is the worst of the *in-scope components
+ *   only*. The vendor's page indicator is deliberately ignored, because the
+ *   operator has declared what they care about. This is what lets Cloudflare
+ *   read Operational while 26 far-flung edge PoPs are re-routing (decision D1).
+ * - **No scope configured** -> severity is the worst of the page indicator and
+ *   all components. Without a declared scope, use every signal available.
+ * - **Incidents never contribute to severity**, only to context. The
+ *   predecessor derived status *solely* from incidents, which produced errors
+ *   in both directions: it missed component-only outages (finding M2) and it
+ *   marked KnowBe4 degraded over an incident about their online store while
+ *   the vendor's own indicator read `none`.
+ *
+ * Fails closed (finding H4): a null, malformed, or unrecognisable payload
+ * yields `UNKNOWN` and never `OPERATIONAL`.
+ *
+ * @param {any} payload  parsed Statuspage v2 summary
+ * @param {object} options
+ * @param {string} options.vendor
+ * @param {string} [options.service]
+ * @param {import('../scope.js').Scope} [options.scope]
+ * @param {string} [options.sourceUrl]
+ * @param {() => Date} [options.now] injected clock for deterministic tests
+ * @returns {StatusRecord}
+ */
+export function parseStatuspage(payload, options) {
+  const { vendor, service, scope, sourceUrl, now = () => new Date() } = options ?? {};
+  const checkedAt = now().toISOString();
+  const warnings = [];
+
+  const base = {
+    vendor: vendor ?? 'unknown',
+    service: service ?? vendor ?? 'unknown',
+    sourceUrl: payload?.page?.url ?? sourceUrl ?? '',
+    checkedAt,
+  };
+
+  // Fail closed: nothing recognisable to read.
+  const hasStatus = payload?.status && typeof payload.status === 'object';
+  const hasComponents = Array.isArray(payload?.components);
+  if (!hasStatus && !hasComponents) {
+    return {
+      ...base,
+      severity: SEVERITY.UNKNOWN,
+      incidentName: '',
+      description: 'Status could not be determined from the vendor payload.',
+      warnings: ['payload was missing both status and components'],
+    };
+  }
+
+  const { selected, scoped, warnings: scopeWarnings } = selectComponents(payload, scope);
+  warnings.push(...scopeWarnings);
+
+  const componentSeverities = selected.map((c) => normalizeSeverity(c.status));
+
+  let severity;
+  if (scoped) {
+    // The operator declared what matters; judge only on that.
+    severity = worst(componentSeverities);
+  } else {
+    severity = worst([indicatorSeverity(payload), ...componentSeverities]);
+  }
+
+  // Incidents supply context only, never severity.
+  const incidents = Array.isArray(payload?.incidents) ? payload.incidents : [];
+  const openIncidents = incidents.filter((i) => {
+    const isResolved = i?.status === 'resolved' || i?.status === 'postmortem';
+    // Statuspage convention: an underscore-prefixed name marks a metadata /
+    // scheduled-maintenance placeholder rather than a real incident. Preserved
+    // from the predecessor, which got this detail right.
+    const isMetadata =
+      typeof i?.name === 'string' && i.name.startsWith('_');
+    return !isResolved && !isMetadata;
+  });
+
+  const primary = openIncidents[0];
+  const incidentName = typeof primary?.name === 'string' ? primary.name : '';
+
+  const unhealthy = selected.filter((c) => normalizeSeverity(c.status) !== SEVERITY.OPERATIONAL);
+
+  let description;
+  if (primary) {
+    const latestBody = primary?.incident_updates?.[0]?.body;
+    description = toPlainText(latestBody) || incidentName || 'Active incident reported by vendor.';
+  } else if (unhealthy.length > 0) {
+    const names = unhealthy.slice(0, 3).map((c) => c.name).join(', ');
+    const more = unhealthy.length > 3 ? ` (+${unhealthy.length - 3} more)` : '';
+    description = `Affected: ${names}${more}.`;
+  } else if (severity === SEVERITY.OPERATIONAL) {
+    description = toPlainText(payload?.status?.description) || 'Systems operational.';
+  } else {
+    description = toPlainText(payload?.status?.description) || 'Status reported as degraded by vendor.';
+  }
+
+  // Children are always returned in full, healthy ones included. rollup.js
+  // decides which are worth showing; hiding them here would throw away data the
+  // dashboard needs the moment something breaks.
+  const components = selected.map((c) => ({
+    name: c.name,
+    severity: normalizeSeverity(c.status),
+  }));
+
+  return { ...base, severity, incidentName, description, components, warnings };
+}
