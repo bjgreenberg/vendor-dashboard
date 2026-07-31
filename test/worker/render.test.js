@@ -364,3 +364,12 @@ describe('renderDashboard — timestamp', () => {
     expect(formatChicago('not-a-date')).toBe('');
   });
 });
+
+describe('renderDashboard — favicon', () => {
+  it('points at the site favicon so the tab icon matches the rest of the site', () => {
+    // The site has no /favicon.ico, so without an explicit link the browser
+    // falls back to a 404 and the tab shows a blank icon.
+    const html = renderDashboard({ records: [], meta: null });
+    expect(html).toContain('<link rel="icon" href="/assets/img/favicon.png" type="image/png">');
+  });
+});
