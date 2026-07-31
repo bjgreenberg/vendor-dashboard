@@ -38,14 +38,22 @@ export const SEVERITY = Object.freeze({
  *
  * @type {Readonly<Record<Severity, number>>}
  */
-const RANK = Object.freeze({
+// NULL PROTOTYPE, deliberately. With a normal object literal, a vendor status
+// string of "toString", "constructor", "valueOf" or "hasOwnProperty" resolves
+// through Object.prototype to a FUNCTION -- which is not nullish, so the `??`
+// fallback in rank() never fires, and comparing a function to a number is
+// always false. `worst(["toString"])` therefore returned `operational`: a
+// false green produced by nothing more than an unlucky status string.
+// Found by property-based testing (test/engine/properties.test.js), not by
+// review -- no example-based test would have guessed that input.
+const RANK = Object.freeze(Object.assign(Object.create(null), {
   [SEVERITY.MAJOR_OUTAGE]: 5,
   [SEVERITY.PARTIAL_OUTAGE]: 4,
   [SEVERITY.DEGRADED]: 3,
   [SEVERITY.UNKNOWN]: 2,
   [SEVERITY.MAINTENANCE]: 1,
   [SEVERITY.OPERATIONAL]: 0,
-});
+}));
 
 /**
  * @param {Severity} severity
@@ -67,7 +75,10 @@ export function rank(severity) {
  *
  * @type {Readonly<Record<string, Severity>>}
  */
-const VOCABULARY = Object.freeze({
+// Null prototype for the same reason as RANK, and the stakes are higher here:
+// a vendor status of "constructor" would make normalizeSeverity return a
+// FUNCTION rather than a Severity, which then flows into records and storage.
+const VOCABULARY = Object.freeze(Object.assign(Object.create(null), {
   // components[].status
   major_outage: SEVERITY.MAJOR_OUTAGE,
   partial_outage: SEVERITY.PARTIAL_OUTAGE,
@@ -91,7 +102,7 @@ const VOCABULARY = Object.freeze({
   degradedperformance: SEVERITY.DEGRADED,
   partialoutage: SEVERITY.PARTIAL_OUTAGE,
   majoroutage: SEVERITY.MAJOR_OUTAGE,
-});
+}));
 
 /**
  * Normalize a vendor-supplied status string.

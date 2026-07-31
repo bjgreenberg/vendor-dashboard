@@ -1,3 +1,5 @@
+import { compareRecords } from '../engine/severity.js';
+
 /**
  * D1 persistence for the Worker runtime.
  *
@@ -101,6 +103,19 @@ export async function readSnapshot(db) {
     db.prepare('SELECT * FROM run_meta WHERE id = 1').first(),
   ]);
 
+  // Sort HERE, not at write time.
+  //
+  // collect() sorts its records and writeRun inserted them in that order, so a
+  // bare `SELECT *` used to come back sorted purely because rowid order matched
+  // — an accident, not a contract. Sharding broke it on 2026-07-31: each shard
+  // deletes its own rows and re-appends them, so the board became ordered by
+  // whichever shard ran most recently and impacted services stopped floating to
+  // the top. Ordering is the reader's job, because the reader is the only place
+  // that sees the whole board.
+  //
+  // Not an `ORDER BY`: severity ordering is a domain rule (`unknown` outranks
+  // `operational`) that lives in the engine. Encoding it as a SQL CASE ladder
+  // would duplicate it, and the two copies would drift.
   const records = (rows?.results ?? []).map((r) => ({
     vendor: r.vendor,
     service: r.service,
@@ -112,6 +127,8 @@ export async function readSnapshot(db) {
     warnings: safeParse(r.warnings, []),
     checkedAt: r.checked_at,
   }));
+
+  records.sort(compareRecords);
 
   return { records, meta: meta ?? null };
 }

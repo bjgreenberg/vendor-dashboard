@@ -114,3 +114,34 @@ describe('subrequest budget', () => {
     expect(run.warnings.some((w) => w.startsWith('collector: subrequest budget'))).toBe(false);
   });
 });
+
+describe('shard defensive paths', () => {
+  it('defaults count to SHARD_COUNT when omitted', () => {
+    expect(selectShard(config.vendors, 0).length).toBe(selectShard(config.vendors, 0, SHARD_COUNT).length);
+    expect(shardOf('Cloudflare')).toBe(shardOf('Cloudflare', SHARD_COUNT));
+  });
+
+  it('treats a vendor with no name as a real, hashable member', () => {
+    // A malformed config entry must still land in exactly one shard rather
+    // than vanishing from every shard and never being collected.
+    const vendors = [{ name: 'A' }, {}, { name: undefined }];
+    const seen = [];
+    for (let i = 0; i < SHARD_COUNT; i += 1) seen.push(...selectShard(vendors, i));
+    expect(seen.length).toBe(3);
+  });
+
+  it('rejects a non-array vendor list rather than collecting nothing', () => {
+    expect(() => selectShard(null, 0)).toThrow(/must be an array/);
+    expect(() => selectShard(undefined, 0)).toThrow(/must be an array/);
+  });
+
+  it('rejects an invalid shard count', () => {
+    expect(() => selectShard([], 0, 0)).toThrow(/count must be/);
+    expect(() => selectShard([], 0, 1.5)).toThrow(/count must be/);
+  });
+
+  it('defaults the cron interval when omitted', () => {
+    const at = new Date(Date.UTC(2026, 6, 31, 12, 10));
+    expect(shardDueAt(at)).toBe(shardDueAt(at, SHARD_COUNT, 5));
+  });
+});

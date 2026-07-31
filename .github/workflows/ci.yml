@@ -25,8 +25,16 @@ jobs:
       # tested off-platform, so CI could only gate on syntax validity. Every
       # adapter is now pinned against a recorded vendor payload — the gate that
       # would have caught findings H1, H6 and H7 before they shipped.
-      - name: Run tests
-        run: npm test
+      # Coverage is a GATE, not a report: vitest exits non-zero when a
+      # threshold is missed, which fails this job. BRANCH coverage specifically
+      # — line coverage hides untaken `if`/`catch` paths, and in this codebase
+      # those paths are the "fail closed to unknown" logic. An untested catch
+      # block is how a vendor silently reads green.
+      #
+      # Thresholds are tiered per-file in vitest.config.js so a well-covered
+      # adapter cannot mask an untested core behind a blended average.
+      - name: Run tests with coverage thresholds
+        run: npm run test:coverage
 
       # Catch bundling/binding errors without deploying. --dry-run needs no
       # Cloudflare credentials.
