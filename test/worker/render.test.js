@@ -519,3 +519,41 @@ describe('renderDashboard — logo legibility on both themes', () => {
     expect(html()).not.toMatch(/\.vs-intro\s*\{[^}]*max-width/);
   });
 });
+
+// The site shares with plain intent links and no third-party SDKs; this page
+// must not undercut that privacy posture.
+describe('renderDashboard — sharing', () => {
+  const rec = { vendor: 'GitHub', service: 'GitHub', severity: 'operational', incidentName: '',
+    description: '', sourceUrl: '', components: [], warnings: [], checkedAt: '2026-07-31T12:00:00.000Z' };
+  const html = (over = {}) => renderDashboard({ records: [rec], meta: null, ...over });
+
+  it('emits og and twitter tags with an ABSOLUTE image url', () => {
+    const h = html();
+    expect(h).toContain('property="og:image" content="https://briangreenberg.net/service-status/card.jpg"');
+    expect(h).toContain('name="twitter:card" content="summary_large_image"');
+    expect(h).toContain('property="og:image:width" content="1200"');
+    expect(h).toContain('og:image:alt');
+  });
+
+  it('describes the LIVE board so a share during an incident does not claim all-clear', () => {
+    const impacted = { ...rec, severity: 'major_outage' };
+    expect(html({ records: [impacted] })).toMatch(/og:description[^>]*1 currently impacted/);
+    expect(html()).toMatch(/og:description[^>]*All operational/);
+  });
+
+  it('shares with plain intent links and no third-party script', () => {
+    const h = html();
+    expect(h).toContain('linkedin.com/sharing/share-offsite');
+    expect(h).toContain('bsky.app/intent/compose');
+    // No SDK loaders.
+    expect(h).not.toMatch(/platform\.twitter\.com|connect\.facebook\.net|platform\.linkedin\.com/);
+  });
+
+  it('gives every row a stable anchor instead of 41 share widgets', () => {
+    const h = html();
+    expect(h).toContain('<article id="github"');
+    expect(h).toContain('href="#github"');
+    // One share bar for the page, not one per service.
+    expect(h.match(/class="share-bar/g)).toHaveLength(1);
+  });
+});
