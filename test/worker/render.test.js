@@ -465,17 +465,30 @@ describe('renderDashboard — logo placement', () => {
     warnings: [], checkedAt: '2026-07-31T12:00:00.000Z',
   };
 
-  it('renders the mark AFTER the vendor name, not before it', () => {
+  // The mark leads the row: it is the identity anchor, at the position the eye
+  // starts. Placing it after the name arrives too late to aid recognition.
+  it('renders the mark BEFORE the vendor name', () => {
     const html = renderDashboard({ records: [rec], meta: null });
-    const head = html.slice(html.indexOf('<div class="vs-head">'), html.indexOf('</div>', html.indexOf('<div class="vs-head">')));
+    const head = html.slice(html.indexOf('<div class="vs-head">'), html.indexOf('</h2>'));
     expect(head).toContain('vs-logo');
-    expect(head.indexOf('GitHub')).toBeLessThan(head.indexOf('vs-logo'));
+    expect(head.indexOf('vs-logo')).toBeLessThan(head.indexOf('GitHub'));
   });
 
-  it('keeps the mark inside the heading so flex-grow cannot strand it by the badge', () => {
+  // Status is already carried by the card's coloured border AND the pill text,
+  // so the dot was redundant beside a mark.
+  it('replaces the status dot when a mark exists', () => {
     const html = renderDashboard({ records: [rec], meta: null });
-    const h2 = html.slice(html.indexOf('<h2>'), html.indexOf('</h2>') + 5);
-    expect(h2).toContain('vs-logo');
+    const head = html.slice(html.indexOf('<div class="vs-head">'), html.indexOf('</h2>'));
+    expect(head).not.toContain('vs-dot--');
+  });
+
+  it('KEEPS the dot for a vendor with no mark, so no row loses its glyph', () => {
+    const html = renderDashboard({
+      records: [{ ...rec, vendor: 'NoSuchVendor', service: 'NoSuchVendor' }], meta: null,
+    });
+    const head = html.slice(html.indexOf('<div class="vs-head">'), html.indexOf('</h2>'));
+    expect(head).toContain('vs-dot--');
+    expect(head).not.toContain('vs-logo');
   });
 });
 
@@ -498,7 +511,7 @@ describe('renderDashboard — logo legibility on both themes', () => {
 
   it('constrains every mark to one fixed box so sizes look proportional', () => {
     const css = html();
-    expect(css).toMatch(/\.vs-logo\s*\{[^}]*width:\s*22px[^}]*height:\s*22px/);
+    expect(css).toMatch(/\.vs-logo\s*\{[^}]*width:\s*24px[^}]*height:\s*24px/);
     expect(css).toMatch(/\.vs-logo\s*\{[^}]*object-fit:\s*contain/);
   });
 
