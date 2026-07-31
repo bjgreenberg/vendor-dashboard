@@ -414,8 +414,7 @@ function renderRow(record) {
   return `<article class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}">
   <div class="vs-head">
     <span class="vs-dot vs-dot--${esc(p.tone)}" aria-hidden="true">${esc(p.symbol)}</span>
-    ${logo}
-    <h2>${nameHtml}</h2>
+    <h2>${nameHtml}${logo}</h2>
     <span class="vs-badge vs-badge--${esc(p.tone)}">${esc(p.label)}</span>
   </div>
   ${record.incidentName ? `<p class="vs-incident">${esc(record.incidentName)}</p>` : ''}
@@ -455,7 +454,7 @@ function childLi(c) {
  */
 const STYLES = `
 .vs h1 { margin-bottom: .5rem; }
-.vs-intro { max-width: 62ch; margin: 0 0 1.5rem; }
+.vs-intro { margin: 0 0 1.5rem; }  /* full container width, matching the cards */
 .vs-intro p { margin: 0 0 .6rem; }
 .vs-intro p:last-child { margin-bottom: 0; }
 .vs-headline { font-size: 1.15rem; font-weight: 600; margin: .25rem 0 .5rem; color: #1f7a3d; }
@@ -500,9 +499,35 @@ const STYLES = `
 
 .vs-head { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .vs-head h2 { font-size: 1.05rem; margin: 0; flex: 1 1 auto; }
-/* Decorative: alt="" because the vendor name sits right beside it. Fixed box so
-   a missing mark cannot shift the row, and mixed source shapes line up. */
-.vs-logo { width: 20px; height: 20px; object-fit: contain; flex: 0 0 auto; }
+/* Vendor marks.
+   Sits INSIDE the <h2>, immediately after the name: as a sibling of the heading
+   it would be pushed to the far right by that heading's flex-grow, stranding it
+   beside the badge instead of the name it belongs to.
+
+   THE CHIP IS NOT DECORATION. Vendor favicons are whatever each vendor chose -
+   several are dark marks on transparency (Anthropic, Okta, Docusign, Celigo,
+   Lucid, Perplexity all measured below 0.28 luminance) and would be effectively
+   invisible on this page, which defaults to dark. A near-white chip guarantees
+   every mark reads on both themes without editing anyone's logo.
+
+   Fixed box + object-fit: contain, on top of build-time trimming to the visible
+   bounding box, is what makes 41 marks of wildly different aspect ratios and
+   built-in padding look like the same size.
+
+   Decorative: alt="" because the vendor name is right beside it. */
+.vs-logo {
+  width: 22px; height: 22px; object-fit: contain;
+  margin-left: .5rem; vertical-align: -6px;
+  padding: 2px; border-radius: 5px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);
+}
+/* Light theme: the chip would be near-invisible against the page, so soften it
+   to a hairline and let the mark sit on the page colour. */
+:root[data-theme="light"] .vs-logo { background: rgba(0,0,0,.03); }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .vs-logo { background: rgba(0,0,0,.03); }
+}
 .vs-ext { font-size: .75em; opacity: .6; margin-left: .25em; }
 
 .vs-dot { line-height: 1; }
