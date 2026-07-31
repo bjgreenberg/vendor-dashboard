@@ -34,8 +34,10 @@
     {
       "binding": "DB",
       "database_name": "vendor-dashboard",
-      // Populated by `wrangler d1 create vendor-dashboard`.
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      // Created 2026-07-30, primary location ENAM. A D1 database id is not a
+      // secret (it is an account-scoped identifier, useless without account
+      // credentials) and must be committed for the deploy to be reproducible.
+      "database_id": "09c68a33-7b96-42c2-ab4b-6cec3c33f4bc"
     }
   ],
 
