@@ -238,11 +238,14 @@
       "brandDomain": "meta.com"
     },
     {
-      "$comment": "CONSUMER services only - Outlook.com, OneDrive, Phone Link, Teams Free. Exchange Online, SharePoint, Entra, Intune and Defender are NOT in this feed. The adapter labels the row accordingly and warns. Enterprise tenant health needs the authenticated Microsoft Graph Service Health API.",
+      "$comment": "CONSUMER services only - Outlook.com, OneDrive, Phone Link, Teams Free. Exchange Online, SharePoint, Entra, Intune and Defender are NOT in this feed. The adapter labels the row accordingly and warns. Enterprise tenant health needs the authenticated Microsoft Graph Service Health API. FLAKY: this endpoint returned 404 on roughly half of six measured rounds. admin.microsoft.com serves the same payload and fails partly independently - both failed together only twice in six - so it is configured as a fallback.",
       "name": "Microsoft",
       "type": "microsoft",
       "url": "https://portal.office.com/api/servicestatus/index",
-      "brandDomain": "microsoft.com"
+      "brandDomain": "microsoft.com",
+      "fallbackUrls": [
+        "https://admin.microsoft.com/api/servicestatus/index"
+      ]
     },
     {
       "name": "Monday.com",
