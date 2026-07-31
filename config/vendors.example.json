@@ -32,7 +32,20 @@
     "(SnowServiceRegistry 2.2MB, StatusEvents 5.5MB). Parsing those costs ~70ms of",
     "CPU, measured - against a Workers FREE-plan ceiling of 10ms for the ENTIRE",
     "collection run across all vendors. Adobe alone would exceed the budget 7x and",
-    "kill the run for everyone else. It becomes viable on Workers Paid (30s CPU)."
+    "kill the run for everyone else. It becomes viable on Workers Paid (30s CPU).",
+    "",
+    "SOCIAL / MESSAGING - what is and is not available (probed 2026-07-31):",
+    "  Discord    Statuspage, 30 components                            INCLUDED",
+    "  LinkedIn   Statuspage, 11 components (www.linkedin-status.com)  INCLUDED",
+    "  Slack      publishes JSON but in its own format, not Statuspage; needs a",
+    "             dedicated adapter before it can be added",
+    "  Meta       metastatus.com serves HTML only - no machine-readable feed",
+    "  X/Twitter  api.twitterstat.us returns 401; the feed is no longer public",
+    "  Signal     status.signal.org serves HTML only",
+    "  Telegram   no status endpoint resolves at all",
+    "  WhatsApp   no separate endpoint; Meta does not publish one",
+    "A row with no real data source reports health it never verified, so the",
+    "unavailable ones are omitted rather than faked."
   ],
   "vendors": [
     {
@@ -97,6 +110,11 @@
       "url": "https://couchdropstatus.statuspage.io/api/v2/summary.json"
     },
     {
+      "name": "Discord",
+      "type": "statuspage",
+      "url": "https://discordstatus.com/api/v2/summary.json"
+    },
+    {
       "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
       "name": "Docusign",
       "type": "statuspage",
@@ -143,6 +161,11 @@
       "type": "statuspage",
       "url": "https://status.knowbe4.com/api/v2/summary.json",
       "componentLevel": "group"
+    },
+    {
+      "name": "LinkedIn",
+      "type": "statuspage",
+      "url": "https://www.linkedin-status.com/api/v2/summary.json"
     },
     {
       "name": "Loopio",

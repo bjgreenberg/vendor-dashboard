@@ -267,3 +267,38 @@ describe('region stripping — deliberate exclusions', () => {
     expect(stripRegionSuffix('Document List (Gov)')).toBe('Document List (Gov)');
   });
 });
+
+// Salesforce publishes Tableau as 21 per-region instances with opaque keys and
+// no sub-service breakdown. Raw keys are noise; nothing at all is unhelpful.
+// Grouping by region is the honest middle ground.
+describe('salesforce — instances grouped by region', () => {
+  const payload = {
+    name: 'Tableau',
+    Instances: [
+      { key: 'A1', location: 'NA', environment: 'production', isActive: true, status: 'OK' },
+      { key: 'A2', location: 'NA', environment: 'production', isActive: true, status: 'OK' },
+      { key: 'E1', location: 'EMEA', environment: 'production', isActive: true, status: 'MAJOR_INCIDENT_CORE' },
+      { key: 'P1', location: 'APAC', environment: 'production', isActive: true, status: 'OK' },
+    ],
+  };
+
+  it('collapses instance keys into regions', async () => {
+    const { parseSalesforce } = await import('../../src/engine/adapters/salesforce.js');
+    const r = parseSalesforce(payload, { vendor: 'Tableau', now });
+    expect(r.components.map((c) => c.name).sort()).toEqual(['APAC', 'EMEA', 'NA']);
+  });
+
+  it('keeps the worst instance status within a region', async () => {
+    const { parseSalesforce } = await import('../../src/engine/adapters/salesforce.js');
+    const r = parseSalesforce(payload, { vendor: 'Tableau', now });
+    expect(r.components.find((c) => c.name === 'EMEA').severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(r.components.find((c) => c.name === 'NA').severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('can still expose raw instances when asked', async () => {
+    const { parseSalesforce } = await import('../../src/engine/adapters/salesforce.js');
+    const r = parseSalesforce(payload, { vendor: 'Tableau', exposeInstances: true, now });
+    expect(r.components).toHaveLength(4);
+    expect(r.components[0].name).toMatch(/\(/);
+  });
+});

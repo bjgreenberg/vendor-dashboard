@@ -9,14 +9,16 @@
  * otherwise raise false alarms about environments nobody uses.
  *
  * COMPONENTS: Salesforce publishes a product as a set of per-region INSTANCES
- * ("NA (10AYPD)", "EMEA (DUB01PD)") — there is no sub-service breakdown. Those
- * are infrastructure, not services, so they are NOT surfaced as components by
- * default: listing them would imply a granularity the vendor never published.
- * Instances still drive severity, and the affected ones still appear in the
- * description when something breaks. Set `exposeInstances` to include them.
+ * ("10AYPD", "DUB01PD") with no sub-service breakdown. Listing raw instance keys
+ * is infrastructure noise — 21 rows of opaque identifiers.
+ *
+ * They do, however, carry a `location`, and grouping by it produces something a
+ * reader can use: NA, EMEA, APAC — regional availability, worst status per
+ * region. That is the honest middle ground between 21 instance keys and nothing
+ * at all. Set `exposeInstances` to list the raw instances instead.
  */
 
-import { SEVERITY } from '../severity.js';
+import { SEVERITY, rank } from '../severity.js';
 import { makeRecord, unknownRecord } from '../record.js';
 
 const SOURCE_URL = 'https://status.salesforce.com';
@@ -40,21 +42,36 @@ export function parseSalesforce(payload, options) {
     return unknownRecord(vendor, 'no active production instances found', { now, sourceUrl: SOURCE_URL });
   }
 
-  // Every active production instance, healthy included, so the dashboard can
-  // disclose the full regional list on demand.
-  const components = production.map((i) => {
-    const ok = String(i?.status ?? '').toUpperCase() === 'OK';
-    return {
-      name: `${i.location ?? 'Unknown'} (${i.key ?? '?'})`,
-      severity: ok
-        ? SEVERITY.OPERATIONAL
-        : /MAJOR|OUTAGE/i.test(String(i.status))
-          ? SEVERITY.MAJOR_OUTAGE
-          : SEVERITY.PARTIAL_OUTAGE,
-      description: `Instance status: ${i.status}.`,
-    };
-  });
-  const degraded = components.filter((c) => c.severity !== SEVERITY.OPERATIONAL);
+  const severityOfInstance = (i) =>
+    String(i?.status ?? '').toUpperCase() === 'OK'
+      ? SEVERITY.OPERATIONAL
+      : /MAJOR|OUTAGE/i.test(String(i.status))
+        ? SEVERITY.MAJOR_OUTAGE
+        : SEVERITY.PARTIAL_OUTAGE;
+
+  const instances = production.map((i) => ({
+    name: `${i.location ?? 'Unknown'} (${i.key ?? '?'})`,
+    severity: severityOfInstance(i),
+    description: `Instance status: ${i.status}.`,
+  }));
+
+  // Group by region, worst status wins: 21 opaque instance keys become NA /
+  // EMEA / APAC, which is what a reader can actually act on.
+  const byRegion = new Map();
+  for (const i of production) {
+    const region = String(i?.location ?? 'Unknown');
+    const sev = severityOfInstance(i);
+    const prev = byRegion.get(region);
+    if (!prev || rank(sev) > rank(prev.severity)) {
+      byRegion.set(region, {
+        name: region,
+        severity: sev,
+        description: `${production.filter((x) => x.location === region).length} production instances.`,
+      });
+    }
+  }
+  const components = exposeInstances ? instances : [...byRegion.values()];
+  const degraded = instances.filter((c) => c.severity !== SEVERITY.OPERATIONAL);
 
   if (degraded.length === 0) {
     return makeRecord({
@@ -63,7 +80,7 @@ export function parseSalesforce(payload, options) {
       severity: SEVERITY.OPERATIONAL,
       description: `All ${production.length} production instances operational.`,
       sourceUrl: SOURCE_URL,
-      components: exposeInstances ? components : [],
+      components,
       now,
     });
   }
@@ -77,7 +94,7 @@ export function parseSalesforce(payload, options) {
     incidentName: 'Instance issue',
     description: `${degraded.length} of ${production.length} production instances affected.`,
     sourceUrl: SOURCE_URL,
-    components: exposeInstances ? components : degraded,
+    components,
     now,
   });
 }
