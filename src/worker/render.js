@@ -385,8 +385,13 @@ function renderRow(record) {
   // build-time fetch (NetSuite, OpenAI, Tableau), so absence is normal and must
   // degrade to the status dot rather than a broken image.
   const file = LOGOS[logoSlug(record.vendor)];
+  // The mark is the row's IDENTITY ANCHOR, sitting where the eye starts rather
+  // than after the name it identifies. It replaces the status dot, which was
+  // redundant: status is already carried twice, by the card's coloured left
+  // border and by the pill text. Vendors with no mark keep the dot, so a row
+  // never loses its leading glyph.
   const logo = file
-    ? `<img class="vs-logo" src="${esc(ICON_BASE)}/${esc(file)}" alt="" width="20" height="20" loading="lazy" decoding="async">`
+    ? `<img class="vs-logo" src="${esc(ICON_BASE)}/${esc(file)}" alt="" width="24" height="24" loading="lazy" decoding="async">`
     : '';
   const nameHtml = href
     ? `<a class="vs-name" href="${esc(href)}" rel="noopener nofollow" target="_blank">${name}<span class="vs-ext" aria-hidden="true">↗</span><span class="sr-only"> — opens ${esc(hostOf(href))} in a new tab</span></a>`
@@ -413,8 +418,8 @@ function renderRow(record) {
 
   return `<article class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}">
   <div class="vs-head">
-    <span class="vs-dot vs-dot--${esc(p.tone)}" aria-hidden="true">${esc(p.symbol)}</span>
-    <h2>${nameHtml}${logo}</h2>
+    ${logo || `<span class="vs-dot vs-dot--${esc(p.tone)}" aria-hidden="true">${esc(p.symbol)}</span>`}
+    <h2>${nameHtml}</h2>
     <span class="vs-badge vs-badge--${esc(p.tone)}">${esc(p.label)}</span>
   </div>
   ${record.incidentName ? `<p class="vs-incident">${esc(record.incidentName)}</p>` : ''}
@@ -516,9 +521,9 @@ const STYLES = `
 
    Decorative: alt="" because the vendor name is right beside it. */
 .vs-logo {
-  width: 22px; height: 22px; object-fit: contain;
-  margin-left: .5rem; vertical-align: -6px;
-  padding: 2px; border-radius: 5px;
+  width: 24px; height: 24px; object-fit: contain;
+  flex: 0 0 auto;
+  padding: 1px; border-radius: 5px;
   background: #ffffff;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);
 }
