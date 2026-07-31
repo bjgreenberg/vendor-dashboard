@@ -10,6 +10,31 @@
   "main": "src/worker/index.js",
   "compatibility_date": "2026-07-01",
 
+  // Served at briangreenberg.net/service-status* via a ROUTE (not a Custom
+  // Domain). briangreenberg.net itself is a Custom Domain bound to the
+  // `briangreenberg-net` Worker; per Cloudflare's docs a Worker on a Custom
+  // Domain is treated as an ORIGIN, and a route on a sub-path runs BEFORE it.
+  // So this route intercepts /service-status* and every other path still
+  // reaches the site Worker untouched.
+  //
+  // `zone_name` (not `custom_domain`) is deliberate: a route does not create or
+  // modify DNS records. Declaring `custom_domain` here would let wrangler
+  // force-override DNS with no changeset preview whenever stdout is not a TTY
+  // — on the zone the live site depends on.
+  //
+  // Rollback: delete this block and redeploy, or remove the route in the
+  // dashboard. The site is unaffected either way.
+  "routes": [
+    {
+      "pattern": "briangreenberg.net/service-status*",
+      "zone_name": "briangreenberg.net"
+    }
+  ],
+
+  // Keep the workers.dev address alive as a preview/diagnostic surface. It is
+  // served `noindex` so it cannot compete with the canonical URL.
+  "workers_dev": true,
+
   // Collect every 15 minutes. Cron invocations get a 15-minute wall-time
   // budget, against a run that completes in seconds - the vendors are fetched
   // concurrently, not serially.
