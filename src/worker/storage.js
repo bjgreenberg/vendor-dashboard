@@ -17,8 +17,17 @@
  * @param {{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[]}} run
  */
 export async function writeRun(db, run) {
+  // Replace ONLY the rows this run actually checked.
+  //
+  // `DELETE FROM snapshot` was correct while every run collected every vendor.
+  // Under sharding it would delete the other two shards' rows and leave the
+  // board showing a third of the services -- the same class of failure as
+  // finding M3, arrived at from the opposite direction.
+  const touched = run.records.map((r) => r.vendor);
+  const placeholders = touched.map(() => '?').join(',');
+
   const statements = [
-    db.prepare('DELETE FROM snapshot'),
+    db.prepare(`DELETE FROM snapshot WHERE vendor IN (${placeholders})`).bind(...touched),
     ...run.records.map((r) =>
       db
         .prepare(
@@ -43,10 +52,22 @@ export async function writeRun(db, run) {
         .prepare('INSERT INTO history (vendor, severity, checked_at) VALUES (?, ?, ?)')
         .bind(r.vendor, r.severity, r.checkedAt ?? run.checkedAt),
     ),
+    // Counts are computed FROM the snapshot table, not from `run`, because a
+    // sharded run only knows about its own third of the board. Binding the
+    // run's own totals here would make the headline read "14 services" and
+    // report the other 27 as neither healthy nor impacted.
+    //
+    // Runs last in the batch, so it sees this run's inserts. D1 executes a
+    // batch sequentially inside one transaction.
     db
       .prepare(
         `INSERT INTO run_meta (id, checked_at, total, impacted, unknown, warnings)
-         VALUES (1, ?, ?, ?, ?, ?)
+         SELECT 1, ?,
+                COUNT(*),
+                SUM(CASE WHEN severity NOT IN ('operational', 'unknown') THEN 1 ELSE 0 END),
+                SUM(CASE WHEN severity = 'unknown' THEN 1 ELSE 0 END),
+                ?
+           FROM snapshot
          ON CONFLICT(id) DO UPDATE SET
            checked_at = excluded.checked_at,
            total      = excluded.total,
@@ -54,7 +75,7 @@ export async function writeRun(db, run) {
            unknown    = excluded.unknown,
            warnings   = excluded.warnings`,
       )
-      .bind(run.checkedAt, run.total, run.impacted, run.unknown, JSON.stringify(run.warnings ?? [])),
+      .bind(run.checkedAt, JSON.stringify(run.warnings ?? [])),
   ];
 
   await db.batch(statements);
