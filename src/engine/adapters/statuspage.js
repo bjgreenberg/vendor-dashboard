@@ -12,6 +12,49 @@ import { SEVERITY, normalizeSeverity, worst, rank } from '../severity.js';
 import { selectComponents } from '../scope.js';
 
 /**
+ * Region tokens that appear as a trailing " - SUFFIX" on component names.
+ *
+ * Zoom splits three products across regions at group level — "Zoom Phone -
+ * APAC", "Zoom CX - EMEA", "Zoom Virtual Agent - JAPAN" — turning 13 real
+ * products into 33 rows. Stripping the suffix and deduplicating collapses them
+ * back to the product a reader actually recognises.
+ *
+ * Deliberately conservative: only these exact tokens are stripped, so a service
+ * genuinely named "Something - Foo" is untouched. Matching is case-insensitive
+ * and anchored to the END of the name.
+ */
+const REGION_SUFFIXES = [
+  'GLOBAL', 'APAC', 'EMEA', 'AMER', 'AMERICAS', 'NORTH AMERICA', 'LATIN AMERICA',
+  'SOUTH AMERICA', 'AUSTRALIA', 'JAPAN', 'CHINA', 'HONG KONG/CHINA', 'INDIA',
+  'CANADA', 'EUROPE', 'US', 'USA', 'EU', 'UK', 'AU', 'AUS', 'NA',
+];
+
+// Deliberately NOT stripped: "Gov". Lucid publishes "Document List (Gov)"
+// alongside (US)/(EU)/(AUS) — a government cloud is a separate offering with its
+// own availability, not a region of the commercial one. Collapsing it would hide
+// a real distinction.
+
+const REGION_ALT = REGION_SUFFIXES.map((r) => r.replace(/\//g, '\\/')).join('|');
+
+/** " - APAC" / " – EMEA" at the end of a name. */
+const REGION_DASH_RE = new RegExp(`\\s[-\u2013]\\s(?:${REGION_ALT})\\s*$`, 'i');
+
+/**
+ * " (US)" / " (North America)" at the end of a name.
+ *
+ * Lucid publishes "Document List (US)", "Document List (EU)" and so on — one
+ * service per region. Restricting to the same explicit token list is what keeps
+ * legitimate parenthetical acronyms intact: "(MFA)", "(BYOIP)", "(KSAT)",
+ * "(JCDS)" and "(Consumer)" are all part of the real service name and survive.
+ */
+const REGION_PARENS_RE = new RegExp(`\\s\\((?:${REGION_ALT})\\)\\s*$`, 'i');
+
+export function stripRegionSuffix(name) {
+  if (typeof name !== 'string') return name;
+  return name.replace(REGION_DASH_RE, '').replace(REGION_PARENS_RE, '').trim();
+}
+
+/**
  * Collapse components that share a name, keeping the WORST status.
  *
  * Several vendors publish the same service once per region — 1Password lists
@@ -104,10 +147,15 @@ function indicatorSeverity(payload) {
  * @param {string} options.vendor
  * @param {string} [options.service]
  * @param {import('../scope.js').Scope} [options.scope]
- * @param {'group'|'component'} [options.componentLevel] where this vendor puts
- *   its SERVICES. Default 'component' (leaves). Use 'group' for vendors whose
- *   groups are products and whose leaves are data centres — NetSuite publishes
- *   9 products across 275 leaves that are just "US Ashburn 1" repeated.
+ * @param {'group'|'component'|'none'} [options.componentLevel] where this vendor
+ *   puts its SERVICES. Default 'component' (leaves).
+ *   - 'group' for vendors whose groups are products and whose leaves are data
+ *     centres — NetSuite publishes 9 products across 275 leaves that are just
+ *     "US Ashburn 1" repeated.
+ *   - 'none' for vendors that publish ONLY infrastructure and no service
+ *     breakdown at all — Seismic lists 54 region names with no groups. Showing
+ *     a reader a list of data centres is worse than showing nothing, because it
+ *     implies a granularity the vendor never published.
  * @param {string} [options.sourceUrl]
  * @param {() => Date} [options.now] injected clock for deterministic tests
  * @returns {StatusRecord}
@@ -200,9 +248,17 @@ export function parseStatuspage(payload, options) {
   // Children are always returned in full, healthy ones included. rollup.js
   // decides which are worth showing; hiding them here would throw away data the
   // dashboard needs the moment something breaks.
-  const components = dedupeByName(
-    selected.map((c) => ({ name: c.name, severity: normalizeSeverity(c.status) })),
-  );
+  // 'none' suppresses the list: the vendor publishes infrastructure only, and a
+  // list of data centres implies a service granularity that does not exist.
+  const components =
+    componentLevel === 'none'
+      ? []
+      : dedupeByName(
+          selected.map((c) => ({
+            name: stripRegionSuffix(c.name),
+            severity: normalizeSeverity(c.status),
+          })),
+        );
 
   return { ...base, severity, incidentName, description, components, warnings };
 }

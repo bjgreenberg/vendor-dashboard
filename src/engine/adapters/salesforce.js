@@ -7,6 +7,13 @@
  *
  * Only ACTIVE PRODUCTION instances count. Sandbox and retired instances would
  * otherwise raise false alarms about environments nobody uses.
+ *
+ * COMPONENTS: Salesforce publishes a product as a set of per-region INSTANCES
+ * ("NA (10AYPD)", "EMEA (DUB01PD)") — there is no sub-service breakdown. Those
+ * are infrastructure, not services, so they are NOT surfaced as components by
+ * default: listing them would imply a granularity the vendor never published.
+ * Instances still drive severity, and the affected ones still appear in the
+ * description when something breaks. Set `exposeInstances` to include them.
  */
 
 import { SEVERITY } from '../severity.js';
@@ -20,7 +27,7 @@ const SOURCE_URL = 'https://status.salesforce.com';
  * @returns {import('../record.js').StatusRecord}
  */
 export function parseSalesforce(payload, options) {
-  const { vendor, now } = options ?? {};
+  const { vendor, exposeInstances = false, now } = options ?? {};
   if (!payload || !Array.isArray(payload.Instances)) {
     return unknownRecord(vendor, 'payload had no Instances array', { now, sourceUrl: SOURCE_URL });
   }
@@ -56,7 +63,7 @@ export function parseSalesforce(payload, options) {
       severity: SEVERITY.OPERATIONAL,
       description: `All ${production.length} production instances operational.`,
       sourceUrl: SOURCE_URL,
-      components,
+      components: exposeInstances ? components : [],
       now,
     });
   }
@@ -70,7 +77,7 @@ export function parseSalesforce(payload, options) {
     incidentName: 'Instance issue',
     description: `${degraded.length} of ${production.length} production instances affected.`,
     sourceUrl: SOURCE_URL,
-    components,
+    components: exposeInstances ? components : degraded,
     now,
   });
 }

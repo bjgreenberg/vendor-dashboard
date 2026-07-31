@@ -137,7 +137,13 @@
       "url": "https://status.quantumworkplace.com/api/v2/summary.json",
       "componentLevel": "group"
     },
-    { "name": "Seismic", "type": "statuspage", "url": "https://status.seismic.com/api/v2/summary.json" },
+    {
+      "$comment": "Seismic publishes 54 region names and no groups - infrastructure with no service breakdown. componentLevel none suppresses the list rather than showing data centres as though they were services.",
+      "name": "Seismic",
+      "type": "statuspage",
+      "url": "https://status.seismic.com/api/v2/summary.json",
+      "componentLevel": "none"
+    },
     { "name": "SendGrid", "type": "statuspage", "url": "https://status.sendgrid.com/api/v2/summary.json" },
 
     {
@@ -148,7 +154,12 @@
       "pageUrl": "https://status.stormboard.com"
     },
 
-    { "name": "Tableau", "type": "salesforce", "url": "https://api.status.salesforce.com/v1/products/Tableau" },
+    {
+      "$comment": "Salesforce publishes Tableau as per-region instances with no sub-service breakdown; instances drive severity but are not listed as components.",
+      "name": "Tableau",
+      "type": "salesforce",
+      "url": "https://api.status.salesforce.com/v1/products/Tableau"
+    },
     { "name": "Zapier", "type": "statuspage", "url": "https://status.zapier.com/api/v2/summary.json" },
     {
       "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",

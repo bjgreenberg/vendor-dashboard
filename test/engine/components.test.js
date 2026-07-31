@@ -184,3 +184,86 @@ describe('okta — declared service catalogue with drift detection', () => {
     expect(r.components.map((c) => c.name)).toEqual(['MFA']);
   });
 });
+
+// Zoom splits three products across regions at GROUP level - "Zoom Phone -
+// APAC", "Zoom CX - EMEA", "Zoom Virtual Agent - JAPAN" - turning 13 real
+// products into 33 rows.
+describe('region-suffix stripping', () => {
+  it('collapses a product split across regions into one row', async () => {
+    const { parseStatuspage: parse } = await import('../../src/engine/adapters/statuspage.js');
+    const payload = {
+      page: { url: 'https://z' }, status: { indicator: 'none' }, incidents: [],
+      components: [
+        { id: 'g1', name: 'Zoom Phone - Global', status: 'operational', group: true },
+        { id: 'g2', name: 'Zoom Phone - APAC', status: 'major_outage', group: true },
+        { id: 'g3', name: 'Zoom Phone - EMEA', status: 'operational', group: true },
+        { id: 'g4', name: 'Zoom Meetings', status: 'operational', group: true },
+      ],
+    };
+    const r = parse(payload, { vendor: 'Zoom', componentLevel: 'group', now });
+    expect(r.components.map((c) => c.name).sort()).toEqual(['Zoom Meetings', 'Zoom Phone']);
+  });
+
+  it('keeps the worst regional status after collapsing', async () => {
+    const { parseStatuspage: parse } = await import('../../src/engine/adapters/statuspage.js');
+    const payload = {
+      page: { url: 'https://z' }, status: { indicator: 'none' }, incidents: [],
+      components: [
+        { id: 'g1', name: 'Zoom CX - Global', status: 'operational', group: true },
+        { id: 'g2', name: 'Zoom CX - JAPAN', status: 'partial_outage', group: true },
+      ],
+    };
+    const r = parse(payload, { vendor: 'Zoom', componentLevel: 'group', now });
+    expect(r.components).toHaveLength(1);
+    expect(r.components[0].severity).toBe(SEVERITY.PARTIAL_OUTAGE);
+  });
+
+  it('is conservative: does not mangle names that merely contain a dash', async () => {
+    const { stripRegionSuffix } = await import('../../src/engine/adapters/statuspage.js');
+    expect(stripRegionSuffix('Jamf Pro - Standard')).toBe('Jamf Pro - Standard');
+    expect(stripRegionSuffix('Zoom CX - Premium')).toBe('Zoom CX - Premium');
+    expect(stripRegionSuffix('Sign-in')).toBe('Sign-in');
+    expect(stripRegionSuffix('Zoom Phone - APAC')).toBe('Zoom Phone');
+    expect(stripRegionSuffix('Zoom Phone - HONG KONG/CHINA')).toBe('Zoom Phone');
+  });
+});
+
+// Lucid publishes "Document List (US)", "Document List (EU)" — one service per
+// region — while other vendors use parentheses for legitimate acronyms.
+describe('parenthetical region suffixes', () => {
+  it('strips a parenthetical region', async () => {
+    const { stripRegionSuffix } = await import('../../src/engine/adapters/statuspage.js');
+    expect(stripRegionSuffix('Document List (US)')).toBe('Document List');
+    expect(stripRegionSuffix('Document List (EU)')).toBe('Document List');
+    expect(stripRegionSuffix('Primary Application (North America)')).toBe('Primary Application');
+  });
+
+  it('PRESERVES legitimate parenthetical acronyms', async () => {
+    const { stripRegionSuffix } = await import('../../src/engine/adapters/statuspage.js');
+    for (const n of [
+      'Multi-factor Authentication (MFA)',
+      'Bring Your Own IP (BYOIP)',
+      'KnowBe4 Security Awareness Training (KSAT)',
+      'Jamf Cloud Distribution Service (JCDS)',
+      'Microsoft 365 (Consumer)',
+      'SMS (Text)',
+      'Cloud Access Security Broker (CASB)',
+    ]) {
+      expect(stripRegionSuffix(n)).toBe(n);
+    }
+  });
+});
+
+describe('region stripping — deliberate exclusions', () => {
+  it('collapses AUS along with US and EU', async () => {
+    const { stripRegionSuffix } = await import('../../src/engine/adapters/statuspage.js');
+    expect(stripRegionSuffix('Document List (AUS)')).toBe('Document List');
+  });
+
+  it('does NOT collapse a government cloud into the commercial one', async () => {
+    // A gov cloud has its own availability; hiding it inside the commercial row
+    // would conceal a real distinction.
+    const { stripRegionSuffix } = await import('../../src/engine/adapters/statuspage.js');
+    expect(stripRegionSuffix('Document List (Gov)')).toBe('Document List (Gov)');
+  });
+});
