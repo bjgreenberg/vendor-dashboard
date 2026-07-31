@@ -23,6 +23,19 @@
  * trade-off is drift: if the site's chrome changes, update it here too.
  */
 
+import LOGOS from '../../config/logos.json';
+
+/** Where self-hosted vendor marks are served from (Workers static assets). */
+const ICON_BASE = '/service-status/icons';
+
+/**
+ * Slug used for both the logo filename and lookup.
+ * @param {string} name
+ */
+export function logoSlug(name) {
+  return String(name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 /** The only host permitted to be indexed. */
 export const CANONICAL_HOST = 'briangreenberg.net';
 
@@ -187,7 +200,7 @@ export function renderDashboard({
   const rows = records.map((r) => renderRow(r)).join('\n');
 
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -197,6 +210,24 @@ export function renderDashboard({
 <link rel="canonical" href="https://briangreenberg.net/service-status">
 <link rel="icon" href="/assets/img/favicon.png" type="image/png">
 <link rel="stylesheet" href="/assets/site.css">
+<script${nonce ? ` nonce="${esc(nonce)}"` : ''}>
+/* This page defaults to DARK, unlike the rest of the site which follows the
+   system. It runs BEFORE theme.js and before first paint, so there is no flash.
+
+   It seeds the attribute only — it deliberately does NOT write to localStorage,
+   because that key (bgnet-theme) is shared with briangreenberg.net and writing
+   it would silently change the whole site's default. A visitor who has actually
+   chosen a theme keeps it; theme.js applies their choice a moment later. */
+(function () {
+  try {
+    if (!localStorage.getItem('bgnet-theme')) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  } catch (e) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
+})();
+</script>
 <script src="/assets/js/theme.js"></script>
 <style>${STYLES}</style>
 </head>
@@ -270,6 +301,15 @@ ${rows || '<p class="vs-empty">No status has been collected yet. The collector r
 
 <script${nonce ? ` nonce="${esc(nonce)}"` : ''}>
 (function () {
+  // theme.js re-applies 'system' when no preference is stored, which would undo
+  // the dark seed above. Re-assert it — again without persisting, so the site's
+  // own default is untouched.
+  try {
+    if (!localStorage.getItem('bgnet-theme')) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  } catch (e) { /* storage unavailable; the seed above already applied */ }
+
   // Timestamp: show the VIEWER's own timezone plus a relative age, keeping the
   // server-rendered Chicago time in the title. Progressive enhancement — the
   // Chicago time is already meaningful without this running.
@@ -340,6 +380,19 @@ function renderRow(record) {
 
   const href = safeUrl(record.sourceUrl);
   const name = esc(record.service || record.vendor);
+
+  // Emit a mark only when one actually exists. Three vendors bot-block the
+  // build-time fetch (NetSuite, OpenAI, Tableau), so absence is normal and must
+  // degrade to the status dot rather than a broken image.
+  const file = LOGOS[logoSlug(record.vendor)];
+  // The mark is the row's IDENTITY ANCHOR, sitting where the eye starts rather
+  // than after the name it identifies. It replaces the status dot, which was
+  // redundant: status is already carried twice, by the card's coloured left
+  // border and by the pill text. Vendors with no mark keep the dot, so a row
+  // never loses its leading glyph.
+  const logo = file
+    ? `<img class="vs-logo" src="${esc(ICON_BASE)}/${esc(file)}" alt="" width="24" height="24" loading="lazy" decoding="async">`
+    : '';
   const nameHtml = href
     ? `<a class="vs-name" href="${esc(href)}" rel="noopener nofollow" target="_blank">${name}<span class="vs-ext" aria-hidden="true">↗</span><span class="sr-only"> — opens ${esc(hostOf(href))} in a new tab</span></a>`
     : `<span class="vs-name">${name}</span>`;
@@ -365,7 +418,7 @@ function renderRow(record) {
 
   return `<article class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}">
   <div class="vs-head">
-    <span class="vs-dot vs-dot--${esc(p.tone)}" aria-hidden="true">${esc(p.symbol)}</span>
+    ${logo || `<span class="vs-dot vs-dot--${esc(p.tone)}" aria-hidden="true">${esc(p.symbol)}</span>`}
     <h2>${nameHtml}</h2>
     <span class="vs-badge vs-badge--${esc(p.tone)}">${esc(p.label)}</span>
   </div>
@@ -406,7 +459,7 @@ function childLi(c) {
  */
 const STYLES = `
 .vs h1 { margin-bottom: .5rem; }
-.vs-intro { max-width: 62ch; margin: 0 0 1.5rem; }
+.vs-intro { margin: 0 0 1.5rem; }  /* full container width, matching the cards */
 .vs-intro p { margin: 0 0 .6rem; }
 .vs-intro p:last-child { margin-bottom: 0; }
 .vs-headline { font-size: 1.15rem; font-weight: 600; margin: .25rem 0 .5rem; color: #1f7a3d; }
@@ -418,6 +471,7 @@ const STYLES = `
 }
 :root[data-theme="dark"] .vs-headline { color: #52c47a; }
 :root[data-theme="dark"] .vs-headline.headline--impacted { color: #ff6b61; }
+:root[data-theme="dark"] .vs-headline.headline--unknown { color: #a3adba; }
 
 .vs-meta, .vs-hint, .vs-note { font-size: .875rem; opacity: .75; margin: .25rem 0; }
 .vs-stale {
@@ -450,17 +504,85 @@ const STYLES = `
 
 .vs-head { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .vs-head h2 { font-size: 1.05rem; margin: 0; flex: 1 1 auto; }
+/* Vendor marks.
+   Sits INSIDE the <h2>, immediately after the name: as a sibling of the heading
+   it would be pushed to the far right by that heading's flex-grow, stranding it
+   beside the badge instead of the name it belongs to.
+
+   THE CHIP IS NOT DECORATION. Vendor favicons are whatever each vendor chose -
+   several are dark marks on transparency (Anthropic, Okta, Docusign, Celigo,
+   Lucid, Perplexity all measured below 0.28 luminance) and would be effectively
+   invisible on this page, which defaults to dark. A near-white chip guarantees
+   every mark reads on both themes without editing anyone's logo.
+
+   Fixed box + object-fit: contain, on top of build-time trimming to the visible
+   bounding box, is what makes 41 marks of wildly different aspect ratios and
+   built-in padding look like the same size.
+
+   Decorative: alt="" because the vendor name is right beside it. */
+.vs-logo {
+  width: 24px; height: 24px; object-fit: contain;
+  flex: 0 0 auto;
+  padding: 1px; border-radius: 5px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);
+}
+/* Light theme: the chip would be near-invisible against the page, so soften it
+   to a hairline and let the mark sit on the page colour. */
+:root[data-theme="light"] .vs-logo { background: rgba(0,0,0,.03); }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .vs-logo { background: rgba(0,0,0,.03); }
+}
 .vs-ext { font-size: .75em; opacity: .6; margin-left: .25em; }
 
 .vs-dot { line-height: 1; }
 .vs-dot--ok { color: #1f7a3d; } .vs-dot--minor { color: #8a5a00; }
 .vs-dot--major { color: #b3480f; } .vs-dot--critical { color: #b3261e; }
 .vs-dot--maintenance { color: #2c5aa0; } .vs-dot--unknown { color: #6b7280; }
+/* Dark-mode status colours.
+   Measured against the site's dark background (#16191D) for WCAG 2.2 AA. The
+   badge text is 0.78rem, i.e. NORMAL text, so 4.5:1 is required - the 3:1
+   large-text allowance does not apply.
+
+   The light-mode values for maintenance (#2c5aa0, 2.58:1) and unknown
+   (#6b7280, 3.65:1) both FAILED here; they were missing from this block, so
+   they leaked through from light mode. The unknown state is not hypothetical:
+   it shows whenever a vendor check fails, and this page defaults to dark.
+
+   NOTE: no backticks in this comment - it lives inside a JS template literal,
+   and a stray backtick terminates it. That exact mistake broke the build here.
+
+   ok 8.01  critical 6.32  major 7.09  minor 8.07  maintenance 7.23  unknown 7.76 */
+:root[data-theme="dark"] .vs-dot--ok,
+:root[data-theme="dark"] .vs-badge--ok { color: #52c47a; }
+:root[data-theme="dark"] .vs-dot--critical,
+:root[data-theme="dark"] .vs-badge--critical { color: #ff6b61; }
+:root[data-theme="dark"] .vs-dot--major,
+:root[data-theme="dark"] .vs-badge--major { color: #f08a4b; }
+:root[data-theme="dark"] .vs-dot--minor,
+:root[data-theme="dark"] .vs-badge--minor,
+:root[data-theme="dark"] .vs-warn,
+:root[data-theme="dark"] .vs-stale { color: #e0a53a; }
+:root[data-theme="dark"] .vs-dot--maintenance,
+:root[data-theme="dark"] .vs-badge--maintenance { color: #7aa7f0; }
+:root[data-theme="dark"] .vs-dot--unknown,
+:root[data-theme="dark"] .vs-badge--unknown { color: #a3adba; }
+
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .vs-dot--ok { color: #52c47a; }
-  :root:not([data-theme="light"]) .vs-dot--critical { color: #ff6b61; }
-  :root:not([data-theme="light"]) .vs-dot--major { color: #f08a4b; }
-  :root:not([data-theme="light"]) .vs-dot--minor { color: #e0a53a; }
+  :root:not([data-theme="light"]) .vs-dot--ok,
+  :root:not([data-theme="light"]) .vs-badge--ok { color: #52c47a; }
+  :root:not([data-theme="light"]) .vs-dot--critical,
+  :root:not([data-theme="light"]) .vs-badge--critical { color: #ff6b61; }
+  :root:not([data-theme="light"]) .vs-dot--major,
+  :root:not([data-theme="light"]) .vs-badge--major { color: #f08a4b; }
+  :root:not([data-theme="light"]) .vs-dot--minor,
+  :root:not([data-theme="light"]) .vs-badge--minor,
+  :root:not([data-theme="light"]) .vs-warn,
+  :root:not([data-theme="light"]) .vs-stale { color: #e0a53a; }
+  :root:not([data-theme="light"]) .vs-dot--maintenance,
+  :root:not([data-theme="light"]) .vs-badge--maintenance { color: #7aa7f0; }
+  :root:not([data-theme="light"]) .vs-dot--unknown,
+  :root:not([data-theme="light"]) .vs-badge--unknown { color: #a3adba; }
 }
 
 .vs-badge {

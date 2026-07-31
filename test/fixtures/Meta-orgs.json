@@ -1,0 +1,564 @@
+[
+  {
+    "id": "admin-center",
+    "name": "Meta Admin Center",
+    "rss_file_paths": [
+      "outage-events-feed-admin-center.rss"
+    ],
+    "section": 1,
+    "services": [
+      {
+        "id": 2,
+        "name": "Account Management",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 3,
+        "name": "Apps",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 9,
+        "name": "Partner Center",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 4,
+        "name": "Security",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": []
+  },
+  {
+    "id": "ads-manager",
+    "name": "Facebook Ads Manager",
+    "rss_file_paths": [
+      "outage-events-feed-ads-manager.rss"
+    ],
+    "section": 4,
+    "services": [
+      {
+        "id": 5,
+        "name": "Ads Creation and Editing",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 6,
+        "name": "Ads Delivery",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 7,
+        "name": "Ads Reporting",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": []
+  },
+  {
+    "id": "ads-transparency",
+    "name": "Ads Transparency",
+    "rss_file_paths": [
+      "outage-events-feed-ads-transparency.rss"
+    ],
+    "section": 3,
+    "services": [
+      {
+        "id": 1,
+        "name": "Ad Library",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 2,
+        "name": "Ad Library Report",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 3,
+        "name": "Ad Library API",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 4,
+        "name": "Branded Content",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": []
+  },
+  {
+    "id": "audience-network",
+    "name": "Meta Audience Network",
+    "rss_file_paths": [
+      "outage-events-feed-audience-network.rss"
+    ],
+    "section": 4,
+    "services": [
+      {
+        "id": 1,
+        "name": "Monetization Manager",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 2,
+        "name": "Revenue Reporting",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": []
+  },
+  {
+    "id": "catalog",
+    "name": "Catalog",
+    "rss_file_paths": [
+      "outage-events-feed-catalog.rss"
+    ],
+    "section": 4,
+    "services": [
+      {
+        "id": 1,
+        "name": "Batch API",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 2,
+        "name": "Feed API",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": []
+  },
+  {
+    "id": "ctx",
+    "name": "Messaging Ads",
+    "rss_file_paths": [
+      "outage-events-feed-ctx.rss"
+    ],
+    "section": 4,
+    "services": [
+      {
+        "id": 1,
+        "name": "Click to WhatsApp",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 2,
+        "name": "Click to Messenger",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 3,
+        "name": "Click to Instagram",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 4,
+        "name": "Multidestination",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": []
+  },
+  {
+    "id": "data-transparency",
+    "name": "Data Transparency",
+    "rss_file_paths": [
+      "outage-events-feed-data-transparency.rss"
+    ],
+    "section": 3,
+    "services": [
+      {
+        "id": 1,
+        "name": "Meta Content Library",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 2,
+        "name": "Meta Content Library API",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 3,
+        "name": "Meta Secure Research Environment",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": []
+  },
+  {
+    "id": "device-manager",
+    "name": "Meta Horizon Device Manager",
+    "rss_file_paths": [
+      "outage-events-feed-device-manager.rss"
+    ],
+    "section": 1,
+    "services": [
+      {
+        "id": 1,
+        "name": "Devices",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 2,
+        "name": "Device management",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 3,
+        "name": "Subscriptions and billing",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": []
+  },
+  {
+    "id": "facebook-login",
+    "name": "Facebook Login",
+    "rss_file_paths": [
+      "outage-events-feed-facebook-login.rss"
+    ],
+    "section": 2,
+    "services": [
+      {
+        "id": 1,
+        "name": "Platform Status",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": []
+  },
+  {
+    "id": "fb-ig-shops",
+    "name": "Facebook and Instagram Shops",
+    "rss_file_paths": [
+      "outage-events-feed-fb-ig-shops.rss"
+    ],
+    "section": 4,
+    "services": [
+      {
+        "id": 2,
+        "name": "Commerce Manager",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 3,
+        "name": "Seller Onboarding",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 4,
+        "name": "Checkout",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 5,
+        "name": "Orders",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 1,
+        "name": "Facebook & Instagram for Shopify",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 6,
+        "name": "Facebook & Instagram for Magento",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": []
+  },
+  {
+    "id": "fbs",
+    "name": "Meta Business Suite",
+    "rss_file_paths": [
+      "outage-events-feed-fbs.rss"
+    ],
+    "section": 1,
+    "services": [
+      {
+        "id": 2,
+        "name": "Sharing and Content Management",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 3,
+        "name": "Inbox",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 5,
+        "name": "Ads Creation and Management",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": []
+  },
+  {
+    "id": "graph-api",
+    "name": "Graph API",
+    "rss_file_paths": [
+      "outage-events-feed-graph-api.rss"
+    ],
+    "section": 2,
+    "services": [
+      {
+        "id": 1,
+        "name": "Platform Status",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": [
+      "metrics"
+    ]
+  },
+  {
+    "id": "ig-boost",
+    "name": "Instagram Boost",
+    "rss_file_paths": [
+      "outage-events-feed-ig-boost.rss"
+    ],
+    "section": 4,
+    "services": [
+      {
+        "id": 1,
+        "name": "Ads Creation",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 2,
+        "name": "Ads Delivery",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 3,
+        "name": "Ads Management and Reporting",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": []
+  },
+  {
+    "id": "ig-messenger",
+    "name": "Messenger API for Instagram",
+    "rss_file_paths": [
+      "outage-events-feed-ig-messenger.rss"
+    ],
+    "section": 2,
+    "services": [
+      {
+        "id": 1,
+        "name": "Platform Status",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": [
+          "metrics"
+        ]
+      }
+    ],
+    "feature_flags": [
+      "metrics"
+    ]
+  },
+  {
+    "id": "marketing-api",
+    "name": "Marketing API",
+    "rss_file_paths": [
+      "outage-events-feed-marketing-api.rss"
+    ],
+    "section": 4,
+    "services": [
+      {
+        "id": 1,
+        "name": "Ads Creation and Editing API",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 2,
+        "name": "Ads Insights API",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": [
+      "metrics"
+    ]
+  },
+  {
+    "id": "messenger",
+    "name": "Messenger Platform",
+    "rss_file_paths": [
+      "outage-events-feed-messenger.rss"
+    ],
+    "section": 2,
+    "services": [
+      {
+        "id": 1,
+        "name": "Platform Status",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": [
+          "metrics"
+        ]
+      }
+    ],
+    "feature_flags": [
+      "metrics"
+    ]
+  },
+  {
+    "id": "whatsapp-business-api",
+    "name": "WhatsApp Business Platform",
+    "rss_file_paths": [
+      "outage-events-feed-whatsapp-business-api.rss"
+    ],
+    "section": 2,
+    "services": [
+      {
+        "id": 4,
+        "name": "Cloud API",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": [
+          "metrics"
+        ]
+      },
+      {
+        "id": 8,
+        "name": "Cloud API - Calling",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 1,
+        "name": "WhatsApp Business Account Management",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 3,
+        "name": "Embedded Signup",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 6,
+        "name": "WhatsApp Flows",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 7,
+        "name": "Marketing Messages API for WhatsApp",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": [
+          "metrics"
+        ]
+      },
+      {
+        "id": 9,
+        "name": "Coexistence - Messaging",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      },
+      {
+        "id": 10,
+        "name": "Coexistence - Onboarding",
+        "status": "No known issues",
+        "time": null,
+        "feature_flags": []
+      }
+    ],
+    "feature_flags": [
+      "metrics"
+    ]
+  }
+]
