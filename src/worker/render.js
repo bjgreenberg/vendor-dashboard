@@ -294,13 +294,26 @@ export function renderDashboard({
   </div>
 
   <!-- Share bar: plain intent links only, zero third-party JS or SDKs, matching
-       the site's privacy posture (src/_includes/share.njk). Native Web Share
-       covers anything not listed; Copy link covers the rest. -->
+       the site's privacy posture (src/_includes/share.njk). Keep the platform
+       list in sync with that include - the two drifted once already.
+
+       Mastodon is a BUTTON, not a link: the fediverse has no universal share
+       endpoint, so the sharer's own instance has to be asked for (and
+       remembered) before a /share URL can be built. Still no third-party JS.
+
+       Instagram, TikTok and Apple Music are deliberately absent - none of them
+       exposes a web share intent at all, so there is no honest link to write.
+       The native Share button reaches them via the OS share sheet; Copy link
+       covers everything else. -->
+
   <div class="share-bar vs-share" data-url="${esc(SHARE_URL)}" data-title="${esc(SHARE_TITLE)}">
     <span class="share-label">Share</span>
     <a class="pill" rel="noopener" target="_blank" href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/linkedin.com.png">LinkedIn</a>
     <a class="pill" rel="noopener" target="_blank" href="https://bsky.app/intent/compose?text=${encodeURIComponent(SHARE_TITLE + ' ' + SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/bsky.app.png">Bluesky</a>
     <a class="pill" rel="noopener" target="_blank" href="https://x.com/intent/tweet?url=${encodeURIComponent(SHARE_URL)}&amp;text=${encodeURIComponent(SHARE_TITLE)}"><img class="pillfav" alt="" src="/assets/icons/social/x.com.png">X</a>
+    <a class="pill" rel="noopener" target="_blank" href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/facebook.com.png">Facebook</a>
+    <a class="pill" rel="noopener" target="_blank" href="https://www.threads.net/intent/post?text=${encodeURIComponent(SHARE_TITLE + ' ' + SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/threads.com.png">Threads</a>
+    <button class="pill share-mastodon" type="button"><img class="pillfav" alt="" src="/assets/icons/social/infosec.exchange.png">Mastodon</button>
     <a class="pill" href="mailto:?subject=${encodeURIComponent(SHARE_TITLE)}&amp;body=${encodeURIComponent(SHARE_URL)}">&#9993; Email</a>
     <button class="pill share-copy" type="button">&#128279; Copy link</button>
     <button class="pill share-native" type="button" hidden>&#8599; Share&hellip;</button>
@@ -391,6 +404,24 @@ ${rows || '<p class="vs-empty">No status has been collected yet. The collector r
         });
       });
     }
+    // Mastodon: no universal endpoint, so ask once for the instance and
+    // remember it. Strip scheme and path so a pasted profile URL still works.
+    var masto = bar.querySelector('.share-mastodon');
+    if (masto) {
+      masto.addEventListener('click', function () {
+        var KEY = 'bgnet-mastodon-instance';
+        var saved = '';
+        try { saved = localStorage.getItem(KEY) || ''; } catch (e) {}
+        var host = window.prompt('Your Mastodon instance (e.g. infosec.exchange)', saved || 'infosec.exchange');
+        if (!host) return;
+        host = host.trim().replace(/^https?:\\/\\//, '').replace(/\\/.*$/, '');
+        if (!/^[a-z0-9.-]+\\.[a-z]{2,}$/i.test(host)) return;
+        try { localStorage.setItem(KEY, host); } catch (e) {}
+        window.open('https://' + host + '/share?text=' +
+          encodeURIComponent(bar.getAttribute('data-title') + ' ' + url), '_blank', 'noopener');
+      });
+    }
+
     var native = bar.querySelector('.share-native');
     if (native && navigator.share) {
       native.hidden = false;
