@@ -111,7 +111,14 @@
       "name": "Okta",
       "type": "okta",
       "url": "https://status.okta.com/",
-      "pageUrl": "https://status.okta.com"
+      "pageUrl": "https://status.okta.com",
+      "serviceCatalog": [
+        "Core Platform", "Access Gateway", "Advanced Server Access", "API Services",
+        "MFA", "Single Sign-On", "Workflows", "OIG Access Certifications",
+        "OIG Access Requests", "OIG Reporting", "Privileged Access",
+        "Identity Threat Protection", "ISPM", "Okta Aerial",
+        "Realms and Partner Portal", "Okta for AI Agents", "Third Party"
+      ]
     },
 
     { "name": "OpenAI", "type": "statuspage", "url": "https://status.openai.com/api/v2/summary.json" },

@@ -133,3 +133,54 @@ describe('google — product catalogue', () => {
     expect(r.components.map((c) => c.name)).toContain('Gmail');
   });
 });
+
+// Okta renders its service list client-side from a Salesforce Aura endpoint that
+// is not reachable without a browser, so the catalogue is DECLARED in config.
+// A hand-maintained list is exactly the kind of thing that rots silently, so the
+// adapter detects drift rather than trusting it.
+describe('okta — declared service catalogue with drift detection', () => {
+  const CATALOG = ['Core Platform', 'Single Sign-On', 'MFA', 'Workflows'];
+  // The marker record must itself be RESOLVED, otherwise the scaffold counts as
+  // an open incident and every case starts non-operational.
+  const page = (incidents) =>
+    `<html><body>[{"attributes":{"type":"Incident__c"},"Status__c":"Resolved"}${incidents
+      .map((i) => ',' + JSON.stringify(i))
+      .join('')}]</body></html>`;
+
+  it('lists every catalogued service when all are healthy', async () => {
+    const { parseOkta } = await import('../../src/engine/adapters/okta.js');
+    const r = parseOkta(page([]), { vendor: 'Okta', serviceCatalog: CATALOG, now });
+    expect(r.components.map((c) => c.name)).toEqual(CATALOG);
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('marks only the sub-service named by an open incident', async () => {
+    const { parseOkta } = await import('../../src/engine/adapters/okta.js');
+    const r = parseOkta(
+      page([{ Status__c: 'Investigating', Category__c: 'Major Service Disruption',
+              Okta_Sub_Service__c: 'MFA', Incident_Title__c: 'MFA failures' }]),
+      { vendor: 'Okta', serviceCatalog: CATALOG, now },
+    );
+    expect(r.components.find((c) => c.name === 'MFA').severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(r.components.find((c) => c.name === 'Workflows').severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('WARNS when an incident names a service missing from the catalogue', async () => {
+    const { parseOkta } = await import('../../src/engine/adapters/okta.js');
+    const r = parseOkta(
+      page([{ Status__c: 'Open', Category__c: 'Service Disruption',
+              Okta_Sub_Service__c: 'Okta Aerial', Incident_Title__c: 'x' }]),
+      { vendor: 'Okta', serviceCatalog: CATALOG, now },
+    );
+    expect(r.warnings.join(' ')).toMatch(/Okta Aerial.*catalog may be out of date/i);
+  });
+
+  it('falls back to incident-derived components with no catalogue configured', async () => {
+    const { parseOkta } = await import('../../src/engine/adapters/okta.js');
+    const r = parseOkta(
+      page([{ Status__c: 'Open', Category__c: 'Service Disruption', Okta_Sub_Service__c: 'MFA' }]),
+      { vendor: 'Okta', now },
+    );
+    expect(r.components.map((c) => c.name)).toEqual(['MFA']);
+  });
+});

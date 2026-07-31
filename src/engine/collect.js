@@ -166,6 +166,7 @@ async function collectOne(vendor, ctx) {
     vendor: name,
     scope: vendor?.scope,
     componentLevel: vendor?.componentLevel,
+    serviceCatalog: vendor?.serviceCatalog,
     dataCenters: vendor?.dataCenters,
     sourceUrl: vendor?.pageUrl ?? vendor?.url,
     now,

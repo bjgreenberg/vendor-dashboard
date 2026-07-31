@@ -21,7 +21,7 @@
  * brackets in a single linear pass.
  */
 
-import { SEVERITY } from '../severity.js';
+import { SEVERITY, rank } from '../severity.js';
 import { makeRecord, unknownRecord, toPlainText } from '../record.js';
 
 const SOURCE_URL = 'https://status.okta.com';
@@ -114,7 +114,7 @@ function severityOf(incident) {
  * @returns {import('../record.js').StatusRecord}
  */
 export function parseOkta(html, options) {
-  const { vendor, now } = options ?? {};
+  const { vendor, serviceCatalog, now } = options ?? {};
 
   if (typeof html !== 'string') {
     return unknownRecord(vendor, 'input was not HTML', { now, sourceUrl: SOURCE_URL });
@@ -133,26 +133,53 @@ export function parseOkta(html, options) {
     (i) => !CLOSED.has(String(i?.Status__c ?? '').toLowerCase().trim()),
   );
 
+  const warnings = [];
+
+  // Worst severity per named sub-service, from the open incidents.
+  const affected = new Map();
+  for (const i of open) {
+    const name = toPlainText(i?.Okta_Sub_Service__c ?? i?.Service_Feature__c ?? '') || 'Okta';
+    const sev = severityOf(i);
+    const prev = affected.get(name);
+    if (!prev || rank(sev) > rank(prev.severity)) {
+      affected.set(name, { name, severity: sev, description: toPlainText(i?.Incident_Title__c ?? '') });
+    }
+  }
+
+  // Okta renders its service list client-side from a Salesforce Aura endpoint
+  // that is not reachable without a browser, so the catalogue is DECLARED in
+  // config rather than discovered. That is a manually-maintained list, which is
+  // exactly the kind of thing that rots silently — so drift is detected: if an
+  // incident names a service the catalogue does not contain, we warn.
+  const catalog = Array.isArray(serviceCatalog) ? serviceCatalog : null;
+  for (const name of affected.keys()) {
+    if (catalog && name !== 'Okta' && !catalog.includes(name)) {
+      warnings.push(
+        `incident names sub-service "${name}", which is absent from the configured Okta service catalog — the catalog may be out of date`,
+      );
+    }
+  }
+
+  const components = catalog
+    ? catalog.map((name) => affected.get(name) ?? { name, severity: SEVERITY.OPERATIONAL })
+    : [...affected.values()];
+
   if (open.length === 0) {
     return makeRecord({
       vendor,
       severity: SEVERITY.OPERATIONAL,
       description: 'All systems operational.',
       sourceUrl: SOURCE_URL,
+      components,
+      warnings,
       now,
     });
   }
 
-  const components = open.slice(0, 10).map((i) => ({
-    name:
-      toPlainText(i?.Okta_Sub_Service__c ?? i?.Service_Feature__c ?? i?.Name ?? '') || 'Okta',
-    severity: severityOf(i),
-    description: toPlainText(i?.Incident_Title__c ?? ''),
-  }));
-
-  const worstChild = components.some((c) => c.severity === SEVERITY.MAJOR_OUTAGE)
+  const openSeverities = [...affected.values()].map((c) => c.severity);
+  const worstChild = openSeverities.includes(SEVERITY.MAJOR_OUTAGE)
     ? SEVERITY.MAJOR_OUTAGE
-    : components.some((c) => c.severity === SEVERITY.PARTIAL_OUTAGE)
+    : openSeverities.includes(SEVERITY.PARTIAL_OUTAGE)
       ? SEVERITY.PARTIAL_OUTAGE
       : SEVERITY.DEGRADED;
 
@@ -166,6 +193,7 @@ export function parseOkta(html, options) {
       `${open.length} open incident${open.length === 1 ? '' : 's'} reported by Okta.`,
     sourceUrl: SOURCE_URL,
     components,
+    warnings,
     now,
   });
 }
