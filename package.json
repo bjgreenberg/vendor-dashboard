@@ -29,6 +29,8 @@
   "type": "module",
   "devDependencies": {
     "@types/google-apps-script": "^2.0.8",
+    "axe-core": "^4.12.1",
+    "jsdom": "^30.0.1",
     "vitest": "^3.2.7"
   }
 }

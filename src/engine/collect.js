@@ -26,6 +26,8 @@ import { parseConcur } from './adapters/concur.js';
 import { parseSorryApp } from './adapters/sorryapp.js';
 import { parseBetterStack } from './adapters/betterstack.js';
 import { parseMicrosoft } from './adapters/microsoft.js';
+import { parseMetaStatus } from './adapters/metastatus.js';
+import { parseSignal } from './adapters/signal.js';
 
 /** Default per-vendor deadline. A hung status page must not stall the run. */
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -64,6 +66,7 @@ const JSON_ADAPTERS = {
   concur: parseConcur,
   sorryapp: parseSorryApp,
   microsoft: parseMicrosoft,
+  metastatus: parseMetaStatus,
 };
 
 /**
@@ -72,6 +75,7 @@ const JSON_ADAPTERS = {
  */
 const TEXT_ADAPTERS = {
   okta: parseOktaAtom,
+  signal: parseSignal,
   betterstack: parseBetterStack,
 };
 
