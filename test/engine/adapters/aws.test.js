@@ -14,18 +14,39 @@ const parse = (p) => parseAws(p, { vendor: 'AWS', now });
 describe('aws current events', () => {
   it('reports only the ACTIVE events from the recorded payload', () => {
     // RESOLVED events stay in this feed. Counting them would report AWS
-    // degraded over an incident that closed hours ago.
+    // degraded over an incident that closed hours ago. The fixture holds one
+    // resolved Mumbai event and two active ones, both for the same service.
     const r = parse(live);
-    expect(r.components).toHaveLength(2);
-    expect(r.components.map((c) => c.name)).toEqual([
-      'Multiple services — UAE',
-      'Multiple services — Bahrain',
-    ]);
     expect(r.severity).toBe(SEVERITY.DEGRADED);
+    expect(r.components.map((c) => c.name)).toEqual(['Multiple services']);
   });
 
-  it('names the region, because an AWS event without one means nothing', () => {
-    expect(parse(live).components.every((c) => c.name.includes('—'))).toBe(true);
+  it('groups by SERVICE, keeping regions out of the component name', () => {
+    // AWS events are per service per region, so naming components
+    // "S3 — Bahrain" turns the row into a list of points of presence. The
+    // same roll-up applied to Zoom, Docusign, OutSystems, Azure DevOps and
+    // Oracle: name the service, put the regions in the description.
+    const r = parse([
+      { summary: 'Increased Error Rates', end_time: null, service_name: 'Amazon S3', region_name: 'UAE' },
+      { summary: 'Increased Error Rates', end_time: null, service_name: 'Amazon S3', region_name: 'Bahrain' },
+      { summary: 'Elevated latency', end_time: null, service_name: 'Amazon EC2', region_name: 'Ireland' },
+    ]);
+    expect(r.components.map((c) => c.name).sort()).toEqual(['Amazon EC2', 'Amazon S3']);
+    for (const c of r.components) {
+      expect(c.name).not.toMatch(/UAE|Bahrain|Ireland/);
+    }
+    const s3 = r.components.find((c) => c.name === 'Amazon S3');
+    expect(s3.description).toMatch(/UAE/);
+    expect(s3.description).toMatch(/Bahrain/);
+  });
+
+  it('gives a grouped service the WORST severity across its regions', () => {
+    const r = parse([
+      { summary: 'Elevated latency', end_time: null, service_name: 'Amazon S3', region_name: 'UAE' },
+      { summary: 'S3 is unavailable', end_time: null, service_name: 'Amazon S3', region_name: 'Bahrain' },
+    ]);
+    expect(r.components).toHaveLength(1);
+    expect(r.components[0].severity).toBe(SEVERITY.MAJOR_OUTAGE);
   });
 
   it('treats an empty feed as operational', () => {

@@ -29,6 +29,7 @@ import { parseMicrosoft, parseMicrosoftFeed, parseMicrosoftConsumer, parseMicros
 import { parseAzureFeed, parseAzureDevOps, parseAzurePost } from './adapters/azure.js';
 import { parseAws } from './adapters/aws.js';
 import { parseIbmCloud } from './adapters/ibm.js';
+import { parseOracle } from './adapters/oracle.js';
 import { parseMetaStatus } from './adapters/metastatus.js';
 import { parseSignal } from './adapters/signal.js';
 
@@ -95,6 +96,7 @@ const JSON_ADAPTERS = {
   'microsoft-consumer': parseMicrosoftConsumer,
   'microsoft-admin': parseMicrosoftAdminPost,
   aws: parseAws,
+  oracle: parseOracle,
   metastatus: parseMetaStatus,
 };
 

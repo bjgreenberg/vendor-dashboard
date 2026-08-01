@@ -26,7 +26,7 @@
  * miss an event closed without the marker.
  */
 
-import { SEVERITY, worst } from '../severity.js';
+import { SEVERITY, worst, rank } from '../severity.js';
 import { makeRecord, unknownRecord, toPlainText } from '../record.js';
 
 const SOURCE_URL = 'https://health.aws.amazon.com/health/status';
@@ -95,18 +95,38 @@ export function parseAws(payload, options) {
     });
   }
 
-  // One component per active event, named service + region. AWS events are
-  // inherently regional, and a reader needs to know WHERE before the row means
-  // anything -- "Increased Error Rates" alone could be one region or all of them.
-  const components = active.map((e) => {
-    const service = toPlainText(e?.service_name ?? 'AWS');
+  // SERVICES, not regions.
+  //
+  // AWS events are per service PER REGION, so the same service appears once
+  // for every region it is degraded in. Naming components "S3 — Bahrain"
+  // turned the row into a list of points of presence, which is the same
+  // problem already solved for Zoom, NetSuite, Docusign, OutSystems, Azure
+  // DevOps and Oracle: a reader wants to know WHICH SERVICE is affected, and
+  // the region is detail that belongs in the description.
+  //
+  // Each service therefore appears once, carrying the worst severity across
+  // its regions, with the affected regions listed underneath it.
+  const byService = new Map();
+  for (const e of active) {
+    const name = toPlainText(e?.service_name ?? '') || 'AWS';
     const region = toPlainText(e?.region_name ?? '');
-    return {
-      name: region ? `${service} — ${region}` : service,
-      severity: awsSeverityOf(e?.summary),
-      description: toPlainText(e?.summary ?? '').slice(0, 200),
-    };
-  });
+    const severity = awsSeverityOf(e?.summary);
+    const entry = byService.get(name) ?? { severity: SEVERITY.OPERATIONAL, regions: [], summaries: [] };
+    if (rank(severity) > rank(entry.severity)) entry.severity = severity;
+    if (region) entry.regions.push(region);
+    const summary = toPlainText(e?.summary ?? '');
+    if (summary && !entry.summaries.includes(summary)) entry.summaries.push(summary);
+    byService.set(name, entry);
+  }
+
+  const components = [...byService.entries()].map(([name, v]) => ({
+    name,
+    severity: v.severity,
+    description: [v.summaries.join('; '), v.regions.length ? `Regions: ${[...new Set(v.regions)].join(', ')}.` : '']
+      .filter(Boolean)
+      .join(' ')
+      .slice(0, 240),
+  }));
 
   return makeRecord({
     vendor,
