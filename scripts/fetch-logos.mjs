@@ -26,7 +26,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
-const CONFIG = join(REPO, 'config', 'vendors.example.json');
+const CONFIG = join(REPO, 'config', 'vendors.json');
 const OUT_DIR = join(REPO, 'assets', 'icons');
 
 const UA = 'vendor-dashboard/2.0 (+https://briangreenberg.net/service-status; logo fetch, build-time only)';

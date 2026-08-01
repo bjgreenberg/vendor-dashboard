@@ -64,7 +64,7 @@ describe('every vendor has a locally-hosted logo', () => {
   // CSP past `img-src 'self' data:`. This gate keeps that true as vendors are
   // added — a new vendor with no logo silently falls back to a status dot,
   // which is easy to miss on a 46-row board.
-  const config = JSON.parse(readFileSync('config/vendors.example.json', 'utf8'));
+  const config = JSON.parse(readFileSync('config/vendors.json', 'utf8'));
   const manifest = JSON.parse(readFileSync('config/logos.json', 'utf8'));
   const slug = (n) =>
     String(n).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -114,6 +114,7 @@ describe('every vendor has a locally-hosted logo', () => {
 // the remote server's control.
 describe('every shipped icon is a genuine image (magic bytes)', () => {
   const DIRS = ['assets/icons', 'public/service-status/icons'];
+  const manifest = JSON.parse(readFileSync('config/logos.json', 'utf8'));
 
   /** @param {Buffer} buf @returns {string|null} detected format, null = not an image */
   const sniff = (buf) => {
@@ -134,4 +135,28 @@ describe('every shipped icon is a genuine image (magic bytes)', () => {
       expect(format, `${dir}/${file} is not a recognisable image`).not.toBeNull();
     });
   }
+
+  it('ships no icon file the manifest does not reference', () => {
+    // fetch-logos.mjs keys the manifest by basename, so when a better format
+    // arrives (apple.ico superseded by apple.png) the old file stays on disk,
+    // unmapped, and ships in the Worker's public assets forever. Dead weight,
+    // and — as linkedin.ico proved — sometimes worse than dead weight.
+    const mapped = new Set(Object.values(manifest));
+    for (const dir of DIRS) {
+      const orphans = readdirSync(dir).filter((f) => !f.startsWith('.') && !mapped.has(f));
+      expect(orphans, `unmapped files in ${dir}`).toEqual([]);
+    }
+  });
+
+  it('keeps assets/icons and the served public/ copy byte-identical', () => {
+    // No build step syncs the two directories; the copy is manual. This is the
+    // gate that catches a fetch that updated one side only.
+    const [a, b] = DIRS;
+    const av = readdirSync(a).filter((f) => !f.startsWith('.')).sort();
+    const bv = readdirSync(b).filter((f) => !f.startsWith('.')).sort();
+    expect(av).toEqual(bv);
+    for (const f of av) {
+      expect(readFileSync(join(a, f)).equals(readFileSync(join(b, f))), `${f} differs between ${a} and ${b}`).toBe(true);
+    }
+  });
 });

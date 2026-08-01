@@ -11,7 +11,7 @@ import { collect } from '../engine/collect.js';
 import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
 import { writeRun, readSnapshot } from './storage.js';
 import { renderDashboard } from './render.js';
-import vendorConfig from '../../config/vendors.example.json';
+import vendorConfig from '../../config/vendors.json';
 
 /** Must match `triggers.crons` in wrangler.jsonc; shard rotation is derived from it. */
 const CRON_EVERY_MINUTES = 1;
@@ -31,11 +31,12 @@ const CRON_EVERY_MINUTES = 1;
 async function scheduled(controller, env) {
   const started = Date.now();
 
-  // Collect one shard per invocation. The full list costs ~47 external
-  // subrequests against a free-plan ceiling of 50, so a run needing a few
-  // retries was killed mid-flight and the vendors it never reached reported
-  // `unknown`. One shard costs ~16. Every vendor is still refreshed once per
-  // 15 minutes; the cron just fires three times as often.
+  // Collect one shard per invocation. Two free-plan ceilings forced the split:
+  // 50 external subrequests (a full run measured ~47, so retries killed it
+  // mid-flight and unreached vendors reported `unknown`) and 10 ms of CPU
+  // (two multi-megabyte parsers in one invocation exceeded it). With 15 shards
+  // on an every-minute cron, one invocation covers ~3 vendors and every vendor
+  // is still refreshed once per 15 minutes.
   const at = new Date(controller.scheduledTime ?? Date.now());
   const shard = shardDueAt(at, SHARD_COUNT, CRON_EVERY_MINUTES);
   const vendors = selectShard(vendorConfig.vendors, shard, SHARD_COUNT);

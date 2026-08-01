@@ -20,7 +20,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const URL_ = 'https://servicedata-us-east-1-prod.s3.amazonaws.com/services.json';
-const OUT = 'config/vendors.example.json';
+const OUT = 'config/vendors.json';
 
 const res = await fetch(URL_, {
   headers: { 'User-Agent': 'vendor-dashboard/2.0 (+https://briangreenberg.net/service-status; build)' },

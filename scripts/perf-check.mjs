@@ -71,7 +71,7 @@ const big = median(() => parseOkta(huge, { vendor: 'Okta', now }));
 console.log(`  ${'Okta — 10x document, cost ratio'.padEnd(44)} ${(big / small).toFixed(2).padStart(7)} x        (linear would be ~10x)`);
 
 // 3. A whole shard's worth of parsing, against recorded payloads.
-const config = JSON.parse(readFileSync('config/vendors.example.json', 'utf8'));
+const config = JSON.parse(readFileSync('config/vendors.json', 'utf8'));
 const shard = selectShard(config.vendors, 0, SHARD_COUNT);
 const stub = async () =>
   new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
