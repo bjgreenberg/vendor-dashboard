@@ -722,8 +722,22 @@ const STYLES = `
   opacity: 0; text-decoration: none; font-weight: 600;
   padding: 0 .25rem; flex: 0 0 auto;
 }
-.vs-card:hover .vs-anchor, .vs-anchor:focus { opacity: .55; }
-.vs-anchor:hover { opacity: 1; }
+/* Reveal the permalink only where a real pointer can hover.
+   iOS and Android apply :hover to a TAPPED element and its ancestors
+   ("sticky hover"), so on a phone the vs-card:hover rule fired on touch and a
+   stray # appeared beside the status pill whenever a card was touched.
+   Reported from a phone 2026-08-01. The hover/pointer media query matches a
+   mouse or trackpad and excludes touch, so the anchor stays hidden there.
+   :focus-visible is kept OUTSIDE the query so keyboard users still get it -
+   and it is :focus-visible rather than :focus deliberately, because a tap can
+   raise :focus on some mobile browsers and would reintroduce the same flash.
+   NOTE: no backticks in this comment. They terminate the JS template literal
+   this CSS lives in - the same trap that silently dropped 52 tests once. */
+@media (hover: hover) and (pointer: fine) {
+  .vs-card:hover .vs-anchor { opacity: .55; }
+  .vs-anchor:hover { opacity: 1; }
+}
+.vs-anchor:focus-visible { opacity: 1; }
 /* Deep-linked row gets a moment of emphasis so it is findable on arrival. */
 .vs-card:target { box-shadow: 0 0 0 2px currentColor; }
 

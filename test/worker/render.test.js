@@ -557,3 +557,31 @@ describe('renderDashboard — sharing', () => {
     expect(h.match(/class="share-bar/g)).toHaveLength(1);
   });
 });
+
+describe('permalink anchor on touch devices', () => {
+  // Reported from a phone 2026-08-01: a stray "#" appeared beside the status
+  // pill whenever a card was touched. Cause: iOS and Android apply :hover to a
+  // TAPPED element and its ancestors ("sticky hover"), so `.vs-card:hover`
+  // fired on touch. The reveal must be gated on a pointer that can actually
+  // hover.
+  const css = () => renderDashboard({ records: [], meta: null });
+
+  it('gates the hover reveal behind a hover-capable pointer', () => {
+    const doc = css();
+    expect(doc).toMatch(/@media \(hover: hover\) and \(pointer: fine\)/);
+    // The bare rule must NOT exist outside the media query, or touch still fires.
+    const outside = doc.replace(/@media \(hover: hover\)[^}]*\{[\s\S]*?\n\}/, '');
+    expect(outside).not.toMatch(/\.vs-card:hover\s+\.vs-anchor/);
+  });
+
+  it('keeps the anchor reachable by keyboard', () => {
+    // Hiding it from touch must not hide it from keyboard users.
+    expect(css()).toMatch(/\.vs-anchor:focus-visible\s*\{[^}]*opacity/);
+  });
+
+  it('uses :focus-visible, not :focus', () => {
+    // A tap can raise :focus on some mobile browsers, which would reintroduce
+    // exactly the flash this fixes.
+    expect(css()).not.toMatch(/\.vs-anchor:focus(?!-visible)/);
+  });
+});
