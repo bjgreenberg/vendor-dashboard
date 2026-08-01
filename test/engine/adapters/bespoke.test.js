@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { parseBetterStackSections } from '../../../src/engine/adapters/betterstack.js';
+import { parseSorryApp } from '../../../src/engine/adapters/sorryapp.js';
 import { SEVERITY } from '../../../src/engine/severity.js';
 import { parseGoogle } from '../../../src/engine/adapters/google.js';
 import { parseApple } from '../../../src/engine/adapters/apple.js';
@@ -324,5 +326,105 @@ describe('microsoft', () => {
   it('warns that enterprise workloads are absent from this endpoint', () => {
     const r = parseMicrosoft(json('Microsoft'), { vendor: 'Microsoft', now });
     expect(r.warnings.join(' ')).toMatch(/enterprise|Exchange|Graph/i);
+  });
+});
+
+describe('sorryapp components (iorad)', () => {
+  // Reported 2026-08-01 for Seismic, and found by auditing every row with an
+  // empty list: SorryApp publishes components on a SEPARATE endpoint, named in
+  // the page payload as links.components.href. Without it the row showed a
+  // page-level status and nothing underneath.
+  const page = (state, components) => ({ page: { state, url: 'https://status.example' }, components });
+
+  it('renders the components fetched from the second endpoint', () => {
+    const r = parseSorryApp(
+      page('operational', [
+        { name: 'iorad capture', state: 'operational' },
+        { name: 'iorad api', state: 'operational' },
+      ]),
+      { vendor: 'Iorad', now },
+    );
+    expect(r.components.map((c) => c.name)).toEqual(['iorad capture', 'iorad api']);
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('dedupes repeated names, keeping the worst', () => {
+    // iorad lists two "iorad editor" and two "iorad player" entries, one per
+    // environment. Showing a service twice with different statuses reads as a
+    // bug in the board rather than a fact about the vendor.
+    const r = parseSorryApp(
+      page('operational', [
+        { name: 'iorad editor', state: 'operational' },
+        { name: 'iorad editor', state: 'major_outage' },
+      ]),
+      { vendor: 'Iorad', now },
+    );
+    expect(r.components).toHaveLength(1);
+    expect(r.components[0].severity).toBe(SEVERITY.MAJOR_OUTAGE);
+  });
+
+  it('lets a broken component override a green page-level state', () => {
+    // The page summary is not authoritative over its own parts.
+    const r = parseSorryApp(
+      page('operational', [{ name: 'iorad api', state: 'major_outage' }]),
+      { vendor: 'Iorad', now },
+    );
+    expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(r.description).toMatch(/iorad api/);
+  });
+
+  it('still works when the components endpoint could not be fetched', () => {
+    // It is advisory: a failed second request must not sink the row.
+    const r = parseSorryApp({ page: { state: 'operational' } }, { vendor: 'Iorad', now });
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+    expect(r.components).toEqual([]);
+  });
+});
+
+describe('betterstack /sections resources (stormboard)', () => {
+  // Found by reading the status page's network log: the main page HTML carries
+  // NO resource names, so the row had a page-level status and nothing under it.
+  const frag = (rows) =>
+    rows
+      .map(
+        ([state, name]) =>
+          `<div class='d-flex align-items-center status-page__resource-name'>` +
+          `<img src="https://x/assets/status_pages/${state}_small-abc.png" />\n${name}\n</div>`,
+      )
+      .join('');
+
+  it('extracts each resource and its state from the icon filename', () => {
+    // The state is read from the ICON FILENAME, not a colour: the inline hex
+    // colours would change silently with a theme tweak.
+    const c = parseBetterStackSections(frag([['operational', 'https://api.example.com/docs']]));
+    expect(c).toHaveLength(1);
+    expect(c[0].severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('names a resource by host, since these are monitored URLs', () => {
+    const c = parseBetterStackSections(frag([['operational', 'https://api.stormboard.com/docs']]));
+    expect(c[0].name).toBe('api.stormboard.com');
+  });
+
+  it('maps every state BetterStack ships and fails closed on a new one', () => {
+    const sev = (s) => parseBetterStackSections(frag([[s, 'https://x.example/']]))[0].severity;
+    expect(sev('operational')).toBe(SEVERITY.OPERATIONAL);
+    expect(sev('degraded')).toBe(SEVERITY.DEGRADED);
+    expect(sev('downtime')).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(sev('maintenance')).toBe(SEVERITY.MAINTENANCE);
+    expect(sev('not_monitored')).toBe(SEVERITY.UNKNOWN);
+    expect(sev('brand_new')).toBe(SEVERITY.UNKNOWN);
+  });
+
+  it('returns nothing rather than throwing when the fragment is absent', () => {
+    for (const bad of ['', null, undefined, '<html>nope</html>']) {
+      expect(parseBetterStackSections(bad)).toEqual([]);
+    }
+  });
+
+  it('keeps a non-URL label as written', () => {
+    expect(parseBetterStackSections(frag([['operational', 'Web application']]))[0].name).toBe(
+      'Web application',
+    );
   });
 });

@@ -14,8 +14,8 @@
  * none (finding M5).
  */
 
-import { SEVERITY, compareRecords, rank } from './severity.js';
-import { unknownRecord } from './record.js';
+import { SEVERITY, compareRecords, rank, worst as worstOf } from './severity.js';
+import { unknownRecord, makeRecord } from './record.js';
 import { parseStatuspage } from './adapters/statuspage.js';
 import { parseInstatus } from './adapters/instatus.js';
 import { parseGoogle } from './adapters/google.js';
@@ -23,9 +23,14 @@ import { parseApple } from './adapters/apple.js';
 import { parseOktaAtom } from './adapters/okta.js';
 import { parseSalesforce } from './adapters/salesforce.js';
 import { parseConcur } from './adapters/concur.js';
+import { parseConcurStatus } from './adapters/concur-status.js';
 import { parseSorryApp } from './adapters/sorryapp.js';
 import { parseBetterStack } from './adapters/betterstack.js';
-import { parseMicrosoft } from './adapters/microsoft.js';
+import { parseMicrosoft, parseMicrosoftFeed, parseMicrosoftConsumer, parseMicrosoftAdminPost } from './adapters/microsoft.js';
+import { parseAzureFeed, parseAzureDevOps, parseAzurePost } from './adapters/azure.js';
+import { parseAws } from './adapters/aws.js';
+import { parseIbmCloud } from './adapters/ibm.js';
+import { parseOracle } from './adapters/oracle.js';
 import { parseMetaStatus } from './adapters/metastatus.js';
 import { parseSignal } from './adapters/signal.js';
 
@@ -85,8 +90,15 @@ const JSON_ADAPTERS = {
   apple: parseApple,
   salesforce: parseSalesforce,
   concur: parseConcur,
+  'concur-status': parseConcurStatus,
   sorryapp: parseSorryApp,
   microsoft: parseMicrosoft,
+  'azure-devops': parseAzureDevOps,
+  'azure-post': parseAzurePost,
+  'microsoft-consumer': parseMicrosoftConsumer,
+  'microsoft-admin': parseMicrosoftAdminPost,
+  aws: parseAws,
+  oracle: parseOracle,
   metastatus: parseMetaStatus,
 };
 
@@ -96,6 +108,9 @@ const JSON_ADAPTERS = {
  */
 const TEXT_ADAPTERS = {
   okta: parseOktaAtom,
+  'microsoft-feed': parseMicrosoftFeed,
+  'azure-feed': parseAzureFeed,
+  'ibm-cloud': parseIbmCloud,
   signal: parseSignal,
   betterstack: parseBetterStack,
 };
@@ -103,17 +118,22 @@ const TEXT_ADAPTERS = {
 /**
  * HTTP statuses worth a second look.
  *
- * 404 is deliberately included, which is unusual. Microsoft's status endpoint
- * was measured at roughly 50% availability on 2026-07-31 — the same URL
- * returning 200, then 404, then 404 within seconds, and its sibling on
- * admin.microsoft.com alternating 404/200/404/200. Treating that as permanent
- * would render a healthy vendor UNKNOWN half the time: technically fail-closed,
- * but the kind of noise that trains an operator to stop reading the board.
+ * 404 is NOT retryable, despite once being listed here.
  *
- * The cost of being wrong is bounded — after the attempt cap the answer is
- * still UNKNOWN, never a green row.
+ * It was added because Microsoft's endpoint measured ~50% availability on
+ * 2026-07-31 — the same URL returning 200, then 404, then 404 within seconds.
+ * That reading was real but the diagnosis was wrong: the route was being
+ * PROGRESSIVELY DECOMMISSIONED, not flapping. By 2026-08-01 it answered 404
+ * every time with `{"Message":"No HTTP resource was found ..."}`, and so did
+ * the admin.microsoft.com sibling configured as its fallback.
+ *
+ * Retrying a retired route cannot succeed. It spends up to three subrequests
+ * per vendor from a budget capped at 50 to arrive at the same `unknown` — and
+ * on the free plan that spend is exactly what starved other vendors. A 404 is
+ * a statement that the resource does not exist; the correct response is to fix
+ * the URL, which is what was done (see adapters/microsoft.js).
  */
-const RETRYABLE_STATUS = new Set([404, 408, 425, 429, 500, 502, 503, 504]);
+const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 /** Attempts per vendor, including the first. */
 const MAX_ATTEMPTS = 3;
@@ -155,6 +175,37 @@ async function fetchWithFallback(urls, ctx) {
  * @param {object} ctx
  * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string}>}
  */
+/**
+ * Decode a response body, honouring UTF-16.
+ *
+ * `response.text()` ALWAYS decodes as UTF-8 per the fetch spec, regardless of
+ * the charset the server declared. AWS serves
+ * health.aws.amazon.com/public/currentevents as
+ * `application/json;charset=utf-16` with a BOM, so text() would return
+ * mojibake and every parse would fail closed to `unknown` -- a vendor that
+ * looks broken when it is merely unusual.
+ *
+ * Sniffs the BOM rather than trusting the header, because the bytes are the
+ * ground truth and a mislabelled charset is commoner than a wrong BOM. Falls
+ * back to UTF-8, which is what every other vendor here uses.
+ *
+ * @param {Response} response
+ * @returns {Promise<string>}
+ */
+async function decodeBody(response) {
+  const declared = String(response.headers?.get?.('content-type') ?? '').toLowerCase();
+  if (!declared.includes('utf-16')) return response.text();
+
+  const buf = new Uint8Array(await response.arrayBuffer());
+  const encoding =
+    buf[0] === 0xff && buf[1] === 0xfe
+      ? 'utf-16le'
+      : buf[0] === 0xfe && buf[1] === 0xff
+        ? 'utf-16be'
+        : 'utf-16le'; // declared utf-16 with no BOM: little-endian is the common case
+  return new TextDecoder(encoding).decode(buf);
+}
+
 async function fetchWithRetry(url, ctx) {
   const { fetchFn, timeoutMs, retryDelayMs, budget } = ctx;
   let lastReason = 'fetch failed';
@@ -190,7 +241,7 @@ async function fetchWithRetry(url, ctx) {
         return { ok: false, reason: lastReason };
       }
 
-      return { ok: true, body: await response.text() };
+      return { ok: true, body: await decodeBody(response) };
     } catch (error) {
       // A network-level failure is transient by nature; retry it.
       lastReason = `fetch failed: ${error?.message ?? String(error)}`;
@@ -208,6 +259,102 @@ async function fetchWithRetry(url, ctx) {
  * @param {object} ctx
  * @returns {Promise<import('./record.js').StatusRecord>}
  */
+/**
+ * Collect a vendor whose status comes from SEVERAL endpoints, merged into one
+ * row.
+ *
+ * Microsoft is the motivating case. It publishes four unrelated feeds --
+ * consumer products, Azure, the M365 admin centre, the Power Platform admin
+ * centre -- plus Azure DevOps on a separate host. As five sibling rows they
+ * sorted apart alphabetically and read as five unrelated companies. As one row
+ * with grouped components, a reader sees "Microsoft" and expands to find which
+ * part is affected, which is the same progressive disclosure every other
+ * multi-component vendor already uses.
+ *
+ * Merge rules, all of which follow from the governing rule:
+ *   - Row severity is the WORST across sources. One healthy source cannot mask
+ *     a broken sibling.
+ *   - A source that fails contributes an `unknown` component and its reason,
+ *     rather than being silently dropped. Dropping it would let the row read
+ *     green while a quarter of it was never checked -- the starvation bug
+ *     again, at vendor scope.
+ *   - Components are prefixed with their group so an expanded list is
+ *     readable; a source with no components of its own becomes a single
+ *     component named for its group.
+ *
+ * Subrequest cost is unchanged: five sources cost the same five fetches these
+ * did as five separate vendors.
+ *
+ * @param {object} vendor
+ * @param {object} ctx
+ */
+async function collectComposite(vendor, ctx) {
+  const { now } = ctx;
+  const name = vendor?.name ?? 'unknown';
+  const sources = Array.isArray(vendor.sources) ? vendor.sources : [];
+
+  if (sources.length === 0) {
+    return unknownRecord(name, 'composite vendor declared no sources', {
+      now,
+      sourceUrl: vendor?.pageUrl,
+    });
+  }
+
+  const parts = await Promise.all(
+    sources.map((s) =>
+      collectOne({ ...s, name }, ctx).then(
+        (r) => ({ source: s, record: r }),
+        (e) => ({
+          source: s,
+          record: unknownRecord(name, `collector error: ${e}`, { now }),
+        }),
+      ),
+    ),
+  );
+
+  const components = [];
+  const warnings = [];
+  const affected = [];
+
+  for (const { source, record } of parts) {
+    const group = source.group ?? record.service ?? 'Status';
+    const own = Array.isArray(record.components) ? record.components : [];
+
+    if (own.length > 0) {
+      for (const c of own) {
+        components.push({ ...c, name: `${group} · ${c.name}` });
+      }
+    } else {
+      // A single-status source (e.g. "Azure: Available") has no components of
+      // its own; represent it as one, so it is visible when expanded.
+      components.push({
+        name: group,
+        severity: record.severity,
+        description: record.description ?? '',
+      });
+    }
+
+    for (const w of record.warnings ?? []) warnings.push(`${group}: ${w}`);
+    if (rank(record.severity) > rank(SEVERITY.OPERATIONAL)) affected.push(group);
+  }
+
+  const severity = worstOf(components.map((c) => c.severity));
+
+  return makeRecord({
+    vendor: name,
+    service: vendor.service ?? name,
+    severity,
+    incidentName: affected.length ? 'Service issue' : '',
+    description: affected.length
+      ? `Affected: ${[...new Set(affected)].join(', ')}.`
+      : `All ${components.length} monitored Microsoft services report healthy.`,
+    sourceUrl: vendor?.pageUrl ?? '',
+    components,
+    warnings,
+    now,
+  });
+}
+
 async function collectOne(vendor, ctx) {
   const { fetchFn, now, timeoutMs } = ctx;
   const name = vendor?.name ?? 'unknown';
@@ -235,7 +382,21 @@ async function collectOne(vendor, ctx) {
   const body = attempt.body;
 
   try {
-    if (isText) return TEXT_ADAPTERS[vendor.type](body, opts);
+    if (isText) {
+      // BetterStack renders its resource list from a separate /sections
+      // fragment; the main page carries no resource names at all.
+      if (vendor.type === 'betterstack' && vendor.componentsUrl) {
+        try {
+          const res = await fetchFn(vendor.componentsUrl, {
+            headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+          });
+          opts.sections = await res.text();
+        } catch {
+          /* advisory: the page-level state still stands */
+        }
+      }
+      return TEXT_ADAPTERS[vendor.type](body, opts);
+    }
 
     let payload;
     try {
@@ -268,6 +429,56 @@ async function collectOne(vendor, ctx) {
         if (Array.isArray(extra?.components)) payload.components = extra.components;
       } catch {
         /* components are advisory; page.status still decides severity */
+      }
+    }
+
+    // SorryApp splits its component list onto a second endpoint, advertised in
+    // the page payload as `links.components.href`. Without it the row has a
+    // page-level status and NOTHING underneath, so a reader cannot see what the
+    // vendor even covers -- the same gap found on Oracle, IBM and Seismic.
+    if (vendor.type === 'sorryapp' && vendor.componentsUrl) {
+      try {
+        const res = await fetchFn(vendor.componentsUrl, {
+          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+        });
+        const extra = JSON.parse(await res.text());
+        const list = Array.isArray(extra) ? extra : extra?.components;
+        if (Array.isArray(list)) payload.components = list;
+      } catch {
+        /* components are advisory; page state still decides severity */
+      }
+    }
+
+    // concur-status reads one document PER DATA CENTRE and merges them.
+    // Reading only us2 would report Concur healthy while EU customers were
+    // down; the four together are still 38x cheaper than the 23.3 MB incidents
+    // feed they replace.
+    if (vendor.type === 'concur-status' && Array.isArray(vendor.statusUrls)) {
+      const docs = [];
+      for (const u of vendor.statusUrls) {
+        try {
+          const res = await fetchFn(u, {
+            headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+          });
+          docs.push(JSON.parse(await res.text()));
+        } catch {
+          /* a missing data centre must not sink the others */
+        }
+      }
+      payload = docs;
+    }
+
+    // Concur's service catalogue lives on a separate endpoint, found by reading
+    // the status page's network log. Without it the row listed services only
+    // while something was broken, and showed nothing at all when healthy.
+    if (vendor.type === 'concur' && vendor.componentsUrl) {
+      try {
+        const res = await fetchFn(vendor.componentsUrl, {
+          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+        });
+        opts.serviceCatalogue = JSON.parse(await res.text());
+      } catch {
+        /* catalogue is advisory; incidents still decide severity */
       }
     }
 
@@ -348,9 +559,10 @@ export async function collect(config, ctx) {
   const budget = { remaining: retryBudget };
 
   const settled = await Promise.allSettled(
-    config.vendors.map((v) =>
-      collectOne(v, { fetchFn: meteredFetch, now, timeoutMs, retryDelayMs, budget }),
-    ),
+    config.vendors.map((v) => {
+      const ctx = { fetchFn: meteredFetch, now, timeoutMs, retryDelayMs, budget };
+      return v?.type === 'composite' ? collectComposite(v, ctx) : collectOne(v, ctx);
+    }),
   );
 
   const records = settled.map((outcome, i) =>

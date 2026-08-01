@@ -56,7 +56,7 @@
   // Collect every 15 minutes. Cron invocations get a 15-minute wall-time
   // budget, against a run that completes in seconds - the vendors are fetched
   // concurrently, not serially.
-  // Fires every 5 minutes and collects ONE of three shards, so each vendor is
+  // Fires every minute and collects ONE of fifteen shards, so each vendor is
   // still refreshed once per 15 minutes -- the interval the page promises is
   // unchanged. The split exists because the free plan caps an invocation at 50
   // external subrequests: the full 41-vendor list measured 47, so any run
@@ -67,7 +67,7 @@
   // rotation is derived from the clock, so a change here without a change there
   // silently stops some shards from ever being collected.
   "triggers": {
-    "crons": ["*/5 * * * *"]
+    "crons": ["* * * * *"]
   },
 
   // Workers Logs on from day one. The 2026-07-25 Turnstile false alarm ran

@@ -1,0 +1,3600 @@
+[
+ {
+  "date": "1785519198",
+  "arn": "arn:aws:health:ap-south-1::event/DIRECTCONNECT/AWS_DIRECTCONNECT_OPERATIONAL_ISSUE/AWS_DIRECTCONNECT_OPERATIONAL_ISSUE_00B73_1C6411F1489",
+  "region_name": "Mumbai",
+  "status": "0",
+  "service": "directconnect-ap-south-1",
+  "service_name": "AWS Direct Connect",
+  "summary": "[RESOLVED] Elevated Packet Loss",
+  "event_log": [
+   {
+    "summary": "Elevated Packet Loss",
+    "message": "We can confirm elevated network packet loss, impacting AWS Direct Connect connectivity in AP-SOUTH-1 Region. Our engineering team was automatically engaged at 9:54 AM to begin investigating the issue. There are no workarounds available at this time. We will provide another update by 11:30 AM PDT.",
+    "status": 1,
+    "timestamp": 1785519198
+   }
+  ],
+  "end_time": "1785524075"
+ },
+ {
+  "date": "1772369485",
+  "arn": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5",
+  "region_name": "UAE",
+  "status": "3",
+  "service": "multipleservices-me-central-1",
+  "service_name": "Multiple services",
+  "summary": "Increased Error Rates",
+  "event_log": [
+   {
+    "summary": "Increased Error Rates",
+    "message": "We are investigating issues with AWS services in the ME-CENTRAL-1 Region.",
+    "status": 1,
+    "timestamp": 1772369485
+   }
+  ],
+  "impacted_services": {
+   "cloudwatchsynthetics-me-central-1": {
+    "service_name": "Amazon CloudWatch Synthetics",
+    "current": "3",
+    "max": "3"
+   },
+   "s3rtc-me-central-1": {
+    "service_name": "Amazon S3 Replication Time Control",
+    "current": "3",
+    "max": "3"
+   },
+   "vpclattice-me-central-1": {
+    "service_name": "Amazon VPC Lattice",
+    "current": "3",
+    "max": "3"
+   },
+   "iamidentitycenter-me-central-1": {
+    "service_name": "AWS IAM Identity Center",
+    "current": "3",
+    "max": "3"
+   },
+   "rds-me-central-1": {
+    "service_name": "Amazon Relational Database Service",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudwatch-me-central-1": {
+    "service_name": "Amazon CloudWatch",
+    "current": "3",
+    "max": "3"
+   },
+   "signin-me-central-1": {
+    "service_name": "AWS Sign-In",
+    "current": "3",
+    "max": "3"
+   },
+   "endusermessaging-me-central-1": {
+    "service_name": "AWS End User Messaging",
+    "current": "3",
+    "max": "3"
+   },
+   "airflow-me-central-1": {
+    "service_name": "Amazon Managed Workflows for Apache Airflow",
+    "current": "3",
+    "max": "3"
+   },
+   "fms-me-central-1": {
+    "service_name": "AWS Firewall Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "swf-me-central-1": {
+    "service_name": "Amazon Simple Workflow Service",
+    "current": "3",
+    "max": "3"
+   },
+   "iotdevicedefender-me-central-1": {
+    "service_name": "AWS IoT Device Defender",
+    "current": "3",
+    "max": "3"
+   },
+   "trafficmirroring-me-central-1": {
+    "service_name": "Traffic Mirroring",
+    "current": "3",
+    "max": "3"
+   },
+   "natgateway-me-central-1": {
+    "service_name": "AWS NAT Gateway",
+    "current": "3",
+    "max": "3"
+   },
+   "aps": {
+    "service_name": "Amazon Managed Service for Prometheus",
+    "current": "3",
+    "max": "3"
+   },
+   "batch-me-central-1": {
+    "service_name": "AWS Batch",
+    "current": "3",
+    "max": "3"
+   },
+   "datasync-me-central-1": {
+    "service_name": "AWS DataSync",
+    "current": "3",
+    "max": "3"
+   },
+   "directconnect-me-central-1": {
+    "service_name": "AWS Direct Connect",
+    "current": "3",
+    "max": "3"
+   },
+   "globalaccelerator": {
+    "service_name": "AWS Global Accelerator",
+    "current": "0",
+    "max": "1"
+   },
+   "secretsmanager-me-central-1": {
+    "service_name": "AWS Secrets Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "appwizard-me-central-1": {
+    "service_name": "AWS Launch Wizard",
+    "current": "3",
+    "max": "3"
+   },
+   "emr-me-central-1": {
+    "service_name": "Amazon Elastic MapReduce",
+    "current": "3",
+    "max": "3"
+   },
+   "fsx-me-central-1": {
+    "service_name": "Amazon FSx",
+    "current": "3",
+    "max": "3"
+   },
+   "route53": {
+    "service_name": "Amazon Route 53",
+    "current": "0",
+    "max": "2"
+   },
+   "cloudtrail-me-central-1": {
+    "service_name": "AWS CloudTrail",
+    "current": "3",
+    "max": "3"
+   },
+   "grafana": {
+    "service_name": "Amazon Managed Grafana",
+    "current": "3",
+    "max": "3"
+   },
+   "vpc-me-central-1": {
+    "service_name": "Amazon Virtual Private Cloud",
+    "current": "3",
+    "max": "3"
+   },
+   "resourcegroups-me-central-1": {
+    "service_name": "AWS Resource Groups",
+    "current": "3",
+    "max": "3"
+   },
+   "verifiedaccess": {
+    "service_name": "AWS Verified Access",
+    "current": "3",
+    "max": "3"
+   },
+   "resourcegroupstaggingapi-me-central-1": {
+    "service_name": "AWS Resource Groups Tagging API",
+    "current": "3",
+    "max": "3"
+   },
+   "management-console": {
+    "service_name": "AWS Management Console",
+    "current": "0",
+    "max": "3"
+   },
+   "s3-me-central-1": {
+    "service_name": "Amazon Simple Storage Service",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudhsm-me-central-1": {
+    "service_name": "AWS CloudHSM",
+    "current": "3",
+    "max": "3"
+   },
+   "elasticsearch-me-central-1": {
+    "service_name": "Amazon OpenSearch Service",
+    "current": "3",
+    "max": "3"
+   },
+   "consolemobileapp-me-central-1": {
+    "service_name": "AWS Console Mobile App",
+    "current": "3",
+    "max": "3"
+   },
+   "quicksight-me-central-1": {
+    "service_name": "Amazon Quick Suite",
+    "current": "3",
+    "max": "3"
+   },
+   "applicationinsights-me-central-1": {
+    "service_name": "Amazon CloudWatch Application Insights",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudshell-me-central-1": {
+    "service_name": "AWS CloudShell",
+    "current": "3",
+    "max": "3"
+   },
+   "servicequotas-me-central-1": {
+    "service_name": "AWS Service Quotas",
+    "current": "3",
+    "max": "3"
+   },
+   "amplify": {
+    "service_name": "AWS Amplify",
+    "current": "3",
+    "max": "3"
+   },
+   "infrastructureperformance-me-central-1": {
+    "service_name": "Infrastructure Performance",
+    "current": "3",
+    "max": "3"
+   },
+   "transfer-me-central-1": {
+    "service_name": "AWS Transfer Family",
+    "current": "3",
+    "max": "3"
+   },
+   "elasticbeanstalk-me-central-1": {
+    "service_name": "AWS Elastic Beanstalk",
+    "current": "3",
+    "max": "3"
+   },
+   "rum-me-central-1": {
+    "service_name": "Amazon CloudWatch RUM",
+    "current": "3",
+    "max": "3"
+   },
+   "awswaf-me-central-1": {
+    "service_name": "AWS WAF",
+    "current": "3",
+    "max": "3"
+   },
+   "route53resolver-me-central-1": {
+    "service_name": "Amazon Route 53 Resolver",
+    "current": "3",
+    "max": "3"
+   },
+   "emrserverless-me-central-1": {
+    "service_name": "Amazon EMR Serverless",
+    "current": "3",
+    "max": "3"
+   },
+   "config-me-central-1": {
+    "service_name": "AWS Config",
+    "current": "3",
+    "max": "3"
+   },
+   "ecs-me-central-1": {
+    "service_name": "Amazon Elastic Container Service",
+    "current": "3",
+    "max": "3"
+   },
+   "kinesisanalytics-me-central-1": {
+    "service_name": "Amazon Managed Service for Apache Flink",
+    "current": "3",
+    "max": "3"
+   },
+   "glue-me-central-1": {
+    "service_name": "AWS Glue",
+    "current": "3",
+    "max": "3"
+   },
+   "reachabilityanalyzer": {
+    "service_name": "Reachability Analyzer",
+    "current": "3",
+    "max": "3"
+   },
+   "security-ir-me-central-1": {
+    "service_name": "AWS Security Incident Response",
+    "current": "3",
+    "max": "3"
+   },
+   "controlcatalog-me-central-1": {
+    "service_name": "Control Catalog",
+    "current": "3",
+    "max": "3"
+   },
+   "ssmsap-me-central-1": {
+    "service_name": "AWS Systems Manager for SAP",
+    "current": "3",
+    "max": "3"
+   },
+   "route53privatedns-me-central-1": {
+    "service_name": "Amazon Route 53 Private DNS",
+    "current": "3",
+    "max": "3"
+   },
+   "eks-me-central-1": {
+    "service_name": "Amazon Elastic Kubernetes Service",
+    "current": "3",
+    "max": "3"
+   },
+   "resourceexplorer-me-central-1": {
+    "service_name": "AWS Resource Explorer",
+    "current": "3",
+    "max": "3"
+   },
+   "elasticache-me-central-1": {
+    "service_name": "Amazon ElastiCache",
+    "current": "3",
+    "max": "3"
+   },
+   "certificatemanager-me-central-1": {
+    "service_name": "AWS Certificate Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "awsiotdevicemanagement-me-central-1": {
+    "service_name": "AWS IoT Device Management",
+    "current": "3",
+    "max": "3"
+   },
+   "neptune-db-me-central-1": {
+    "service_name": "Amazon Neptune",
+    "current": "3",
+    "max": "3"
+   },
+   "docdb-me-central-1": {
+    "service_name": "Amazon DocumentDB",
+    "current": "3",
+    "max": "3"
+   },
+   "state-me-central-1": {
+    "service_name": "AWS Step Functions",
+    "current": "3",
+    "max": "3"
+   },
+   "inspector-me-central-1": {
+    "service_name": "Amazon Inspector",
+    "current": "3",
+    "max": "3"
+   },
+   "controltower-me-central-1": {
+    "service_name": "AWS Control Tower",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudfront": {
+    "service_name": "Amazon CloudFront",
+    "current": "0",
+    "max": "1"
+   },
+   "servicecatalog-me-central-1": {
+    "service_name": "AWS Service Catalog",
+    "current": "3",
+    "max": "3"
+   },
+   "internetconnectivity-me-central-1": {
+    "service_name": "AWS Internet Connectivity",
+    "current": "3",
+    "max": "3"
+   },
+   "kafka-me-central-1": {
+    "service_name": "Amazon Managed Streaming for Apache Kafka",
+    "current": "3",
+    "max": "3"
+   },
+   "lakeformation-me-central-1": {
+    "service_name": "AWS Lake Formation",
+    "current": "3",
+    "max": "3"
+   },
+   "licensemanager-me-central-1": {
+    "service_name": "AWS License Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "outposts-me-central-1": {
+    "service_name": "AWS Outposts",
+    "current": "3",
+    "max": "3"
+   },
+   "vmimportexport-me-central-1": {
+    "service_name": "VM Import/Export",
+    "current": "3",
+    "max": "3"
+   },
+   "fargate-me-central-1": {
+    "service_name": "AWS Fargate",
+    "current": "3",
+    "max": "3"
+   },
+   "ec2-me-central-1": {
+    "service_name": "Amazon Elastic Compute Cloud",
+    "current": "3",
+    "max": "3"
+   },
+   "kms-me-central-1": {
+    "service_name": "AWS Key Management Service",
+    "current": "3",
+    "max": "3"
+   },
+   "servicediscovery-me-central-1": {
+    "service_name": "AWS Cloud Map",
+    "current": "3",
+    "max": "3"
+   },
+   "sts-me-central-1": {
+    "service_name": "AWS Security Token Service",
+    "current": "3",
+    "max": "3"
+   },
+   "workspaces": {
+    "service_name": "Amazon WorkSpaces",
+    "current": "3",
+    "max": "3"
+   },
+   "appconfig-me-central-1": {
+    "service_name": "AWS AppConfig",
+    "current": "3",
+    "max": "3"
+   },
+   "clientvpn-me-central-1": {
+    "service_name": "AWS Client VPN",
+    "current": "3",
+    "max": "3"
+   },
+   "redshift-me-central-1": {
+    "service_name": "Amazon Redshift",
+    "current": "3",
+    "max": "3"
+   },
+   "firehose-me-central-1": {
+    "service_name": "Amazon Data Firehose",
+    "current": "3",
+    "max": "3"
+   },
+   "ipam-me-central-1": {
+    "service_name": "Amazon VPC IP Address Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "elb-me-central-1": {
+    "service_name": "Amazon Elastic Load Balancing",
+    "current": "3",
+    "max": "3"
+   },
+   "dlm-me-central-1": {
+    "service_name": "Amazon Data Lifecycle Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "scheduler-me-central-1": {
+    "service_name": "Amazon EventBridge Scheduler",
+    "current": "3",
+    "max": "3"
+   },
+   "privatelink-me-central-1": {
+    "service_name": "AWS VPCE PrivateLink",
+    "current": "3",
+    "max": "3"
+   },
+   "lambda-me-central-1": {
+    "service_name": "AWS Lambda",
+    "current": "3",
+    "max": "3"
+   },
+   "sqs-me-central-1": {
+    "service_name": "Amazon Simple Queue Service",
+    "current": "3",
+    "max": "3"
+   },
+   "fis-me-central-1": {
+    "service_name": "AWS Fault Injection Service",
+    "current": "3",
+    "max": "3"
+   },
+   "mq-me-central-1": {
+    "service_name": "Amazon MQ",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudwan": {
+    "service_name": "AWS Cloud WAN",
+    "current": "0",
+    "max": "1"
+   },
+   "ec2serialconsole-me-central-1": {
+    "service_name": "EC2 Serial Console",
+    "current": "3",
+    "max": "3"
+   },
+   "elemental-me-central-1": {
+    "service_name": "AWS Elemental",
+    "current": "3",
+    "max": "3"
+   },
+   "storagegateway-me-central-1": {
+    "service_name": "AWS Storage Gateway",
+    "current": "3",
+    "max": "3"
+   },
+   "dynamodb-me-central-1": {
+    "service_name": "Amazon DynamoDB",
+    "current": "3",
+    "max": "3"
+   },
+   "athena-me-central-1": {
+    "service_name": "Amazon Athena",
+    "current": "3",
+    "max": "3"
+   },
+   "appsync-me-central-1": {
+    "service_name": "AWS AppSync",
+    "current": "3",
+    "max": "3"
+   },
+   "kinesis-me-central-1": {
+    "service_name": "Amazon Kinesis Data Streams",
+    "current": "3",
+    "max": "3"
+   },
+   "directoryservice-me-central-1": {
+    "service_name": "AWS Directory Service",
+    "current": "3",
+    "max": "3"
+   },
+   "events-me-central-1": {
+    "service_name": "Amazon EventBridge",
+    "current": "3",
+    "max": "3"
+   },
+   "dms-me-central-1": {
+    "service_name": "AWS Database Migration Service",
+    "current": "3",
+    "max": "3"
+   },
+   "cognito-me-central-1": {
+    "service_name": "Amazon Cognito",
+    "current": "3",
+    "max": "3"
+   },
+   "ram-me-central-1": {
+    "service_name": "AWS Resource Access Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "managedssh-me-central-1": {
+    "service_name": "Amazon EC2 Instance Connect",
+    "current": "3",
+    "max": "3"
+   },
+   "ec2systemsmanager-me-central-1": {
+    "service_name": "AWS Systems Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "imagebuilder-me-central-1": {
+    "service_name": "EC2 Image Builder",
+    "current": "3",
+    "max": "3"
+   },
+   "drs-me-central-1": {
+    "service_name": "AWS Elastic Disaster Recovery",
+    "current": "3",
+    "max": "3"
+   },
+   "glacier-me-central-1": {
+    "service_name": "Amazon Glacier",
+    "current": "3",
+    "max": "3"
+   },
+   "transitgateway-me-central-1": {
+    "service_name": "AWS Transit Gateway",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudformation-me-central-1": {
+    "service_name": "AWS CloudFormation",
+    "current": "3",
+    "max": "3"
+   },
+   "acm-pca-me-central-1": {
+    "service_name": "AWS Private Certificate Authority",
+    "current": "3",
+    "max": "3"
+   },
+   "networkfirewall-me-central-1": {
+    "service_name": "AWS Network Firewall",
+    "current": "3",
+    "max": "3"
+   },
+   "awsiot-me-central-1": {
+    "service_name": "AWS IoT Core",
+    "current": "3",
+    "max": "3"
+   },
+   "computeoptimizer-me-central-1": {
+    "service_name": "AWS Compute Optimizer",
+    "current": "3",
+    "max": "3"
+   },
+   "pca-connector-scep-me-central-1": {
+    "service_name": "AWS Private CA Connector for SCEP",
+    "current": "3",
+    "max": "3"
+   },
+   "mgn-me-central-1": {
+    "service_name": "AWS Application Migration Service",
+    "current": "3",
+    "max": "3"
+   },
+   "verifiedpermissions-me-central-1": {
+    "service_name": "Amazon Verified Permissions",
+    "current": "3",
+    "max": "3"
+   },
+   "codedeploy-me-central-1": {
+    "service_name": "AWS CodeDeploy",
+    "current": "3",
+    "max": "3"
+   },
+   "iamrolesanywhere-me-central-1": {
+    "service_name": "AWS Identity and Access Management Roles Anywhere",
+    "current": "3",
+    "max": "3"
+   },
+   "bedrock-me-central-1": {
+    "service_name": "Amazon Bedrock",
+    "current": "3",
+    "max": "3"
+   },
+   "securityhub-me-central-1": {
+    "service_name": "AWS Security Hub",
+    "current": "3",
+    "max": "3"
+   },
+   "xray-me-central-1": {
+    "service_name": "AWS X-Ray",
+    "current": "3",
+    "max": "3"
+   },
+   "autoscaling-me-central-1": {
+    "service_name": "Auto Scaling",
+    "current": "3",
+    "max": "3"
+   },
+   "backup-me-central-1": {
+    "service_name": "AWS Backup",
+    "current": "3",
+    "max": "3"
+   },
+   "ecr-me-central-1": {
+    "service_name": "Amazon Elastic Container Registry",
+    "current": "3",
+    "max": "3"
+   },
+   "codecommit-me-central-1": {
+    "service_name": "AWS CodeCommit",
+    "current": "3",
+    "max": "3"
+   },
+   "pcaconnectorad-me-central-1": {
+    "service_name": "AWS Private CA Connector for Active Directory",
+    "current": "3",
+    "max": "3"
+   },
+   "guardduty-me-central-1": {
+    "service_name": "Amazon GuardDuty",
+    "current": "3",
+    "max": "3"
+   },
+   "apigateway-me-central-1": {
+    "service_name": "Amazon API Gateway",
+    "current": "3",
+    "max": "3"
+   },
+   "sagemaker-me-central-1": {
+    "service_name": "Amazon SageMaker",
+    "current": "3",
+    "max": "3"
+   },
+   "vpnvpc-me-central-1": {
+    "service_name": "AWS Site-to-Site VPN",
+    "current": "3",
+    "max": "3"
+   },
+   "internetmonitor-me-central-1": {
+    "service_name": "Amazon CloudWatch Internet Monitor",
+    "current": "3",
+    "max": "3"
+   },
+   "elasticfilesystem-me-central-1": {
+    "service_name": "Amazon Elastic File System",
+    "current": "3",
+    "max": "3"
+   },
+   "ses-me-central-1": {
+    "service_name": "Amazon Simple Email Service",
+    "current": "3",
+    "max": "3"
+   },
+   "sns-me-central-1": {
+    "service_name": "Amazon Simple Notification Service",
+    "current": "3",
+    "max": "3"
+   },
+   "codepipeline-me-central-1": {
+    "service_name": "AWS CodePipeline",
+    "current": "3",
+    "max": "3"
+   },
+   "codebuild-me-central-1": {
+    "service_name": "AWS CodeBuild",
+    "current": "3",
+    "max": "3"
+   }
+  },
+  "impacted_service_status_changes": [
+   {
+    "service": "acm-pca-me-central-1",
+    "service_name": "AWS Private Certificate Authority",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "airflow-me-central-1",
+    "service_name": "Amazon Managed Workflows for Apache Airflow",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "amplify",
+    "service_name": "AWS Amplify",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "apigateway-me-central-1",
+    "service_name": "Amazon API Gateway",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "appconfig-me-central-1",
+    "service_name": "AWS AppConfig",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "applicationinsights-me-central-1",
+    "service_name": "Amazon CloudWatch Application Insights",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "appsync-me-central-1",
+    "service_name": "AWS AppSync",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "appwizard-me-central-1",
+    "service_name": "AWS Launch Wizard",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "aps",
+    "service_name": "Amazon Managed Service for Prometheus",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "athena-me-central-1",
+    "service_name": "Amazon Athena",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "autoscaling-me-central-1",
+    "service_name": "Auto Scaling",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "awsiot-me-central-1",
+    "service_name": "AWS IoT Core",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "awsiotdevicemanagement-me-central-1",
+    "service_name": "AWS IoT Device Management",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "awswaf-me-central-1",
+    "service_name": "AWS WAF",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "backup-me-central-1",
+    "service_name": "AWS Backup",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "batch-me-central-1",
+    "service_name": "AWS Batch",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "bedrock-me-central-1",
+    "service_name": "Amazon Bedrock",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "certificatemanager-me-central-1",
+    "service_name": "AWS Certificate Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "clientvpn-me-central-1",
+    "service_name": "AWS Client VPN",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "cloudformation-me-central-1",
+    "service_name": "AWS CloudFormation",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "cloudfront",
+    "service_name": "Amazon CloudFront",
+    "previous_status": "0",
+    "current_status": "1",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "cloudhsm-me-central-1",
+    "service_name": "AWS CloudHSM",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "cloudshell-me-central-1",
+    "service_name": "AWS CloudShell",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "cloudtrail-me-central-1",
+    "service_name": "AWS CloudTrail",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "cloudwan",
+    "service_name": "AWS Cloud WAN",
+    "previous_status": "0",
+    "current_status": "1",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "cloudwatch-me-central-1",
+    "service_name": "Amazon CloudWatch",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "cloudwatchsynthetics-me-central-1",
+    "service_name": "Amazon CloudWatch Synthetics",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "codebuild-me-central-1",
+    "service_name": "AWS CodeBuild",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "codecommit-me-central-1",
+    "service_name": "AWS CodeCommit",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "codedeploy-me-central-1",
+    "service_name": "AWS CodeDeploy",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "codepipeline-me-central-1",
+    "service_name": "AWS CodePipeline",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "cognito-me-central-1",
+    "service_name": "Amazon Cognito",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "computeoptimizer-me-central-1",
+    "service_name": "AWS Compute Optimizer",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "config-me-central-1",
+    "service_name": "AWS Config",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "consolemobileapp-me-central-1",
+    "service_name": "AWS Console Mobile App",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "controlcatalog-me-central-1",
+    "service_name": "Control Catalog",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "controltower-me-central-1",
+    "service_name": "AWS Control Tower",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "datasync-me-central-1",
+    "service_name": "AWS DataSync",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "directconnect-me-central-1",
+    "service_name": "AWS Direct Connect",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "directoryservice-me-central-1",
+    "service_name": "AWS Directory Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "dlm-me-central-1",
+    "service_name": "Amazon Data Lifecycle Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "dms-me-central-1",
+    "service_name": "AWS Database Migration Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "docdb-me-central-1",
+    "service_name": "Amazon DocumentDB",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "drs-me-central-1",
+    "service_name": "AWS Elastic Disaster Recovery",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "dynamodb-me-central-1",
+    "service_name": "Amazon DynamoDB",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "ec2-me-central-1",
+    "service_name": "Amazon Elastic Compute Cloud",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "ec2serialconsole-me-central-1",
+    "service_name": "EC2 Serial Console",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "ec2systemsmanager-me-central-1",
+    "service_name": "AWS Systems Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "ecr-me-central-1",
+    "service_name": "Amazon Elastic Container Registry",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "ecs-me-central-1",
+    "service_name": "Amazon Elastic Container Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "eks-me-central-1",
+    "service_name": "Amazon Elastic Kubernetes Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "elasticache-me-central-1",
+    "service_name": "Amazon ElastiCache",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "elasticbeanstalk-me-central-1",
+    "service_name": "AWS Elastic Beanstalk",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "elasticfilesystem-me-central-1",
+    "service_name": "Amazon Elastic File System",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "elasticsearch-me-central-1",
+    "service_name": "Amazon OpenSearch Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "elb-me-central-1",
+    "service_name": "Amazon Elastic Load Balancing",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "elemental-me-central-1",
+    "service_name": "AWS Elemental",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "emr-me-central-1",
+    "service_name": "Amazon Elastic MapReduce",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "emrserverless-me-central-1",
+    "service_name": "Amazon EMR Serverless",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "endusermessaging-me-central-1",
+    "service_name": "AWS End User Messaging",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "events-me-central-1",
+    "service_name": "Amazon EventBridge",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "fargate-me-central-1",
+    "service_name": "AWS Fargate",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "firehose-me-central-1",
+    "service_name": "Amazon Data Firehose",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "fis-me-central-1",
+    "service_name": "AWS Fault Injection Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "fms-me-central-1",
+    "service_name": "AWS Firewall Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "fsx-me-central-1",
+    "service_name": "Amazon FSx",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "glacier-me-central-1",
+    "service_name": "Amazon Glacier",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "globalaccelerator",
+    "service_name": "AWS Global Accelerator",
+    "previous_status": "0",
+    "current_status": "1",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "glue-me-central-1",
+    "service_name": "AWS Glue",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "grafana",
+    "service_name": "Amazon Managed Grafana",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "guardduty-me-central-1",
+    "service_name": "Amazon GuardDuty",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "iamidentitycenter-me-central-1",
+    "service_name": "AWS IAM Identity Center",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "iamrolesanywhere-me-central-1",
+    "service_name": "AWS Identity and Access Management Roles Anywhere",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "imagebuilder-me-central-1",
+    "service_name": "EC2 Image Builder",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "infrastructureperformance-me-central-1",
+    "service_name": "Infrastructure Performance",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "inspector-me-central-1",
+    "service_name": "Amazon Inspector",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "internetconnectivity-me-central-1",
+    "service_name": "AWS Internet Connectivity",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "internetmonitor-me-central-1",
+    "service_name": "Amazon CloudWatch Internet Monitor",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "iotdevicedefender-me-central-1",
+    "service_name": "AWS IoT Device Defender",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "ipam-me-central-1",
+    "service_name": "Amazon VPC IP Address Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "kafka-me-central-1",
+    "service_name": "Amazon Managed Streaming for Apache Kafka",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "kinesis-me-central-1",
+    "service_name": "Amazon Kinesis Data Streams",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "kinesisanalytics-me-central-1",
+    "service_name": "Amazon Managed Service for Apache Flink",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "kms-me-central-1",
+    "service_name": "AWS Key Management Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "lakeformation-me-central-1",
+    "service_name": "AWS Lake Formation",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "lambda-me-central-1",
+    "service_name": "AWS Lambda",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "licensemanager-me-central-1",
+    "service_name": "AWS License Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "managedssh-me-central-1",
+    "service_name": "Amazon EC2 Instance Connect",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "management-console",
+    "service_name": "AWS Management Console",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "mgn-me-central-1",
+    "service_name": "AWS Application Migration Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "mq-me-central-1",
+    "service_name": "Amazon MQ",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "natgateway-me-central-1",
+    "service_name": "AWS NAT Gateway",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "neptune-db-me-central-1",
+    "service_name": "Amazon Neptune",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "networkfirewall-me-central-1",
+    "service_name": "AWS Network Firewall",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "outposts-me-central-1",
+    "service_name": "AWS Outposts",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "pca-connector-scep-me-central-1",
+    "service_name": "AWS Private CA Connector for SCEP",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "pcaconnectorad-me-central-1",
+    "service_name": "AWS Private CA Connector for Active Directory",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "privatelink-me-central-1",
+    "service_name": "AWS VPCE PrivateLink",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "quicksight-me-central-1",
+    "service_name": "Amazon Quick Suite",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "ram-me-central-1",
+    "service_name": "AWS Resource Access Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "rds-me-central-1",
+    "service_name": "Amazon Relational Database Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "reachabilityanalyzer",
+    "service_name": "Reachability Analyzer",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "redshift-me-central-1",
+    "service_name": "Amazon Redshift",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "resourceexplorer-me-central-1",
+    "service_name": "AWS Resource Explorer",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "resourcegroups-me-central-1",
+    "service_name": "AWS Resource Groups",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "resourcegroupstaggingapi-me-central-1",
+    "service_name": "AWS Resource Groups Tagging API",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "route53",
+    "service_name": "Amazon Route 53",
+    "previous_status": "0",
+    "current_status": "2",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "route53privatedns-me-central-1",
+    "service_name": "Amazon Route 53 Private DNS",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "route53resolver-me-central-1",
+    "service_name": "Amazon Route 53 Resolver",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "rum-me-central-1",
+    "service_name": "Amazon CloudWatch RUM",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "s3-me-central-1",
+    "service_name": "Amazon Simple Storage Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "s3rtc-me-central-1",
+    "service_name": "Amazon S3 Replication Time Control",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "sagemaker-me-central-1",
+    "service_name": "Amazon SageMaker",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "scheduler-me-central-1",
+    "service_name": "Amazon EventBridge Scheduler",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "secretsmanager-me-central-1",
+    "service_name": "AWS Secrets Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "security-ir-me-central-1",
+    "service_name": "AWS Security Incident Response",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "securityhub-me-central-1",
+    "service_name": "AWS Security Hub",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "servicecatalog-me-central-1",
+    "service_name": "AWS Service Catalog",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "servicediscovery-me-central-1",
+    "service_name": "AWS Cloud Map",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "servicequotas-me-central-1",
+    "service_name": "AWS Service Quotas",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "ses-me-central-1",
+    "service_name": "Amazon Simple Email Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "signin-me-central-1",
+    "service_name": "AWS Sign-In",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "sns-me-central-1",
+    "service_name": "Amazon Simple Notification Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "sqs-me-central-1",
+    "service_name": "Amazon Simple Queue Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "ssmsap-me-central-1",
+    "service_name": "AWS Systems Manager for SAP",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "state-me-central-1",
+    "service_name": "AWS Step Functions",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "storagegateway-me-central-1",
+    "service_name": "AWS Storage Gateway",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "sts-me-central-1",
+    "service_name": "AWS Security Token Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "swf-me-central-1",
+    "service_name": "Amazon Simple Workflow Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "trafficmirroring-me-central-1",
+    "service_name": "Traffic Mirroring",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "transfer-me-central-1",
+    "service_name": "AWS Transfer Family",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "transitgateway-me-central-1",
+    "service_name": "AWS Transit Gateway",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "verifiedaccess",
+    "service_name": "AWS Verified Access",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "verifiedpermissions-me-central-1",
+    "service_name": "Amazon Verified Permissions",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "vmimportexport-me-central-1",
+    "service_name": "VM Import/Export",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "vpc-me-central-1",
+    "service_name": "Amazon Virtual Private Cloud",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "vpclattice-me-central-1",
+    "service_name": "Amazon VPC Lattice",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "vpnvpc-me-central-1",
+    "service_name": "AWS Site-to-Site VPN",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "workspaces",
+    "service_name": "Amazon WorkSpaces",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "xray-me-central-1",
+    "service_name": "AWS X-Ray",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772369485000
+   },
+   {
+    "service": "cloudfront",
+    "service_name": "Amazon CloudFront",
+    "previous_status": "1",
+    "current_status": "0",
+    "timestamp": 1778054773000
+   },
+   {
+    "service": "cloudwan",
+    "service_name": "AWS Cloud WAN",
+    "previous_status": "1",
+    "current_status": "0",
+    "timestamp": 1778054773000
+   },
+   {
+    "service": "globalaccelerator",
+    "service_name": "AWS Global Accelerator",
+    "previous_status": "1",
+    "current_status": "0",
+    "timestamp": 1778054773000
+   },
+   {
+    "service": "management-console",
+    "service_name": "AWS Management Console",
+    "previous_status": "3",
+    "current_status": "0",
+    "timestamp": 1778054773000
+   },
+   {
+    "service": "route53",
+    "service_name": "Amazon Route 53",
+    "previous_status": "2",
+    "current_status": "0",
+    "timestamp": 1778054773000
+   }
+  ]
+ },
+ {
+  "date": "1772430987",
+  "arn": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E",
+  "region_name": "Bahrain",
+  "status": "3",
+  "service": "multipleservices-me-south-1",
+  "service_name": "Multiple services",
+  "summary": "Increased Error Rates",
+  "event_log": [
+   {
+    "summary": "Increased connectivity issues and API Error Rates",
+    "message": "We are investigating increased API error rates in a single Availability Zone (mes1-az2) in the ME-SOUTH-1 Region.",
+    "status": 1,
+    "timestamp": 1772430987
+   }
+  ],
+  "impacted_services": {
+   "resourcegroups-me-south-1": {
+    "service_name": "AWS Resource Groups",
+    "current": "3",
+    "max": "3"
+   },
+   "s3-me-south-1": {
+    "service_name": "Amazon Simple Storage Service",
+    "current": "3",
+    "max": "3"
+   },
+   "codecommit-me-south-1": {
+    "service_name": "AWS CodeCommit",
+    "current": "3",
+    "max": "3"
+   },
+   "awswaf-me-south-1": {
+    "service_name": "AWS WAF",
+    "current": "3",
+    "max": "3"
+   },
+   "ecr-me-south-1": {
+    "service_name": "Amazon Elastic Container Registry",
+    "current": "3",
+    "max": "3"
+   },
+   "lakeformation-me-south-1": {
+    "service_name": "AWS Lake Formation",
+    "current": "3",
+    "max": "3"
+   },
+   "reachabilityanalyzer-me-south-1": {
+    "service_name": "Reachability Analyzer",
+    "current": "3",
+    "max": "3"
+   },
+   "firehose-me-south-1": {
+    "service_name": "Amazon Data Firehose",
+    "current": "3",
+    "max": "3"
+   },
+   "glacier-me-south-1": {
+    "service_name": "Amazon Glacier",
+    "current": "3",
+    "max": "3"
+   },
+   "redshift-me-south-1": {
+    "service_name": "Amazon Redshift",
+    "current": "3",
+    "max": "3"
+   },
+   "kafka-me-south-1": {
+    "service_name": "Amazon Managed Streaming for Apache Kafka",
+    "current": "3",
+    "max": "3"
+   },
+   "detective-me-south-1": {
+    "service_name": "Amazon Detective",
+    "current": "3",
+    "max": "3"
+   },
+   "trafficmirroring-me-south-1": {
+    "service_name": "Traffic Mirroring",
+    "current": "3",
+    "max": "3"
+   },
+   "backup-me-south-1": {
+    "service_name": "AWS Backup",
+    "current": "3",
+    "max": "3"
+   },
+   "transcribe-me-south-1": {
+    "service_name": "Amazon Transcribe",
+    "current": "3",
+    "max": "3"
+   },
+   "internetconnectivity-me-south-1": {
+    "service_name": "AWS Internet Connectivity",
+    "current": "3",
+    "max": "3"
+   },
+   "apigateway-me-south-1": {
+    "service_name": "Amazon API Gateway",
+    "current": "3",
+    "max": "3"
+   },
+   "transitgateway-me-south-1": {
+    "service_name": "AWS Transit Gateway",
+    "current": "3",
+    "max": "3"
+   },
+   "pcaconnectorad-me-south-1": {
+    "service_name": "AWS Private CA Connector for Active Directory",
+    "current": "3",
+    "max": "3"
+   },
+   "globalaccelerator": {
+    "service_name": "AWS Global Accelerator",
+    "current": "0",
+    "max": "1"
+   },
+   "cognito-me-south-1": {
+    "service_name": "Amazon Cognito",
+    "current": "3",
+    "max": "3"
+   },
+   "kms-me-south-1": {
+    "service_name": "AWS Key Management Service",
+    "current": "3",
+    "max": "3"
+   },
+   "vmimportexport-me-south-1": {
+    "service_name": "VM Import/Export",
+    "current": "3",
+    "max": "3"
+   },
+   "emr-me-south-1": {
+    "service_name": "Amazon Elastic MapReduce",
+    "current": "3",
+    "max": "3"
+   },
+   "sts-me-south-1": {
+    "service_name": "AWS Security Token Service",
+    "current": "3",
+    "max": "3"
+   },
+   "route53": {
+    "service_name": "Amazon Route 53",
+    "current": "0",
+    "max": "1"
+   },
+   "controltower-me-south-1": {
+    "service_name": "AWS Control Tower",
+    "current": "3",
+    "max": "3"
+   },
+   "xray-me-south-1": {
+    "service_name": "AWS X-Ray",
+    "current": "3",
+    "max": "3"
+   },
+   "sns-me-south-1": {
+    "service_name": "Amazon Simple Notification Service",
+    "current": "3",
+    "max": "3"
+   },
+   "privatelink-me-south-1": {
+    "service_name": "AWS VPCE PrivateLink",
+    "current": "3",
+    "max": "3"
+   },
+   "sqs-me-south-1": {
+    "service_name": "Amazon Simple Queue Service",
+    "current": "3",
+    "max": "3"
+   },
+   "certificatemanager-me-south-1": {
+    "service_name": "AWS Certificate Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "macie-me-south-1": {
+    "service_name": "Amazon Macie",
+    "current": "3",
+    "max": "3"
+   },
+   "elb-me-south-1": {
+    "service_name": "Amazon Elastic Load Balancing",
+    "current": "3",
+    "max": "3"
+   },
+   "secretsmanager-me-south-1": {
+    "service_name": "AWS Secrets Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudtrail-me-south-1": {
+    "service_name": "AWS CloudTrail",
+    "current": "3",
+    "max": "3"
+   },
+   "management-console": {
+    "service_name": "AWS Management Console",
+    "current": "0",
+    "max": "2"
+   },
+   "natgateway-me-south-1": {
+    "service_name": "AWS NAT Gateway",
+    "current": "3",
+    "max": "3"
+   },
+   "amplify-me-south-1": {
+    "service_name": "AWS Amplify",
+    "current": "3",
+    "max": "3"
+   },
+   "config-me-south-1": {
+    "service_name": "AWS Config",
+    "current": "3",
+    "max": "3"
+   },
+   "neptune-db-me-south-1": {
+    "service_name": "Amazon Neptune",
+    "current": "3",
+    "max": "3"
+   },
+   "kinesisvideo-me-south-1": {
+    "service_name": "Amazon Kinesis Video Streams",
+    "current": "3",
+    "max": "3"
+   },
+   "polly-me-south-1": {
+    "service_name": "Amazon Polly",
+    "current": "3",
+    "max": "3"
+   },
+   "ses-me-south-1": {
+    "service_name": "Amazon Simple Email Service",
+    "current": "3",
+    "max": "3"
+   },
+   "scheduler-me-south-1": {
+    "service_name": "Amazon EventBridge Scheduler",
+    "current": "3",
+    "max": "3"
+   },
+   "state-me-south-1": {
+    "service_name": "AWS Step Functions",
+    "current": "3",
+    "max": "3"
+   },
+   "elasticbeanstalk-me-south-1": {
+    "service_name": "AWS Elastic Beanstalk",
+    "current": "3",
+    "max": "3"
+   },
+   "amplifyadmin-me-south-1": {
+    "service_name": "AWS Amplify Admin",
+    "current": "3",
+    "max": "3"
+   },
+   "freertos-me-south-1": {
+    "service_name": "Amazon FreeRTOS",
+    "current": "3",
+    "max": "3"
+   },
+   "ec2systemsmanager-me-south-1": {
+    "service_name": "AWS Systems Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "mgn-me-south-1": {
+    "service_name": "AWS Application Migration Service",
+    "current": "3",
+    "max": "3"
+   },
+   "signin-me-south-1": {
+    "service_name": "AWS Sign-In",
+    "current": "3",
+    "max": "3"
+   },
+   "dynamodb-me-south-1": {
+    "service_name": "Amazon DynamoDB",
+    "current": "3",
+    "max": "3"
+   },
+   "outposts-me-south-1": {
+    "service_name": "AWS Outposts",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudwatchsynthetics-me-south-1": {
+    "service_name": "Amazon CloudWatch Synthetics",
+    "current": "3",
+    "max": "3"
+   },
+   "servicecatalog-me-south-1": {
+    "service_name": "AWS Service Catalog",
+    "current": "3",
+    "max": "3"
+   },
+   "storagegateway-me-south-1": {
+    "service_name": "AWS Storage Gateway",
+    "current": "3",
+    "max": "3"
+   },
+   "computeoptimizer-me-south-1": {
+    "service_name": "AWS Compute Optimizer",
+    "current": "3",
+    "max": "3"
+   },
+   "kinesis-me-south-1": {
+    "service_name": "Amazon Kinesis Data Streams",
+    "current": "3",
+    "max": "3"
+   },
+   "dms-me-south-1": {
+    "service_name": "AWS Database Migration Service",
+    "current": "3",
+    "max": "3"
+   },
+   "fms-me-south-1": {
+    "service_name": "AWS Firewall Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "networkfirewall-me-south-1": {
+    "service_name": "AWS Network Firewall",
+    "current": "3",
+    "max": "3"
+   },
+   "inspector-me-south-1": {
+    "service_name": "Amazon Inspector",
+    "current": "3",
+    "max": "3"
+   },
+   "resourceexplorer-me-south-1": {
+    "service_name": "AWS Resource Explorer",
+    "current": "3",
+    "max": "3"
+   },
+   "codedeploy-me-south-1": {
+    "service_name": "AWS CodeDeploy",
+    "current": "3",
+    "max": "3"
+   },
+   "iamidentitycenter-me-south-1": {
+    "service_name": "AWS IAM Identity Center",
+    "current": "3",
+    "max": "3"
+   },
+   "transfer-me-south-1": {
+    "service_name": "AWS Transfer Family",
+    "current": "3",
+    "max": "3"
+   },
+   "imagebuilder-me-south-1": {
+    "service_name": "EC2 Image Builder",
+    "current": "3",
+    "max": "3"
+   },
+   "licensemanager-me-south-1": {
+    "service_name": "AWS License Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "vpnvpc-me-south-1": {
+    "service_name": "AWS Site-to-Site VPN",
+    "current": "3",
+    "max": "3"
+   },
+   "verifiedpermissions-me-south-1": {
+    "service_name": "Amazon Verified Permissions",
+    "current": "3",
+    "max": "3"
+   },
+   "codebuild-me-south-1": {
+    "service_name": "AWS CodeBuild",
+    "current": "3",
+    "max": "3"
+   },
+   "elasticache-me-south-1": {
+    "service_name": "Amazon ElastiCache",
+    "current": "3",
+    "max": "3"
+   },
+   "endusermessaging-me-south-1": {
+    "service_name": "AWS End User Messaging",
+    "current": "3",
+    "max": "3"
+   },
+   "appconfig-me-south-1": {
+    "service_name": "AWS AppConfig",
+    "current": "3",
+    "max": "3"
+   },
+   "groundstation-me-south-1": {
+    "service_name": "AWS Ground Station",
+    "current": "3",
+    "max": "3"
+   },
+   "consolemobileapp-me-south-1": {
+    "service_name": "AWS Console Mobile App",
+    "current": "3",
+    "max": "3"
+   },
+   "appsync-me-south-1": {
+    "service_name": "AWS AppSync",
+    "current": "3",
+    "max": "3"
+   },
+   "drs-me-south-1": {
+    "service_name": "AWS Elastic Disaster Recovery",
+    "current": "3",
+    "max": "3"
+   },
+   "mq-me-south-1": {
+    "service_name": "Amazon MQ",
+    "current": "3",
+    "max": "3"
+   },
+   "appmesh-me-south-1": {
+    "service_name": "AWS App Mesh",
+    "current": "3",
+    "max": "3"
+   },
+   "ec2-me-south-1": {
+    "service_name": "Amazon Elastic Compute Cloud",
+    "current": "3",
+    "max": "3"
+   },
+   "cassandra-me-south-1": {
+    "service_name": "Amazon Keyspaces",
+    "current": "3",
+    "max": "3"
+   },
+   "route53privatedns-me-south-1": {
+    "service_name": "Amazon Route 53 Private DNS",
+    "current": "3",
+    "max": "3"
+   },
+   "codepipeline-me-south-1": {
+    "service_name": "AWS CodePipeline",
+    "current": "3",
+    "max": "3"
+   },
+   "rds-me-south-1": {
+    "service_name": "Amazon Relational Database Service",
+    "current": "3",
+    "max": "3"
+   },
+   "pca-connector-scep-me-south-1": {
+    "service_name": "AWS Private CA Connector for SCEP",
+    "current": "3",
+    "max": "3"
+   },
+   "fargate-me-south-1": {
+    "service_name": "AWS Fargate",
+    "current": "3",
+    "max": "3"
+   },
+   "datasync-me-south-1": {
+    "service_name": "AWS DataSync",
+    "current": "3",
+    "max": "3"
+   },
+   "directconnect-me-south-1": {
+    "service_name": "AWS Direct Connect",
+    "current": "3",
+    "max": "3"
+   },
+   "serverlessrepo-me-south-1": {
+    "service_name": "AWS Serverless Application Repository",
+    "current": "3",
+    "max": "3"
+   },
+   "lambda-me-south-1": {
+    "service_name": "AWS Lambda",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudfront": {
+    "service_name": "Amazon CloudFront",
+    "current": "0",
+    "max": "1"
+   },
+   "servicequotas-me-south-1": {
+    "service_name": "AWS Service Quotas",
+    "current": "3",
+    "max": "3"
+   },
+   "sagemaker-me-south-1": {
+    "service_name": "Amazon SageMaker",
+    "current": "3",
+    "max": "3"
+   },
+   "s3rtc-me-south-1": {
+    "service_name": "Amazon S3 Replication Time Control",
+    "current": "3",
+    "max": "3"
+   },
+   "networkaccessanalyzer-me-south-1": {
+    "service_name": "Network Access Analyzer",
+    "current": "3",
+    "max": "3"
+   },
+   "controlcatalog-me-south-1": {
+    "service_name": "Control Catalog",
+    "current": "3",
+    "max": "3"
+   },
+   "ram-me-south-1": {
+    "service_name": "AWS Resource Access Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "eks-me-south-1": {
+    "service_name": "Amazon Elastic Kubernetes Service",
+    "current": "3",
+    "max": "3"
+   },
+   "airflow-me-south-1": {
+    "service_name": "Amazon Managed Workflows for Apache Airflow",
+    "current": "3",
+    "max": "3"
+   },
+   "athena-me-south-1": {
+    "service_name": "Amazon Athena",
+    "current": "3",
+    "max": "3"
+   },
+   "infrastructureperformance-me-south-1": {
+    "service_name": "Infrastructure Performance",
+    "current": "3",
+    "max": "3"
+   },
+   "vpc-me-south-1": {
+    "service_name": "Amazon Virtual Private Cloud",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudshell-me-south-1": {
+    "service_name": "AWS CloudShell",
+    "current": "3",
+    "max": "3"
+   },
+   "ipam-me-south-1": {
+    "service_name": "Amazon VPC IP Address Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "fis-me-south-1": {
+    "service_name": "AWS Fault Injection Service",
+    "current": "3",
+    "max": "3"
+   },
+   "resiliencehub-me-south-1": {
+    "service_name": "AWS Resilience Hub",
+    "current": "3",
+    "max": "3"
+   },
+   "route53resolver-me-south-1": {
+    "service_name": "Amazon Route 53 Resolver",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudwan": {
+    "service_name": "AWS Cloud WAN",
+    "current": "0",
+    "max": "1"
+   },
+   "ecs-me-south-1": {
+    "service_name": "Amazon Elastic Container Service",
+    "current": "3",
+    "max": "3"
+   },
+   "batch-me-south-1": {
+    "service_name": "AWS Batch",
+    "current": "3",
+    "max": "3"
+   },
+   "fsx-me-south-1": {
+    "service_name": "Amazon FSx",
+    "current": "3",
+    "max": "3"
+   },
+   "internetmonitor-me-south-1": {
+    "service_name": "Amazon CloudWatch Internet Monitor",
+    "current": "3",
+    "max": "3"
+   },
+   "applicationinsights-me-south-1": {
+    "service_name": "Amazon CloudWatch Application Insights",
+    "current": "3",
+    "max": "3"
+   },
+   "servicediscovery-me-south-1": {
+    "service_name": "AWS Cloud Map",
+    "current": "3",
+    "max": "3"
+   },
+   "emrserverless-me-south-1": {
+    "service_name": "Amazon EMR Serverless",
+    "current": "3",
+    "max": "3"
+   },
+   "gameliftstreams": {
+    "service_name": "Amazon GameLift Streams",
+    "current": "3",
+    "max": "3"
+   },
+   "elasticsearch-me-south-1": {
+    "service_name": "Amazon OpenSearch Service",
+    "current": "3",
+    "max": "3"
+   },
+   "appwizard-me-south-1": {
+    "service_name": "AWS Launch Wizard",
+    "current": "3",
+    "max": "3"
+   },
+   "iamrolesanywhere-me-south-1": {
+    "service_name": "AWS Identity and Access Management Roles Anywhere",
+    "current": "3",
+    "max": "3"
+   },
+   "resourcegroupstaggingapi-me-south-1": {
+    "service_name": "AWS Resource Groups Tagging API",
+    "current": "3",
+    "max": "3"
+   },
+   "cloud9-me-south-1": {
+    "service_name": "AWS Cloud9",
+    "current": "3",
+    "max": "3"
+   },
+   "elasticfilesystem-me-south-1": {
+    "service_name": "Amazon Elastic File System",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudhsm-me-south-1": {
+    "service_name": "AWS CloudHSM",
+    "current": "3",
+    "max": "3"
+   },
+   "kinesisanalytics-me-south-1": {
+    "service_name": "Amazon Managed Service for Apache Flink",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudwatch-me-south-1": {
+    "service_name": "Amazon CloudWatch",
+    "current": "3",
+    "max": "3"
+   },
+   "directoryservice-me-south-1": {
+    "service_name": "AWS Directory Service",
+    "current": "3",
+    "max": "3"
+   },
+   "rum-me-south-1": {
+    "service_name": "Amazon CloudWatch RUM",
+    "current": "3",
+    "max": "3"
+   },
+   "securityhub-me-south-1": {
+    "service_name": "AWS Security Hub",
+    "current": "3",
+    "max": "3"
+   },
+   "glue-me-south-1": {
+    "service_name": "AWS Glue",
+    "current": "3",
+    "max": "3"
+   },
+   "autoscaling-me-south-1": {
+    "service_name": "Auto Scaling",
+    "current": "3",
+    "max": "3"
+   },
+   "awsiot-me-south-1": {
+    "service_name": "AWS IoT Core",
+    "current": "3",
+    "max": "3"
+   },
+   "clientvpn-me-south-1": {
+    "service_name": "AWS Client VPN",
+    "current": "3",
+    "max": "3"
+   },
+   "guardduty-me-south-1": {
+    "service_name": "Amazon GuardDuty",
+    "current": "3",
+    "max": "3"
+   },
+   "awsiotdevicemanagement-me-south-1": {
+    "service_name": "AWS IoT Device Management",
+    "current": "3",
+    "max": "3"
+   },
+   "ssmsap-me-south-1": {
+    "service_name": "AWS Systems Manager for SAP",
+    "current": "3",
+    "max": "3"
+   },
+   "security-ir-me-south-1": {
+    "service_name": "AWS Security Incident Response",
+    "current": "3",
+    "max": "3"
+   },
+   "ec2serialconsole-me-south-1": {
+    "service_name": "EC2 Serial Console",
+    "current": "3",
+    "max": "3"
+   },
+   "events-me-south-1": {
+    "service_name": "Amazon EventBridge",
+    "current": "3",
+    "max": "3"
+   },
+   "iotdevicedefender-me-south-1": {
+    "service_name": "AWS IoT Device Defender",
+    "current": "3",
+    "max": "3"
+   },
+   "bedrock-me-south-1": {
+    "service_name": "Amazon Bedrock",
+    "current": "3",
+    "max": "3"
+   },
+   "acm-pca-me-south-1": {
+    "service_name": "AWS Private Certificate Authority",
+    "current": "3",
+    "max": "3"
+   },
+   "dlm-me-south-1": {
+    "service_name": "Amazon Data Lifecycle Manager",
+    "current": "3",
+    "max": "3"
+   },
+   "wellarchitected-me-south-1": {
+    "service_name": "AWS Well-Architected Tool",
+    "current": "3",
+    "max": "3"
+   },
+   "vpclattice-me-south-1": {
+    "service_name": "Amazon VPC Lattice",
+    "current": "3",
+    "max": "3"
+   },
+   "cloudformation-me-south-1": {
+    "service_name": "AWS CloudFormation",
+    "current": "3",
+    "max": "3"
+   },
+   "swf-me-south-1": {
+    "service_name": "Amazon Simple Workflow Service",
+    "current": "3",
+    "max": "3"
+   },
+   "managedssh-me-south-1": {
+    "service_name": "Amazon EC2 Instance Connect",
+    "current": "3",
+    "max": "3"
+   }
+  },
+  "impacted_service_status_changes": [
+   {
+    "service": "acm-pca-me-south-1",
+    "service_name": "AWS Private Certificate Authority",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "airflow-me-south-1",
+    "service_name": "Amazon Managed Workflows for Apache Airflow",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "amplify-me-south-1",
+    "service_name": "AWS Amplify",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "amplifyadmin-me-south-1",
+    "service_name": "AWS Amplify Admin",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "apigateway-me-south-1",
+    "service_name": "Amazon API Gateway",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "appconfig-me-south-1",
+    "service_name": "AWS AppConfig",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "applicationinsights-me-south-1",
+    "service_name": "Amazon CloudWatch Application Insights",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "appmesh-me-south-1",
+    "service_name": "AWS App Mesh",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "appsync-me-south-1",
+    "service_name": "AWS AppSync",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "appwizard-me-south-1",
+    "service_name": "AWS Launch Wizard",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "athena-me-south-1",
+    "service_name": "Amazon Athena",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "autoscaling-me-south-1",
+    "service_name": "Auto Scaling",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "awsiot-me-south-1",
+    "service_name": "AWS IoT Core",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "awsiotdevicemanagement-me-south-1",
+    "service_name": "AWS IoT Device Management",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "awswaf-me-south-1",
+    "service_name": "AWS WAF",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "backup-me-south-1",
+    "service_name": "AWS Backup",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "batch-me-south-1",
+    "service_name": "AWS Batch",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "bedrock-me-south-1",
+    "service_name": "Amazon Bedrock",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "cassandra-me-south-1",
+    "service_name": "Amazon Keyspaces",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "certificatemanager-me-south-1",
+    "service_name": "AWS Certificate Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "clientvpn-me-south-1",
+    "service_name": "AWS Client VPN",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "cloud9-me-south-1",
+    "service_name": "AWS Cloud9",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "cloudformation-me-south-1",
+    "service_name": "AWS CloudFormation",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "cloudfront",
+    "service_name": "Amazon CloudFront",
+    "previous_status": "0",
+    "current_status": "1",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "cloudhsm-me-south-1",
+    "service_name": "AWS CloudHSM",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "cloudshell-me-south-1",
+    "service_name": "AWS CloudShell",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "cloudtrail-me-south-1",
+    "service_name": "AWS CloudTrail",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "cloudwan",
+    "service_name": "AWS Cloud WAN",
+    "previous_status": "0",
+    "current_status": "1",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "cloudwatch-me-south-1",
+    "service_name": "Amazon CloudWatch",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "cloudwatchsynthetics-me-south-1",
+    "service_name": "Amazon CloudWatch Synthetics",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "codebuild-me-south-1",
+    "service_name": "AWS CodeBuild",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "codecommit-me-south-1",
+    "service_name": "AWS CodeCommit",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "codedeploy-me-south-1",
+    "service_name": "AWS CodeDeploy",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "codepipeline-me-south-1",
+    "service_name": "AWS CodePipeline",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "cognito-me-south-1",
+    "service_name": "Amazon Cognito",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "computeoptimizer-me-south-1",
+    "service_name": "AWS Compute Optimizer",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "config-me-south-1",
+    "service_name": "AWS Config",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "consolemobileapp-me-south-1",
+    "service_name": "AWS Console Mobile App",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "controlcatalog-me-south-1",
+    "service_name": "Control Catalog",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "controltower-me-south-1",
+    "service_name": "AWS Control Tower",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "datasync-me-south-1",
+    "service_name": "AWS DataSync",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "detective-me-south-1",
+    "service_name": "Amazon Detective",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "directconnect-me-south-1",
+    "service_name": "AWS Direct Connect",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "directoryservice-me-south-1",
+    "service_name": "AWS Directory Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "dlm-me-south-1",
+    "service_name": "Amazon Data Lifecycle Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "dms-me-south-1",
+    "service_name": "AWS Database Migration Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "drs-me-south-1",
+    "service_name": "AWS Elastic Disaster Recovery",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "dynamodb-me-south-1",
+    "service_name": "Amazon DynamoDB",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "ec2-me-south-1",
+    "service_name": "Amazon Elastic Compute Cloud",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "ec2serialconsole-me-south-1",
+    "service_name": "EC2 Serial Console",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "ec2systemsmanager-me-south-1",
+    "service_name": "AWS Systems Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "ecr-me-south-1",
+    "service_name": "Amazon Elastic Container Registry",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "ecs-me-south-1",
+    "service_name": "Amazon Elastic Container Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "eks-me-south-1",
+    "service_name": "Amazon Elastic Kubernetes Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "elasticache-me-south-1",
+    "service_name": "Amazon ElastiCache",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "elasticbeanstalk-me-south-1",
+    "service_name": "AWS Elastic Beanstalk",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "elasticfilesystem-me-south-1",
+    "service_name": "Amazon Elastic File System",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "elasticsearch-me-south-1",
+    "service_name": "Amazon OpenSearch Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "elb-me-south-1",
+    "service_name": "Amazon Elastic Load Balancing",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "emr-me-south-1",
+    "service_name": "Amazon Elastic MapReduce",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "emrserverless-me-south-1",
+    "service_name": "Amazon EMR Serverless",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "endusermessaging-me-south-1",
+    "service_name": "AWS End User Messaging",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "events-me-south-1",
+    "service_name": "Amazon EventBridge",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "fargate-me-south-1",
+    "service_name": "AWS Fargate",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "firehose-me-south-1",
+    "service_name": "Amazon Data Firehose",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "fis-me-south-1",
+    "service_name": "AWS Fault Injection Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "fms-me-south-1",
+    "service_name": "AWS Firewall Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "freertos-me-south-1",
+    "service_name": "Amazon FreeRTOS",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "fsx-me-south-1",
+    "service_name": "Amazon FSx",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "gameliftstreams",
+    "service_name": "Amazon GameLift Streams",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "glacier-me-south-1",
+    "service_name": "Amazon Glacier",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "globalaccelerator",
+    "service_name": "AWS Global Accelerator",
+    "previous_status": "0",
+    "current_status": "1",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "glue-me-south-1",
+    "service_name": "AWS Glue",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "groundstation-me-south-1",
+    "service_name": "AWS Ground Station",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "guardduty-me-south-1",
+    "service_name": "Amazon GuardDuty",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "iamidentitycenter-me-south-1",
+    "service_name": "AWS IAM Identity Center",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "iamrolesanywhere-me-south-1",
+    "service_name": "AWS Identity and Access Management Roles Anywhere",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "imagebuilder-me-south-1",
+    "service_name": "EC2 Image Builder",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "infrastructureperformance-me-south-1",
+    "service_name": "Infrastructure Performance",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "inspector-me-south-1",
+    "service_name": "Amazon Inspector",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "internetconnectivity-me-south-1",
+    "service_name": "AWS Internet Connectivity",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "internetmonitor-me-south-1",
+    "service_name": "Amazon CloudWatch Internet Monitor",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "iotdevicedefender-me-south-1",
+    "service_name": "AWS IoT Device Defender",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "ipam-me-south-1",
+    "service_name": "Amazon VPC IP Address Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "kafka-me-south-1",
+    "service_name": "Amazon Managed Streaming for Apache Kafka",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "kinesis-me-south-1",
+    "service_name": "Amazon Kinesis Data Streams",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "kinesisanalytics-me-south-1",
+    "service_name": "Amazon Managed Service for Apache Flink",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "kinesisvideo-me-south-1",
+    "service_name": "Amazon Kinesis Video Streams",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "kms-me-south-1",
+    "service_name": "AWS Key Management Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "lakeformation-me-south-1",
+    "service_name": "AWS Lake Formation",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "lambda-me-south-1",
+    "service_name": "AWS Lambda",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "licensemanager-me-south-1",
+    "service_name": "AWS License Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "macie-me-south-1",
+    "service_name": "Amazon Macie",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "managedssh-me-south-1",
+    "service_name": "Amazon EC2 Instance Connect",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "management-console",
+    "service_name": "AWS Management Console",
+    "previous_status": "0",
+    "current_status": "2",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "mgn-me-south-1",
+    "service_name": "AWS Application Migration Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "mq-me-south-1",
+    "service_name": "Amazon MQ",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "natgateway-me-south-1",
+    "service_name": "AWS NAT Gateway",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "neptune-db-me-south-1",
+    "service_name": "Amazon Neptune",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "networkaccessanalyzer-me-south-1",
+    "service_name": "Network Access Analyzer",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "networkfirewall-me-south-1",
+    "service_name": "AWS Network Firewall",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "outposts-me-south-1",
+    "service_name": "AWS Outposts",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "pca-connector-scep-me-south-1",
+    "service_name": "AWS Private CA Connector for SCEP",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "pcaconnectorad-me-south-1",
+    "service_name": "AWS Private CA Connector for Active Directory",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "polly-me-south-1",
+    "service_name": "Amazon Polly",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "privatelink-me-south-1",
+    "service_name": "AWS VPCE PrivateLink",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "ram-me-south-1",
+    "service_name": "AWS Resource Access Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "rds-me-south-1",
+    "service_name": "Amazon Relational Database Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "reachabilityanalyzer-me-south-1",
+    "service_name": "Reachability Analyzer",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "redshift-me-south-1",
+    "service_name": "Amazon Redshift",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "resiliencehub-me-south-1",
+    "service_name": "AWS Resilience Hub",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "resourceexplorer-me-south-1",
+    "service_name": "AWS Resource Explorer",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "resourcegroups-me-south-1",
+    "service_name": "AWS Resource Groups",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "resourcegroupstaggingapi-me-south-1",
+    "service_name": "AWS Resource Groups Tagging API",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "route53",
+    "service_name": "Amazon Route 53",
+    "previous_status": "0",
+    "current_status": "1",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "route53privatedns-me-south-1",
+    "service_name": "Amazon Route 53 Private DNS",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "route53resolver-me-south-1",
+    "service_name": "Amazon Route 53 Resolver",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "rum-me-south-1",
+    "service_name": "Amazon CloudWatch RUM",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "s3-me-south-1",
+    "service_name": "Amazon Simple Storage Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "s3rtc-me-south-1",
+    "service_name": "Amazon S3 Replication Time Control",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "sagemaker-me-south-1",
+    "service_name": "Amazon SageMaker",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "scheduler-me-south-1",
+    "service_name": "Amazon EventBridge Scheduler",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "secretsmanager-me-south-1",
+    "service_name": "AWS Secrets Manager",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "security-ir-me-south-1",
+    "service_name": "AWS Security Incident Response",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "securityhub-me-south-1",
+    "service_name": "AWS Security Hub",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "serverlessrepo-me-south-1",
+    "service_name": "AWS Serverless Application Repository",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "servicecatalog-me-south-1",
+    "service_name": "AWS Service Catalog",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "servicediscovery-me-south-1",
+    "service_name": "AWS Cloud Map",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "servicequotas-me-south-1",
+    "service_name": "AWS Service Quotas",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "ses-me-south-1",
+    "service_name": "Amazon Simple Email Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "signin-me-south-1",
+    "service_name": "AWS Sign-In",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "sns-me-south-1",
+    "service_name": "Amazon Simple Notification Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "sqs-me-south-1",
+    "service_name": "Amazon Simple Queue Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "ssmsap-me-south-1",
+    "service_name": "AWS Systems Manager for SAP",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "state-me-south-1",
+    "service_name": "AWS Step Functions",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "storagegateway-me-south-1",
+    "service_name": "AWS Storage Gateway",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "sts-me-south-1",
+    "service_name": "AWS Security Token Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "swf-me-south-1",
+    "service_name": "Amazon Simple Workflow Service",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "trafficmirroring-me-south-1",
+    "service_name": "Traffic Mirroring",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "transcribe-me-south-1",
+    "service_name": "Amazon Transcribe",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "transfer-me-south-1",
+    "service_name": "AWS Transfer Family",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "transitgateway-me-south-1",
+    "service_name": "AWS Transit Gateway",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "verifiedpermissions-me-south-1",
+    "service_name": "Amazon Verified Permissions",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "vmimportexport-me-south-1",
+    "service_name": "VM Import/Export",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "vpc-me-south-1",
+    "service_name": "Amazon Virtual Private Cloud",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "vpclattice-me-south-1",
+    "service_name": "Amazon VPC Lattice",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "vpnvpc-me-south-1",
+    "service_name": "AWS Site-to-Site VPN",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "wellarchitected-me-south-1",
+    "service_name": "AWS Well-Architected Tool",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "xray-me-south-1",
+    "service_name": "AWS X-Ray",
+    "previous_status": "0",
+    "current_status": "3",
+    "timestamp": 1772430987000
+   },
+   {
+    "service": "cloudfront",
+    "service_name": "Amazon CloudFront",
+    "previous_status": "1",
+    "current_status": "0",
+    "timestamp": 1778053812000
+   },
+   {
+    "service": "cloudwan",
+    "service_name": "AWS Cloud WAN",
+    "previous_status": "1",
+    "current_status": "0",
+    "timestamp": 1778053812000
+   },
+   {
+    "service": "globalaccelerator",
+    "service_name": "AWS Global Accelerator",
+    "previous_status": "1",
+    "current_status": "0",
+    "timestamp": 1778053812000
+   },
+   {
+    "service": "management-console",
+    "service_name": "AWS Management Console",
+    "previous_status": "2",
+    "current_status": "0",
+    "timestamp": 1778053812000
+   },
+   {
+    "service": "route53",
+    "service_name": "Amazon Route 53",
+    "previous_status": "1",
+    "current_status": "0",
+    "timestamp": 1778053812000
+   }
+  ]
+ }
+]

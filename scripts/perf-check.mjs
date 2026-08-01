@@ -104,4 +104,85 @@ console.log(
     `Workers Logs reports the authoritative production figure.\n`,
 );
 
+
+// ---------------------------------------------------------------------------
+// PER-SHARD CPU, the check that would have caught the 2026-08-01 outage.
+//
+// Every cron from 16:00Z failed with `exceededResources` at cpuP99 = 10,000 us
+// -- the free plan's 10 ms CPU ceiling -- because Oracle (1.63 MB), IBM
+// (2.44 MB) and AWS (1.25 MB catalogue) landed in shards together. Collection
+// stopped for over three hours.
+//
+// Nothing alerted. The in-handler alerts cannot fire, because an invocation
+// killed for exceeding CPU never reaches them; the only detector was the
+// staleness banner on the page, i.e. a human noticing. This check moves that
+// detection BEFORE the deploy.
+//
+// Measured against live payloads, so it reflects what the vendors actually
+// serve today rather than a fixture recorded when they were small.
+// ---------------------------------------------------------------------------
+console.log(`\nPer-shard PARSE CPU (${SHARD_COUNT} shards) — ceiling is ${CPU_BUDGET_MS} ms per invocation\n`);
+
+const WARN_AT_MS = 4; // well under the ceiling: act long before it bites
+
+// Measure PARSING ONLY.
+//
+// A first version timed collect() against the live network and reported every
+// shard at 50-400 ms "OVER CEILING" — that was Node's TLS handshakes and HTTP
+// decoding, work workerd does outside our CPU budget. It would have been a
+// permanently-red gate, i.e. useless, which is the same mistake as the flaky
+// timing test removed earlier.
+//
+// So: fetch every payload FIRST (uncounted), then run collect() against an
+// in-memory fetch stub. What remains is adapter parsing and record assembly —
+// the work Cloudflare actually bills us for.
+const bodyFor = new Map();
+async function prefetch(url) {
+  if (bodyFor.has(url)) return;
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': 'vendor-dashboard/2.0 (perf-check)' } });
+    bodyFor.set(url, await res.text());
+  } catch {
+    bodyFor.set(url, '');
+  }
+}
+
+const urlsOf = (v) =>
+  (v.type === 'composite' ? (v.sources ?? []).map((s) => s.url) : [v.url]).concat(
+    [v.componentsUrl, v.bannerUrl].filter(Boolean),
+  );
+
+const cachedFetch = async (url) =>
+  new Response(bodyFor.get(String(url)) ?? '', {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+
+const shardCosts = [];
+for (let i = 0; i < SHARD_COUNT; i += 1) {
+  const vendors = selectShard(config.vendors, i);
+  if (vendors.length === 0) continue;
+  for (const v of vendors) for (const u of urlsOf(v)) await prefetch(u);
+
+  await collect({ ...config, vendors }, { fetchFn: cachedFetch, now, retryDelayMs: 0 }); // warm
+  const before = process.cpuUsage();
+  await collect({ ...config, vendors }, { fetchFn: cachedFetch, now, retryDelayMs: 0 });
+  const used = process.cpuUsage(before);
+  shardCosts.push({ i, ms: (used.user + used.system) / 1000, names: vendors.map((v) => v.name) });
+}
+
+shardCosts.sort((a, b) => b.ms - a.ms);
+for (const s of shardCosts.slice(0, 6)) {
+  const flag = s.ms > CPU_BUDGET_MS ? 'OVER CEILING' : s.ms > WARN_AT_MS ? 'near ceiling' : 'ok';
+  if (s.ms > WARN_AT_MS) failed = true;
+  console.log(
+    `  shard ${String(s.i).padStart(2)}  ${s.ms.toFixed(2).padStart(7)} ms  ${flag.padEnd(13)} ${s.names.join(', ').slice(0, 58)}`,
+  );
+}
+console.log(
+  `\nA shard trending past ${WARN_AT_MS} ms is the signal to raise SHARD_COUNT, BEFORE production\n` +
+    `starts failing with exceededResources. On 2026-08-01 it failed for 3.5 hours and the only\n` +
+    `detector was the staleness banner — in-handler alerts cannot fire when the invocation is killed.\n`,
+);
+
 process.exit(failed ? 1 : 0);

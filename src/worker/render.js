@@ -197,14 +197,14 @@ export function renderDashboard({
     : '';
 
   const checkedBlock = meta?.checked_at
-    ? `<p class="vs-meta">Last checked <time id="vs-checked" datetime="${esc(meta.checked_at)}">${esc(formatChicago(meta.checked_at))}</time>. Updates every 15 minutes.</p>`
-    : `<p class="vs-meta">No collection has run yet. Updates every 15 minutes.</p>`;
+    ? `<p class="vs-meta">Last collection <time id="vs-checked" datetime="${esc(meta.checked_at)}">${esc(formatChicago(meta.checked_at))}</time>. Each service is re-checked every 15 minutes.</p>`
+    : `<p class="vs-meta">No collection has run yet. Each service is re-checked every 15 minutes.</p>`;
 
   // Social description reflects the LIVE board, so a share during an incident
   // says so instead of claiming everything is fine.
   const ogDescription = empty
     ? 'Live status for cloud and SaaS services, read from each vendor\u2019s own status page.'
-    : `${records.length} cloud and SaaS services, checked every 15 minutes. ${
+    : `${records.length} cloud and SaaS services, each re-checked every 15 minutes. ${
         impacted > 0 ? `${impacted} currently impacted.` : 'All operational.'
       } Read from each vendor\u2019s own status page.`;
 
@@ -216,7 +216,7 @@ export function renderDashboard({
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Service Status — live status for ${esc(records.length)} cloud services</title>
-<meta name="description" content="Live operational status for ${esc(records.length)} cloud and SaaS services, refreshed every 15 minutes from each vendor's own public status endpoint.">
+<meta name="description" content="Live operational status for ${esc(records.length)} cloud and SaaS services, each re-checked every 15 minutes from that vendor's own public status endpoint.">
 <meta name="robots" content="${indexable ? 'index, follow' : 'noindex, nofollow'}">
 <link rel="canonical" href="https://briangreenberg.net/service-status">
 
@@ -285,7 +285,8 @@ export function renderDashboard({
     <p>Most of the software I depend on is somebody else&rsquo;s to keep running.
     When something stops working, the first question is always whether it&rsquo;s
     me or them.</p>
-    <p>This page asks ${esc(records.length)} services directly, every 15 minutes,
+    <p>This page asks ${esc(records.length)} services directly, re-checking each one
+    every 15 minutes,
     and reports what each one says about itself. Nothing here is inferred, and
     nothing comes from a third-party aggregator &mdash; each status is read from
     that vendor&rsquo;s own status page, which you can open from any row.</p>
@@ -332,7 +333,7 @@ export function renderDashboard({
   </div>
 
   <div id="vs-board" class="vs-board">
-${rows || '<p class="vs-empty">No status has been collected yet. The collector runs every 15 minutes; if this persists, the scheduled job is not running.</p>'}
+${rows || '<p class="vs-empty">No status has been collected yet. The collector runs continuously; if this persists, the scheduled job is not running.</p>'}
   </div>
 
   <p class="vs-note">Select a service name to open its own status page, or expand a
@@ -546,10 +547,26 @@ function hostOf(url) {
 /** @param {{name: string, severity: string}} c */
 function childLi(c) {
   const cp = PRESENTATION[c.severity] ?? PRESENTATION.unknown;
-  return `<li class="vs-child">
+
+  // Per-component DETAIL. Adapters have been filling this in for a while --
+  // AWS's event-log excerpt naming the affected regions and what happened,
+  // Oracle's and Azure DevOps' affected regions, IBM's incident title -- and
+  // the renderer dropped it on the floor, so a reader saw "Multiple services /
+  // Degraded" and nothing about the actual failure. Reported 2026-08-01.
+  //
+  // Shown only for components that are NOT operational: a healthy component's
+  // description is empty by construction, and rendering the element anyway
+  // would put an empty box under all 268 AWS services.
+  const detail =
+    c.severity !== 'operational' && c.description
+      ? `<p class="vs-child-detail">${esc(c.description)}</p>`
+      : '';
+
+  return `<li class="vs-child${detail ? ' vs-child--detailed' : ''}">
     <span class="vs-dot vs-dot--${esc(cp.tone)}" aria-hidden="true">${esc(cp.symbol)}</span>
     <span class="vs-child-name">${esc(c.name)}</span>
     <span class="vs-child-state">${esc(cp.label)}</span>
+    ${detail}
   </li>`;
 }
 
@@ -722,10 +739,33 @@ const STYLES = `
   opacity: 0; text-decoration: none; font-weight: 600;
   padding: 0 .25rem; flex: 0 0 auto;
 }
-.vs-card:hover .vs-anchor, .vs-anchor:focus { opacity: .55; }
-.vs-anchor:hover { opacity: 1; }
+/* Reveal the permalink only where a real pointer can hover.
+   iOS and Android apply :hover to a TAPPED element and its ancestors
+   ("sticky hover"), so on a phone the vs-card:hover rule fired on touch and a
+   stray # appeared beside the status pill whenever a card was touched.
+   Reported from a phone 2026-08-01. The hover/pointer media query matches a
+   mouse or trackpad and excludes touch, so the anchor stays hidden there.
+   :focus-visible is kept OUTSIDE the query so keyboard users still get it -
+   and it is :focus-visible rather than :focus deliberately, because a tap can
+   raise :focus on some mobile browsers and would reintroduce the same flash.
+   NOTE: no backticks in this comment. They terminate the JS template literal
+   this CSS lives in - the same trap that silently dropped 52 tests once. */
+@media (hover: hover) and (pointer: fine) {
+  .vs-card:hover .vs-anchor { opacity: .55; }
+  .vs-anchor:hover { opacity: 1; }
+}
+.vs-anchor:focus-visible { opacity: 1; }
 /* Deep-linked row gets a moment of emphasis so it is findable on arrival. */
 .vs-card:target { box-shadow: 0 0 0 2px currentColor; }
+
+.vs-child--detailed { flex-wrap: wrap; }
+.vs-child-detail {
+  flex: 1 0 100%;
+  margin: .35rem 0 0;
+  font-size: .85rem;
+  opacity: .8;
+  line-height: 1.45;
+}
 
 .vs-empty { opacity: .75; }
 .skip { position: absolute; left: -9999px; }

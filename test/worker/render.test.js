@@ -557,3 +557,89 @@ describe('renderDashboard — sharing', () => {
     expect(h.match(/class="share-bar/g)).toHaveLength(1);
   });
 });
+
+describe('permalink anchor on touch devices', () => {
+  // Reported from a phone 2026-08-01: a stray "#" appeared beside the status
+  // pill whenever a card was touched. Cause: iOS and Android apply :hover to a
+  // TAPPED element and its ancestors ("sticky hover"), so `.vs-card:hover`
+  // fired on touch. The reveal must be gated on a pointer that can actually
+  // hover.
+  const css = () => renderDashboard({ records: [], meta: null });
+
+  it('gates the hover reveal behind a hover-capable pointer', () => {
+    const doc = css();
+    expect(doc).toMatch(/@media \(hover: hover\) and \(pointer: fine\)/);
+    // The bare rule must NOT exist outside the media query, or touch still fires.
+    const outside = doc.replace(/@media \(hover: hover\)[^}]*\{[\s\S]*?\n\}/, '');
+    expect(outside).not.toMatch(/\.vs-card:hover\s+\.vs-anchor/);
+  });
+
+  it('keeps the anchor reachable by keyboard', () => {
+    // Hiding it from touch must not hide it from keyboard users.
+    expect(css()).toMatch(/\.vs-anchor:focus-visible\s*\{[^}]*opacity/);
+  });
+
+  it('uses :focus-visible, not :focus', () => {
+    // A tap can raise :focus on some mobile browsers, which would reintroduce
+    // exactly the flash this fixes.
+    expect(css()).not.toMatch(/\.vs-anchor:focus(?!-visible)/);
+  });
+});
+
+describe('per-component detail', () => {
+  // Reported 2026-08-01: "AWS doesn't seem to be breaking down what the
+  // specific failure is. It just is a general label." The adapters HAD been
+  // filling in per-component descriptions — AWS's event-log excerpt naming the
+  // affected regions and what happened, Oracle's and Azure DevOps' affected
+  // regions, IBM's incident title — and childLi dropped them on the floor. A
+  // reader saw "Multiple services / Degraded" and nothing about the failure.
+  const withChild = (child) =>
+    renderDashboard({
+      records: [
+        record({
+          vendor: 'AWS',
+          severity: 'degraded',
+          components: [child],
+        }),
+      ],
+      meta: { checked_at: '2026-08-01T12:00:00.000Z' },
+      now: () => new Date('2026-08-01T12:01:00.000Z'),
+    });
+
+  // Assert on the ELEMENT, not the class name: the stylesheet in the same
+  // document also mentions `vs-child-detail`, so a document-wide check passes
+  // whether or not anything is actually rendered.
+  const DETAIL_EL = '<p class="vs-child-detail">';
+
+  it('renders the detail of an impacted component', () => {
+    const html = withChild({
+      name: 'Multiple services',
+      severity: 'degraded',
+      description: 'UAE — The Region has suffered damage and is unavailable.',
+    });
+    expect(html).toContain(DETAIL_EL);
+    expect(html).toContain('suffered damage');
+  });
+
+  it('escapes the detail, which is third-party text', () => {
+    const html = withChild({
+      name: 'X',
+      severity: 'degraded',
+      description: '<img src=x onerror=alert(1)>',
+    });
+    expect(html).not.toContain('<img src=x');
+    expect(html).toContain('&lt;img');
+  });
+
+  it('renders NO detail element for a healthy component', () => {
+    // A healthy component's description is empty by construction; emitting the
+    // element anyway would put an empty box under all 268 AWS services.
+    const html = withChild({ name: 'Amazon S3', severity: 'operational', description: '' });
+    expect(html).not.toContain(DETAIL_EL);
+  });
+
+  it('renders no detail element when an impacted component has none', () => {
+    const html = withChild({ name: 'X', severity: 'degraded', description: '' });
+    expect(html).not.toContain(DETAIL_EL);
+  });
+});

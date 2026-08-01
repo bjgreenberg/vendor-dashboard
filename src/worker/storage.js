@@ -18,7 +18,7 @@ import { compareRecords } from '../engine/severity.js';
  * @param {D1Database} db
  * @param {{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[]}} run
  */
-export async function writeRun(db, run) {
+export async function writeRun(db, run, options = {}) {
   // Replace ONLY the rows this run actually checked.
   //
   // `DELETE FROM snapshot` was correct while every run collected every vendor.
@@ -28,7 +28,31 @@ export async function writeRun(db, run) {
   const touched = run.records.map((r) => r.vendor);
   const placeholders = touched.map(() => '?').join(',');
 
+  // Prune vendors that are no longer configured at all.
+  //
+  // Shard-scoped deletes fixed one bug and created another: `DELETE ... WHERE
+  // vendor IN (checked)` only touches vendors this run checked, so a vendor
+  // REMOVED from config is never checked again and its row is orphaned
+  // forever. It keeps its last severity, freezes its timestamp, and still
+  // counts toward run_meta -- stale data presented as current. Observed live
+  // 2026-08-01: consolidating five Microsoft rows into one left all five on
+  // the board, 45 rows for 41 configured vendors.
+  //
+  // `knownVendors` is the FULL configured list, not the shard, and is optional
+  // so a caller that does not know the full list cannot accidentally wipe the
+  // other shards.
+  const known = Array.isArray(options.knownVendors) ? options.knownVendors : null;
+  const prune =
+    known && known.length > 0
+      ? [
+          db
+            .prepare(`DELETE FROM snapshot WHERE vendor NOT IN (${known.map(() => '?').join(',')})`)
+            .bind(...known),
+        ]
+      : [];
+
   const statements = [
+    ...prune,
     db.prepare(`DELETE FROM snapshot WHERE vendor IN (${placeholders})`).bind(...touched),
     ...run.records.map((r) =>
       db

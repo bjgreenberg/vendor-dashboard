@@ -34,10 +34,27 @@ describe('cron and shard rotation agree', () => {
     expect(crons).toHaveLength(1);
   });
 
+  /**
+   * Minute interval of a cron expression.
+   *
+   * Handles BOTH forms: `*` means every minute, `*\/N` means every N. The gate
+   * originally understood only `*\/N`, and correctly failed when the schedule
+   * moved to `* * * * *` — the mismatch it exists to catch, arriving as a
+   * syntax it could not read rather than a wrong number.
+   *
+   * @param {string} cron
+   * @returns {number|null}
+   */
+  const minuteInterval = (cron) => {
+    const field = String(cron).trim().split(/\s+/)[0];
+    if (field === '*') return 1;
+    const m = /^\*\/(\d+)$/.exec(field);
+    return m ? Number(m[1]) : null;
+  };
+
   it('CRON_EVERY_MINUTES matches the deployed cron interval', () => {
-    const m = /^\*\/(\d+) \* \* \* \*$/.exec(crons[0]);
-    expect(m, `cron "${crons[0]}" is not a simple */N minute schedule`).toBeTruthy();
-    const deployed = Number(m[1]);
+    const deployed = minuteInterval(crons[0]);
+    expect(deployed, `cron "${crons[0]}" has no readable minute interval`).toBeTruthy();
 
     const declared = Number(/const CRON_EVERY_MINUTES = (\d+)/.exec(indexSrc)?.[1]);
     expect(declared, 'CRON_EVERY_MINUTES not found in src/worker/index.js').toBeTypeOf('number');
@@ -52,8 +69,7 @@ describe('cron and shard rotation agree', () => {
   it('a full cycle refreshes every vendor within 15 minutes', () => {
     // The interval the page promises the reader in prose. If sharding is made
     // coarser without changing the copy, the page starts lying.
-    const every = Number(/^\*\/(\d+)/.exec(crons[0])[1]);
-    expect(every * SHARD_COUNT).toBeLessThanOrEqual(15);
+    expect(minuteInterval(crons[0]) * SHARD_COUNT).toBeLessThanOrEqual(15);
   });
 });
 
@@ -90,5 +106,37 @@ describe('the vendor config is wired to the deployed asset paths', () => {
     // Workers static assets map URL path to file path directly, so a mismatch
     // here 404s every logo without any error being raised.
     expect(wrangler.assets?.directory).toBe('./public');
+  });
+});
+
+describe('the page promises what the schedule actually delivers', () => {
+  // The copy said "Updates every 15 minutes" while meta.checked_at is the LAST
+  // RUN, which now happens every minute and covers only ~3 services. Read
+  // together those implied the whole board was read at that timestamp.
+  //
+  // Sharding means the honest claim is PER SERVICE, which is also the claim
+  // the schedule can actually keep.
+  const render = readFileSync('src/worker/render.js', 'utf8');
+  const crons = wrangler.triggers?.crons ?? [];
+  const interval = (() => {
+    const f = String(crons[0]).trim().split(/\s+/)[0];
+    return f === '*' ? 1 : Number(/^\*\/(\d+)$/.exec(f)?.[1]);
+  })();
+
+  it('states the refresh PER SERVICE, not for the page as a whole', () => {
+    expect(render).toMatch(/Each service is re-checked every 15 minutes/);
+    expect(render).not.toMatch(/Updates every 15 minutes/);
+  });
+
+  it('labels the timestamp as the last COLLECTION, not a whole-board check', () => {
+    // One invocation checks a shard, not the board.
+    expect(render).toMatch(/Last collection/);
+    expect(render).not.toMatch(/Last checked <time/);
+  });
+
+  it('the promised 15 minutes is what the shard cycle delivers', () => {
+    // shards x cron interval = the period between two checks of one service.
+    // This is the arithmetic the copy depends on; it is not a style choice.
+    expect(interval * SHARD_COUNT).toBe(15);
   });
 });

@@ -14,7 +14,7 @@ import { renderDashboard } from './render.js';
 import vendorConfig from '../../config/vendors.example.json';
 
 /** Must match `triggers.crons` in wrangler.jsonc; shard rotation is derived from it. */
-const CRON_EVERY_MINUTES = 5;
+const CRON_EVERY_MINUTES = 1;
 
 /**
  * Scheduled collection.
@@ -40,9 +40,30 @@ async function scheduled(controller, env) {
   const shard = shardDueAt(at, SHARD_COUNT, CRON_EVERY_MINUTES);
   const vendors = selectShard(vendorConfig.vendors, shard, SHARD_COUNT);
 
+  // An EMPTY shard is legitimate once vendors can be pinned: pinning the
+  // expensive ones elsewhere can leave a slot with nothing hashed into it.
+  // collect() refuses an empty vendor list -- rightly, because that guard
+  // exists to stop an empty snapshot rendering as "all systems operational" --
+  // so the skip belongs here, before the call, rather than by weakening it.
+  //
+  // Logged rather than silent: a shard that is empty because a config edit went
+  // wrong looks identical to one that is empty by design, and only the log
+  // distinguishes them.
+  if (vendors.length === 0) {
+    console.log(
+      JSON.stringify({ event: 'shard_empty', shard, shard_count: SHARD_COUNT }),
+    );
+    return;
+  }
+
   const run = await collect({ ...vendorConfig, vendors }, { fetchFn: fetch.bind(globalThis) });
 
-  await writeRun(env.DB, run);
+  // Pass the FULL configured vendor list, not the shard: it is what lets
+  // storage prune rows for vendors that have been removed from config
+  // entirely, which a shard-scoped delete can never reach.
+  await writeRun(env.DB, run, {
+    knownVendors: vendorConfig.vendors.map((v) => v.name),
+  });
 
   // Structured, one event per line, machine-parseable. No vendor content is
   // logged beyond names and severities.

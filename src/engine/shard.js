@@ -24,8 +24,21 @@
  * neighbours change.
  */
 
-/** Number of shards one full cycle is split into. */
-export const SHARD_COUNT = 3;
+/**
+ * Number of shards one full cycle is split into.
+ *
+ * RAISED 3 -> 15 on 2026-08-01 after every cron began failing with
+ * `exceededResources` at cpuP99 = 10,000 us -- exactly the free plan's 10 ms
+ * CPU ceiling. The subrequest ceiling was never the binding constraint here;
+ * CPU was. Oracle (3.17 ms), IBM (2.29 ms) and AWS (~3.7 ms with its
+ * catalogue) parse multi-megabyte documents, and three of them in one
+ * invocation exceeds the budget on their own.
+ *
+ * With a 1-minute cron and 15 shards, each invocation handles ~3 vendors and
+ * every vendor is still refreshed once per 15 minutes -- the interval the page
+ * promises is unchanged, for the second time.
+ */
+export const SHARD_COUNT = 15;
 
 /**
  * FNV-1a, 32-bit. Chosen for being tiny and dependency-free against a 10 ms CPU
@@ -69,7 +82,30 @@ export function selectShard(vendors, index, count = SHARD_COUNT) {
   if (!Number.isInteger(index) || index < 0 || index >= count) {
     throw new Error(`selectShard: index must be 0..${count - 1}`);
   }
-  return vendors.filter((v) => shardOf(v?.name ?? '', count) === index);
+  return vendors.filter((v) => assignedShard(v, count) === index);
+}
+
+/**
+ * Which shard a vendor runs in, honouring an explicit `shard` in config.
+ *
+ * Hashing spreads vendors evenly by COUNT, but they are not evenly EXPENSIVE.
+ * AWS, IBM Cloud, Oracle Cloud, Concur and NetSuite each parse a large
+ * document, and when the hash put two of them together the invocation exceeded
+ * the free plan's 10 ms CPU ceiling and was killed -- collection stopped for
+ * 3.5 hours on 2026-08-01. No amount of rehashing fixes that reliably; the
+ * expensive ones have to be kept apart deliberately.
+ *
+ * An out-of-range value falls back to the hash rather than throwing, so
+ * lowering SHARD_COUNT cannot strand a vendor in a shard that never runs.
+ *
+ * @param {{name?: string, shard?: number}} vendor
+ * @param {number} count
+ * @returns {number}
+ */
+export function assignedShard(vendor, count = SHARD_COUNT) {
+  const pinned = vendor?.shard;
+  if (Number.isInteger(pinned) && pinned >= 0 && pinned < count) return pinned;
+  return shardOf(vendor?.name ?? '', count);
 }
 
 /**

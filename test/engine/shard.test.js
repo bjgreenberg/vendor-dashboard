@@ -103,10 +103,35 @@ describe('subrequest budget', () => {
 
   it('a sharded run costs a fraction of the ceiling', async () => {
     for (let i = 0; i < SHARD_COUNT; i += 1) {
+      const vendors = selectShard(config.vendors, i);
+      // An empty shard is legitimate: pinning the expensive vendors elsewhere
+      // can leave a slot with nothing hashed into it. The scheduled handler
+      // skips those before calling collect(), which refuses an empty list.
+      if (vendors.length === 0) continue;
       const { state, fetchFn } = counting();
-      await collect({ ...config, vendors: selectShard(config.vendors, i) }, { fetchFn, retryDelayMs: 0 });
+      await collect({ ...config, vendors }, { fetchFn, retryDelayMs: 0 });
       expect(state.n).toBeLessThan(25);
     }
+  });
+
+  it('every vendor is still assigned to exactly one shard, empty slots aside', () => {
+    const seen = [];
+    for (let i = 0; i < SHARD_COUNT; i += 1) seen.push(...selectShard(config.vendors, i));
+    expect(seen.length).toBe(config.vendors.length);
+    expect(new Set(seen.map((v) => v.name)).size).toBe(config.vendors.length);
+  });
+
+  it('honours an explicit shard pin', () => {
+    const vendors = [{ name: 'Heavy', shard: 3 }, { name: 'Other' }];
+    expect(selectShard(vendors, 3, 15).map((v) => v.name)).toContain('Heavy');
+  });
+
+  it('falls back to the hash when a pin is out of range', () => {
+    // Lowering SHARD_COUNT must not strand a vendor in a shard that never runs.
+    const vendors = [{ name: 'Heavy', shard: 99 }];
+    const found = [];
+    for (let i = 0; i < 15; i += 1) found.push(...selectShard(vendors, i, 15));
+    expect(found).toHaveLength(1);
   });
 
   it('the FULL list is what used to exceed the ceiling', async () => {
@@ -182,5 +207,41 @@ describe('shard defensive paths', () => {
   it('defaults the cron interval when omitted', () => {
     const at = new Date(Date.UTC(2026, 6, 31, 12, 10));
     expect(shardDueAt(at)).toBe(shardDueAt(at, SHARD_COUNT, 5));
+  });
+});
+
+describe('the cycle is balanced', () => {
+  // Hashing spreads vendors evenly IN EXPECTATION, not in practice: with 46
+  // vendors over 15 shards it left one shard empty and another with six —
+  // a wasted minute of the cycle next to the invocation most likely to exceed
+  // the CPU ceiling. Pins correct that, and this gate stops it drifting back
+  // as vendors are added.
+  const sizes = () =>
+    Array.from({ length: SHARD_COUNT }, (_, i) => selectShard(config.vendors, i).length);
+
+  it('wastes no slot while another shard is loaded', () => {
+    const s = sizes();
+    const empty = s.filter((n) => n === 0).length;
+    if (empty > 0) {
+      // An empty shard is legitimate (the handler skips it) but only while no
+      // other shard is carrying more than its share.
+      expect(Math.max(...s), `${empty} empty shard(s) while another carries the load`).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('keeps the busiest shard close to the average', () => {
+    const s = sizes();
+    const avg = config.vendors.length / SHARD_COUNT;
+    // Ceiling of the average plus one: enough slack for an odd division,
+    // tight enough that a six-vendor shard fails.
+    expect(Math.max(...s)).toBeLessThanOrEqual(Math.ceil(avg) + 1);
+  });
+
+  it('completes a full cycle inside the interval the page promises', () => {
+    // Adding a 16th shard would make this a 16-minute cycle while the page
+    // still says "Updates every 15 minutes". Cron granularity is one minute,
+    // so 15 shards is the ceiling; capacity has to come from balance, not
+    // from more slots.
+    expect(SHARD_COUNT).toBeLessThanOrEqual(15);
   });
 });
