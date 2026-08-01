@@ -104,3 +104,34 @@ describe('every vendor has a locally-hosted logo', () => {
     }
   });
 });
+
+// Found by the secret-scan gate on PR #32: assets/icons/linkedin.ico was not an
+// icon at all but LinkedIn's bot-challenge HTML page, saved verbatim by
+// fetch-logos.mjs because the script trusted the response instead of the bytes.
+// gitleaks flagged the reCAPTCHA sitekey inside it. The icon directories are
+// SERVED to every visitor, so anything that is not a genuine image is a defect:
+// validate by magic bytes, never by extension or Content-Type — both are under
+// the remote server's control.
+describe('every shipped icon is a genuine image (magic bytes)', () => {
+  const DIRS = ['assets/icons', 'public/service-status/icons'];
+
+  /** @param {Buffer} buf @returns {string|null} detected format, null = not an image */
+  const sniff = (buf) => {
+    if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';
+    if (buf.length >= 4 && buf[0] === 0x00 && buf[1] === 0x00 && buf[2] === 0x01 && buf[3] === 0x00) return 'ico';
+    if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+    if (/^GIF8[79]a/.test(buf.toString('ascii', 0, 6))) return 'gif';
+    if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+    const head = buf.toString('utf8', 0, Math.min(buf.length, 1024)).replace(/^﻿/, '').trimStart().toLowerCase();
+    if (head.includes('<html') || head.startsWith('<!doctype html')) return null;
+    if ((head.startsWith('<?xml') || head.startsWith('<svg')) && buf.toString('utf8').toLowerCase().includes('<svg')) return 'svg';
+    return null;
+  };
+
+  for (const dir of DIRS) {
+    it.each(readdirSync(dir))(`${dir}/%s is a real image, not a saved error/challenge page`, (file) => {
+      const format = sniff(readFileSync(join(dir, file)));
+      expect(format, `${dir}/${file} is not a recognisable image`).not.toBeNull();
+    });
+  }
+});

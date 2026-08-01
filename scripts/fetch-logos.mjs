@@ -74,6 +74,35 @@ async function discoverIconUrl(domain) {
 }
 
 /**
+ * Identify an image by its BYTES. Returns the extension to save under, or null
+ * when the payload is not a recognisable image.
+ *
+ * Content-Type and the URL's extension are both under the REMOTE server's
+ * control and both lied in practice: LinkedIn's bot wall answered the favicon
+ * URL with 200 + its challenge page, and the old header-based logic saved that
+ * HTML as `linkedin.ico` — which then shipped in the repo until the gitleaks
+ * gate flagged the reCAPTCHA sitekey inside it (PR #32). Magic bytes are the
+ * ground truth; anything unrecognised is refused, so a challenge or error page
+ * can never be committed as a logo again.
+ *
+ * @param {Buffer} buf
+ * @returns {string|null}
+ */
+function sniffImage(buf) {
+  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';
+  if (buf.length >= 4 && buf[0] === 0x00 && buf[1] === 0x00 && buf[2] === 0x01 && buf[3] === 0x00) return 'ico';
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+  if (/^GIF8[79]a/.test(buf.toString('ascii', 0, 6))) return 'gif';
+  if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  // SVG is text, so it has no magic number: require an <svg root and refuse
+  // anything that looks like an HTML document (bot walls, soft-404 pages).
+  const head = buf.toString('utf8', 0, Math.min(buf.length, 1024)).replace(/^﻿/, '').trimStart().toLowerCase();
+  if (head.includes('<html') || head.startsWith('<!doctype html')) return null;
+  if ((head.startsWith('<?xml') || head.startsWith('<svg')) && buf.toString('utf8').toLowerCase().includes('<svg')) return 'svg';
+  return null;
+}
+
+/**
  * @param {string} url
  * @returns {Promise<{buf: Buffer, ext: string}|null>}
  */
@@ -81,17 +110,14 @@ async function download(url) {
   try {
     const res = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow' });
     if (!res.ok) return null;
-    const type = res.headers.get('content-type') || '';
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length < 64) return null; // an empty or placeholder response
-    const ext = type.includes('svg')
-      ? 'svg'
-      : type.includes('png')
-        ? 'png'
-        : type.includes('x-icon') || type.includes('vnd.microsoft.icon')
-          ? 'ico'
-          : url.split('.').pop()?.slice(0, 4).toLowerCase() || 'png';
-    return { buf, ext: ['svg', 'png', 'ico', 'jpg', 'jpeg', 'webp'].includes(ext) ? ext : 'png' };
+    const ext = sniffImage(buf);
+    if (!ext) {
+      console.warn(`  ! ${url} returned something that is not an image (bot wall or error page); refused`);
+      return null;
+    }
+    return { buf, ext };
   } catch {
     return null;
   }
