@@ -550,7 +550,20 @@ export async function collect(config, ctx) {
       throw new Error(BUDGET_EXHAUSTED);
     }
     meter.spent += 1;
-    return fetchFn(url, init);
+
+    // EVERY fetch gets a deadline, whether or not the call site set one
+    // (audit finding M3). The advisory second calls — component lists, the
+    // Concur banner, the per-data-centre documents — passed no signal, so one
+    // hung endpoint held the whole invocation open until the runtime killed
+    // it: nothing written, no alert, a silent stall. Enforcing the deadline
+    // here, like the budget, means a future call site cannot escape it.
+    const deadline =
+      init?.signal == null &&
+      typeof AbortSignal !== 'undefined' &&
+      typeof AbortSignal.timeout === 'function'
+        ? { ...init, signal: AbortSignal.timeout(timeoutMs) }
+        : init;
+    return fetchFn(url, deadline);
   };
 
   // Concurrent by design (finding M5). allSettled is belt-and-braces: collectOne
