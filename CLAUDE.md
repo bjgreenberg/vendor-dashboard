@@ -128,6 +128,10 @@ npx wrangler tail --format=json | grep -E 'collection_(complete|alert)'
 # 2. The board's aggregate state, over more than one cron cycle.
 curl -s https://briangreenberg.net/service-status/api/status \
   | python3 -c "import sys,json;from collections import Counter;d=json.load(sys.stdin);print(Counter(r['severity'] for r in d['records']))"
+# 3. Freshness, machine-readable: 200 while the snapshot is <45 min old,
+#    503 when collection has stopped or D1 is unreachable. This is what the
+#    external dead-man monitor probes.
+curl -sf https://briangreenberg.net/service-status/health
 ```
 
 A single green reading right after a deploy proves nothing: the failure was

@@ -117,6 +117,16 @@ export async function writeRun(db, run, options = {}) {
 }
 
 /**
+ * Read only the run metadata — the cheap freshness probe for /health.
+ * @param {D1Database} db
+ * @returns {Promise<any|null>}
+ */
+export async function readMeta(db) {
+  const meta = await db.prepare('SELECT * FROM run_meta WHERE id = 1').first();
+  return meta ?? null;
+}
+
+/**
  * Read the current board.
  * @param {D1Database} db
  * @returns {Promise<{records: any[], meta: any|null}>}
