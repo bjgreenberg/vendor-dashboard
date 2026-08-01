@@ -226,7 +226,9 @@
       "name": "Iorad",
       "type": "sorryapp",
       "url": "https://status.iorad.com/api/v1/status.json",
-      "brandDomain": "iorad.com"
+      "brandDomain": "iorad.com",
+      "componentsUrl": "https://status.iorad.com/api/v1/components",
+      "$comment": "SorryApp splits components onto a second endpoint, advertised in the page payload itself as links.components.href with count 10. Without it the row showed a page-level status and nothing underneath. Names repeat (two 'iorad editor', two 'iorad player') because SorryApp lists them per environment; the adapter dedupes by name keeping the worst."
     },
     {
       "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
@@ -402,12 +404,49 @@
       "brandDomain": "quantumworkplace.com"
     },
     {
-      "$comment": "Seismic publishes 54 region names and no groups - infrastructure with no service breakdown. componentLevel none suppresses the list rather than showing data centres as though they were services.",
+      "$comment": "CORRECTION: an earlier note claimed Seismic 'publishes 54 region names and no groups', and componentLevel 'none' suppressed the whole list on that basis. That was wrong. Only the first 20 components are data centres (U.S. East3, CAN1 (Canada), DE1 (Germany)...); the remaining 34 are real SERVICES - Aura Copilot, Digital Sales Room, DocCenter, LiveSend, Seismic Content API, Writebacks and the rest. Scoped to the services by name; the data centres are excluded because points of presence are not what a reader is asking about. The scope mechanism warns when a configured name matches nothing, so a Seismic rename surfaces as drift rather than a silently shrinking list.",
       "name": "Seismic",
       "type": "statuspage",
       "url": "https://status.seismic.com/api/v2/summary.json",
-      "componentLevel": "none",
-      "brandDomain": "seismic.com"
+      "brandDomain": "seismic.com",
+      "scope": {
+        "components": [
+          "Aura Copilot",
+          "Chat Support",
+          "Content Downloads",
+          "Content Video",
+          "Digital Sales Room",
+          "DIY Dashboards",
+          "DocCenter",
+          "Bulk Email",
+          "FTP Service",
+          "Google Drive Sync",
+          "Inbound Customer Support",
+          "Knowledge",
+          "Learning API",
+          "Learning Chat Support",
+          "Learning Content Delivery",
+          "Learning Document Delivery",
+          "Learning Email Delivery",
+          "Learning Video",
+          "Learning Web",
+          "Legacy Reports",
+          "LiveInsights",
+          "LiveSend",
+          "LiveSocial Admin Console",
+          "LiveSocial Application",
+          "Mobile App",
+          "My Apps",
+          "Office Online",
+          "Outlook Add-In",
+          "PowerPoint Plugin",
+          "Seismic Content API",
+          "Service Platform",
+          "Tiled Microapps",
+          "User Management",
+          "Writebacks"
+        ]
+      }
     },
     {
       "name": "SendGrid",

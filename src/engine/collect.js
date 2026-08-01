@@ -416,6 +416,23 @@ async function collectOne(vendor, ctx) {
       }
     }
 
+    // SorryApp splits its component list onto a second endpoint, advertised in
+    // the page payload as `links.components.href`. Without it the row has a
+    // page-level status and NOTHING underneath, so a reader cannot see what the
+    // vendor even covers -- the same gap found on Oracle, IBM and Seismic.
+    if (vendor.type === 'sorryapp' && vendor.componentsUrl) {
+      try {
+        const res = await fetchFn(vendor.componentsUrl, {
+          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+        });
+        const extra = JSON.parse(await res.text());
+        const list = Array.isArray(extra) ? extra : extra?.components;
+        if (Array.isArray(list)) payload.components = list;
+      } catch {
+        /* components are advisory; page state still decides severity */
+      }
+    }
+
     // Concur needs a second, optional payload; a failed banner must not sink it.
     if (vendor.type === 'concur' && vendor.bannerUrl) {
       try {

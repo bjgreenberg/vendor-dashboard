@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { parseSorryApp } from '../../../src/engine/adapters/sorryapp.js';
 import { SEVERITY } from '../../../src/engine/severity.js';
 import { parseGoogle } from '../../../src/engine/adapters/google.js';
 import { parseApple } from '../../../src/engine/adapters/apple.js';
@@ -324,5 +325,57 @@ describe('microsoft', () => {
   it('warns that enterprise workloads are absent from this endpoint', () => {
     const r = parseMicrosoft(json('Microsoft'), { vendor: 'Microsoft', now });
     expect(r.warnings.join(' ')).toMatch(/enterprise|Exchange|Graph/i);
+  });
+});
+
+describe('sorryapp components (iorad)', () => {
+  // Reported 2026-08-01 for Seismic, and found by auditing every row with an
+  // empty list: SorryApp publishes components on a SEPARATE endpoint, named in
+  // the page payload as links.components.href. Without it the row showed a
+  // page-level status and nothing underneath.
+  const page = (state, components) => ({ page: { state, url: 'https://status.example' }, components });
+
+  it('renders the components fetched from the second endpoint', () => {
+    const r = parseSorryApp(
+      page('operational', [
+        { name: 'iorad capture', state: 'operational' },
+        { name: 'iorad api', state: 'operational' },
+      ]),
+      { vendor: 'Iorad', now },
+    );
+    expect(r.components.map((c) => c.name)).toEqual(['iorad capture', 'iorad api']);
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('dedupes repeated names, keeping the worst', () => {
+    // iorad lists two "iorad editor" and two "iorad player" entries, one per
+    // environment. Showing a service twice with different statuses reads as a
+    // bug in the board rather than a fact about the vendor.
+    const r = parseSorryApp(
+      page('operational', [
+        { name: 'iorad editor', state: 'operational' },
+        { name: 'iorad editor', state: 'major_outage' },
+      ]),
+      { vendor: 'Iorad', now },
+    );
+    expect(r.components).toHaveLength(1);
+    expect(r.components[0].severity).toBe(SEVERITY.MAJOR_OUTAGE);
+  });
+
+  it('lets a broken component override a green page-level state', () => {
+    // The page summary is not authoritative over its own parts.
+    const r = parseSorryApp(
+      page('operational', [{ name: 'iorad api', state: 'major_outage' }]),
+      { vendor: 'Iorad', now },
+    );
+    expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(r.description).toMatch(/iorad api/);
+  });
+
+  it('still works when the components endpoint could not be fetched', () => {
+    // It is advisory: a failed second request must not sink the row.
+    const r = parseSorryApp({ page: { state: 'operational' } }, { vendor: 'Iorad', now });
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+    expect(r.components).toEqual([]);
   });
 });
