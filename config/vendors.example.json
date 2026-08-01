@@ -103,6 +103,13 @@
       "brandDomain": "apple.com"
     },
     {
+      "$comment": "Public JSON health API, 7 services x 8 geographies. Components are per SERVICE carrying the worst health across regions - listing 56 region rows would repeat the PoP-vs-service problem solved for Zoom and Docusign.",
+      "name": "Azure DevOps",
+      "type": "azure-devops",
+      "url": "https://status.dev.azure.com/_apis/status/health",
+      "brandDomain": "dev.azure.com"
+    },
+    {
       "name": "Calendly",
       "type": "statuspage",
       "url": "https://www.calendlystatus.com/api/v2/summary.json",
@@ -243,6 +250,13 @@
       "type": "microsoft-feed",
       "url": "https://status.cloud.microsoft/api/feed/mac",
       "brandDomain": "microsoft.com"
+    },
+    {
+      "$comment": "Azure's public RSS incident feed. Healthy state is an EMPTY feed, which is absence of evidence (finding H6) - so the adapter REQUIRES a fresh lastBuildDate before reading empty as healthy. Verified 2026-08-01 that lastBuildDate advances every minute, so the feed proves its own liveness.",
+      "name": "Microsoft Azure",
+      "type": "azure-feed",
+      "url": "https://azure.status.microsoft/en-us/status/feed/",
+      "brandDomain": "azure.microsoft.com"
     },
     {
       "name": "Monday.com",

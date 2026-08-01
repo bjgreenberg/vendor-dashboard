@@ -26,6 +26,7 @@ import { parseConcur } from './adapters/concur.js';
 import { parseSorryApp } from './adapters/sorryapp.js';
 import { parseBetterStack } from './adapters/betterstack.js';
 import { parseMicrosoft, parseMicrosoftFeed } from './adapters/microsoft.js';
+import { parseAzureFeed, parseAzureDevOps } from './adapters/azure.js';
 import { parseMetaStatus } from './adapters/metastatus.js';
 import { parseSignal } from './adapters/signal.js';
 
@@ -87,6 +88,7 @@ const JSON_ADAPTERS = {
   concur: parseConcur,
   sorryapp: parseSorryApp,
   microsoft: parseMicrosoft,
+  'azure-devops': parseAzureDevOps,
   metastatus: parseMetaStatus,
 };
 
@@ -97,6 +99,7 @@ const JSON_ADAPTERS = {
 const TEXT_ADAPTERS = {
   okta: parseOktaAtom,
   'microsoft-feed': parseMicrosoftFeed,
+  'azure-feed': parseAzureFeed,
   signal: parseSignal,
   betterstack: parseBetterStack,
 };
