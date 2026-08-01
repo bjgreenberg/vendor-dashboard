@@ -215,6 +215,14 @@
       "brandDomain": "hubspot.com"
     },
     {
+      "$comment": "cloud.ibm.com/status/getEnhancedStatus - found only by loading the page in a real browser and reading the network log; the URL is built at runtime so no static string in the 3.4 MB bundle matches it. Parsed by TARGETED SCAN, not JSON.parse: the payload is 2.44 MB and measured 8.03 ms CPU to parse whole versus 1.82 ms to indexOf-scan, against a 10 ms free-plan budget for the ENTIRE run. Only 26 of 1,293 items are incidents; the rest are release notes and announcements. No query parameter filters it - state, days, limit and type were all tried and all return the identical 2,556,694 bytes.",
+      "name": "IBM Cloud",
+      "type": "ibm-cloud",
+      "url": "https://cloud.ibm.com/status/getEnhancedStatus",
+      "pageUrl": "https://cloud.ibm.com/status",
+      "brandDomain": "ibm.com"
+    },
+    {
       "name": "Iorad",
       "type": "sorryapp",
       "url": "https://status.iorad.com/api/v1/status.json",

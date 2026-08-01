@@ -28,6 +28,7 @@ import { parseBetterStack } from './adapters/betterstack.js';
 import { parseMicrosoft, parseMicrosoftFeed, parseMicrosoftConsumer, parseMicrosoftAdminPost } from './adapters/microsoft.js';
 import { parseAzureFeed, parseAzureDevOps, parseAzurePost } from './adapters/azure.js';
 import { parseAws } from './adapters/aws.js';
+import { parseIbmCloud } from './adapters/ibm.js';
 import { parseMetaStatus } from './adapters/metastatus.js';
 import { parseSignal } from './adapters/signal.js';
 
@@ -105,6 +106,7 @@ const TEXT_ADAPTERS = {
   okta: parseOktaAtom,
   'microsoft-feed': parseMicrosoftFeed,
   'azure-feed': parseAzureFeed,
+  'ibm-cloud': parseIbmCloud,
   signal: parseSignal,
   betterstack: parseBetterStack,
 };
