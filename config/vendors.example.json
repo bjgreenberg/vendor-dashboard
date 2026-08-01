@@ -544,12 +544,13 @@
       "brandDomain": "lucid.co"
     },
     {
-      "$comment": "metastatus.com is a JS app; data lives at /data/orgs.json, found in its bundle. Covers BUSINESS/DEVELOPER platforms only - Graph API, Marketing API, WhatsApp Business Platform - NOT consumer Facebook, Instagram or WhatsApp.",
+      "$comment": "metastatus.com is a JS app; data lives at /data/orgs.json, found in its bundle. Covers BUSINESS/DEVELOPER platforms only - Graph API, Marketing API, WhatsApp Business Platform - NOT consumer Facebook, Instagram or WhatsApp. PINNED to shard 6 to balance the cycle: hashing left shard 6 empty while shard 8 carried six vendors, wasting a whole minute of the 15-minute cycle.",
       "name": "Meta",
       "type": "metastatus",
       "url": "https://metastatus.com/data/orgs.json",
       "pageUrl": "https://metastatus.com",
-      "brandDomain": "meta.com"
+      "brandDomain": "meta.com",
+      "shard": 6
     },
     {
       "$comment": "ONE row for Microsoft, merged from every public feed they publish. As five sibling rows these sorted apart alphabetically and read as five unrelated companies. Row severity is the WORST across sources, and a source that fails contributes an `unknown` component rather than being dropped - otherwise the row could read green while a fifth of it was never checked. GitHub and LinkedIn are Microsoft-owned but stay separate: readers think of them as their own brands, and folding them in would hide a GitHub outage under a Microsoft row. Complete map of what Microsoft publishes: /api/posts/{id} accepts exactly four ids (azure, m365Consumer, mac, ppac), brute-forced across 40+ product names; Azure DevOps is on its own host. Enterprise per-workload health (Exchange, SharePoint, Entra, Intune, Defender) is tenant-scoped behind the authenticated Graph Service Health API and is not public.",
@@ -657,12 +658,13 @@
       "componentLevel": "group"
     },
     {
-      "$comment": "Instatus splits page state and components across two endpoints; summary.json carries only page.status. componentsUrl is advisory - if it fails the page status still decides severity.",
+      "$comment": "Instatus splits page state and components across two endpoints; summary.json carries only page.status. componentsUrl is advisory - if it fails the page status still decides severity. PINNED to shard 7 so IBM Cloud and Oracle Cloud, the two largest parses left, each get an invocation to themselves.",
       "name": "Perplexity",
       "type": "instatus",
       "url": "https://status.perplexity.com/summary.json",
       "componentsUrl": "https://status.perplexity.com/api/v2/components.json",
-      "brandDomain": "perplexity.ai"
+      "brandDomain": "perplexity.ai",
+      "shard": 7
     },
     {
       "name": "Proton",
@@ -677,12 +679,13 @@
       "brandDomain": "qualtrics.com"
     },
     {
-      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services.",
+      "$comment": "Services live at GROUP level here; the leaf components are per-data-centre instances. Listing leaves would show infrastructure, not services. PINNED to shard 4 so IBM Cloud and Oracle Cloud, the two largest parses left, each get an invocation to themselves.",
       "name": "QuantumWorkplace",
       "type": "statuspage",
       "url": "https://status.quantumworkplace.com/api/v2/summary.json",
       "componentLevel": "group",
-      "brandDomain": "quantumworkplace.com"
+      "brandDomain": "quantumworkplace.com",
+      "shard": 4
     },
     {
       "$comment": "CORRECTION: an earlier note claimed Seismic 'publishes 54 region names and no groups', and componentLevel 'none' suppressed the whole list on that basis. That was wrong. Only the first 20 components are data centres (U.S. East3, CAN1 (Canada), DE1 (Germany)...); the remaining 34 are real SERVICES - Aura Copilot, Digital Sales Room, DocCenter, LiveSend, Seismic Content API, Writebacks and the rest. Scoped to the services by name; the data centres are excluded because points of presence are not what a reader is asking about. The scope mechanism warns when a configured name matches nothing, so a Seismic rename surfaces as drift rather than a silently shrinking list.",
@@ -744,13 +747,14 @@
       "brandDomain": "signal.org"
     },
     {
-      "$comment": "Stormboard migrated from Statuspage to Better Stack; the old summary.json now returns HTML (audit finding H6). Resource list comes from /sections, found by reading the network log - the main page HTML contains no resource names. Stormboard monitors endpoints rather than naming products, so components are the monitored hosts.",
+      "$comment": "Stormboard migrated from Statuspage to Better Stack; the old summary.json now returns HTML (audit finding H6). Resource list comes from /sections, found by reading the network log - the main page HTML contains no resource names. Stormboard monitors endpoints rather than naming products, so components are the monitored hosts. PINNED to shard 6 to balance the cycle: hashing left shard 6 empty while shard 8 carried six vendors, wasting a whole minute of the 15-minute cycle.",
       "name": "Stormboard",
       "type": "betterstack",
       "url": "https://status.stormboard.com/",
       "pageUrl": "https://status.stormboard.com",
       "brandDomain": "stormboard.com",
-      "componentsUrl": "https://status.stormboard.com/sections"
+      "componentsUrl": "https://status.stormboard.com/sections",
+      "shard": 6
     },
     {
       "$comment": "Salesforce publishes Tableau as per-region instances with no sub-service breakdown; instances drive severity but are not listed as components.",

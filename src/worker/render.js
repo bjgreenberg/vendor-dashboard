@@ -197,14 +197,14 @@ export function renderDashboard({
     : '';
 
   const checkedBlock = meta?.checked_at
-    ? `<p class="vs-meta">Last checked <time id="vs-checked" datetime="${esc(meta.checked_at)}">${esc(formatChicago(meta.checked_at))}</time>. Updates every 15 minutes.</p>`
-    : `<p class="vs-meta">No collection has run yet. Updates every 15 minutes.</p>`;
+    ? `<p class="vs-meta">Last collection <time id="vs-checked" datetime="${esc(meta.checked_at)}">${esc(formatChicago(meta.checked_at))}</time>. Each service is re-checked every 15 minutes.</p>`
+    : `<p class="vs-meta">No collection has run yet. Each service is re-checked every 15 minutes.</p>`;
 
   // Social description reflects the LIVE board, so a share during an incident
   // says so instead of claiming everything is fine.
   const ogDescription = empty
     ? 'Live status for cloud and SaaS services, read from each vendor\u2019s own status page.'
-    : `${records.length} cloud and SaaS services, checked every 15 minutes. ${
+    : `${records.length} cloud and SaaS services, each re-checked every 15 minutes. ${
         impacted > 0 ? `${impacted} currently impacted.` : 'All operational.'
       } Read from each vendor\u2019s own status page.`;
 
@@ -216,7 +216,7 @@ export function renderDashboard({
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Service Status — live status for ${esc(records.length)} cloud services</title>
-<meta name="description" content="Live operational status for ${esc(records.length)} cloud and SaaS services, refreshed every 15 minutes from each vendor's own public status endpoint.">
+<meta name="description" content="Live operational status for ${esc(records.length)} cloud and SaaS services, each re-checked every 15 minutes from that vendor's own public status endpoint.">
 <meta name="robots" content="${indexable ? 'index, follow' : 'noindex, nofollow'}">
 <link rel="canonical" href="https://briangreenberg.net/service-status">
 
@@ -285,7 +285,8 @@ export function renderDashboard({
     <p>Most of the software I depend on is somebody else&rsquo;s to keep running.
     When something stops working, the first question is always whether it&rsquo;s
     me or them.</p>
-    <p>This page asks ${esc(records.length)} services directly, every 15 minutes,
+    <p>This page asks ${esc(records.length)} services directly, re-checking each one
+    every 15 minutes,
     and reports what each one says about itself. Nothing here is inferred, and
     nothing comes from a third-party aggregator &mdash; each status is read from
     that vendor&rsquo;s own status page, which you can open from any row.</p>
@@ -332,7 +333,7 @@ export function renderDashboard({
   </div>
 
   <div id="vs-board" class="vs-board">
-${rows || '<p class="vs-empty">No status has been collected yet. The collector runs every 15 minutes; if this persists, the scheduled job is not running.</p>'}
+${rows || '<p class="vs-empty">No status has been collected yet. The collector runs continuously; if this persists, the scheduled job is not running.</p>'}
   </div>
 
   <p class="vs-note">Select a service name to open its own status page, or expand a

@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">99.42% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>693/697</span>
+                <span class='fraction'>694/698</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">99.42% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>693/697</span>
+                <span class='fraction'>694/698</span>
             </div>
         
             
@@ -837,7 +837,8 @@
 <a name='L772'></a><a href='#L772'>772</a>
 <a name='L773'></a><a href='#L773'>773</a>
 <a name='L774'></a><a href='#L774'>774</a>
-<a name='L775'></a><a href='#L775'>775</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L775'></a><a href='#L775'>775</a>
+<a name='L776'></a><a href='#L776'>776</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -1120,6 +1121,7 @@
 <span class="cline-any cline-yes">67x</span>
 <span class="cline-any cline-yes">67x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">67x</span>
 <span class="cline-any cline-yes">67x</span>
 <span class="cline-any cline-yes">67x</span>
 <span class="cline-any cline-yes">67x</span>
@@ -1810,14 +1812,14 @@ export function renderDashboard({
     : '';
 &nbsp;
   const checkedBlock = meta?.checked_at
-    ? `&lt;p class="vs-meta"&gt;Last checked &lt;time id="vs-checked" datetime="${esc(meta.checked_at)}"&gt;${esc(formatChicago(meta.checked_at))}&lt;/time&gt;. Updates every 15 minutes.&lt;/p&gt;`
-    : `&lt;p class="vs-meta"&gt;No collection has run yet. Updates every 15 minutes.&lt;/p&gt;`;
+    ? `&lt;p class="vs-meta"&gt;Last collection &lt;time id="vs-checked" datetime="${esc(meta.checked_at)}"&gt;${esc(formatChicago(meta.checked_at))}&lt;/time&gt;. Each service is re-checked every 15 minutes.&lt;/p&gt;`
+    : `&lt;p class="vs-meta"&gt;No collection has run yet. Each service is re-checked every 15 minutes.&lt;/p&gt;`;
 &nbsp;
   // Social description reflects the LIVE board, so a share during an incident
   // says so instead of claiming everything is fine.
   const ogDescription = empty
     ? 'Live status for cloud and SaaS services, read from each vendor\u2019s own status page.'
-    : `${records.length} cloud and SaaS services, checked every 15 minutes. ${
+    : `${records.length} cloud and SaaS services, each re-checked every 15 minutes. ${
         impacted &gt; 0 ? `${impacted} currently impacted.` : 'All operational.'
       } Read from each vendor\u2019s own status page.`;
 &nbsp;
@@ -1829,7 +1831,7 @@ export function renderDashboard({
 &lt;meta charset="utf-8"&gt;
 &lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;
 &lt;title&gt;Service Status — live status for ${esc(records.length)} cloud services&lt;/title&gt;
-&lt;meta name="description" content="Live operational status for ${esc(records.length)} cloud and SaaS services, refreshed every 15 minutes from each vendor's own public status endpoint."&gt;
+&lt;meta name="description" content="Live operational status for ${esc(records.length)} cloud and SaaS services, each re-checked every 15 minutes from that vendor's own public status endpoint."&gt;
 &lt;meta name="robots" content="${indexable ? 'index, follow' : 'noindex, nofollow'}"&gt;
 &lt;link rel="canonical" href="https://briangreenberg.net/service-status"&gt;
 &nbsp;
@@ -1898,7 +1900,8 @@ export function renderDashboard({
     &lt;p&gt;Most of the software I depend on is somebody else&amp;rsquo;s to keep running.
     When something stops working, the first question is always whether it&amp;rsquo;s
     me or them.&lt;/p&gt;
-    &lt;p&gt;This page asks ${esc(records.length)} services directly, every 15 minutes,
+    &lt;p&gt;This page asks ${esc(records.length)} services directly, re-checking each one
+    every 15 minutes,
     and reports what each one says about itself. Nothing here is inferred, and
     nothing comes from a third-party aggregator &amp;mdash; each status is read from
     that vendor&amp;rsquo;s own status page, which you can open from any row.&lt;/p&gt;
@@ -1945,7 +1948,7 @@ export function renderDashboard({
   &lt;/div&gt;
 &nbsp;
   &lt;div id="vs-board" class="vs-board"&gt;
-${rows || '&lt;p class="vs-empty"&gt;No status has been collected yet. The collector runs every 15 minutes; if this persists, the scheduled job is not running.&lt;/p&gt;'}
+${rows || '&lt;p class="vs-empty"&gt;No status has been collected yet. The collector runs continuously; if this persists, the scheduled job is not running.&lt;/p&gt;'}
   &lt;/div&gt;
 &nbsp;
   &lt;p class="vs-note"&gt;Select a service name to open its own status page, or expand a
@@ -2392,7 +2395,7 @@ const STYLES = `
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-08-01T19:42:56.273Z
+                at 2026-08-01T20:48:58.552Z
             </div>
         <script src="../prettify.js"></script>
         <script>

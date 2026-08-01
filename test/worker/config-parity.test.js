@@ -108,3 +108,35 @@ describe('the vendor config is wired to the deployed asset paths', () => {
     expect(wrangler.assets?.directory).toBe('./public');
   });
 });
+
+describe('the page promises what the schedule actually delivers', () => {
+  // The copy said "Updates every 15 minutes" while meta.checked_at is the LAST
+  // RUN, which now happens every minute and covers only ~3 services. Read
+  // together those implied the whole board was read at that timestamp.
+  //
+  // Sharding means the honest claim is PER SERVICE, which is also the claim
+  // the schedule can actually keep.
+  const render = readFileSync('src/worker/render.js', 'utf8');
+  const crons = wrangler.triggers?.crons ?? [];
+  const interval = (() => {
+    const f = String(crons[0]).trim().split(/\s+/)[0];
+    return f === '*' ? 1 : Number(/^\*\/(\d+)$/.exec(f)?.[1]);
+  })();
+
+  it('states the refresh PER SERVICE, not for the page as a whole', () => {
+    expect(render).toMatch(/Each service is re-checked every 15 minutes/);
+    expect(render).not.toMatch(/Updates every 15 minutes/);
+  });
+
+  it('labels the timestamp as the last COLLECTION, not a whole-board check', () => {
+    // One invocation checks a shard, not the board.
+    expect(render).toMatch(/Last collection/);
+    expect(render).not.toMatch(/Last checked <time/);
+  });
+
+  it('the promised 15 minutes is what the shard cycle delivers', () => {
+    // shards x cron interval = the period between two checks of one service.
+    // This is the arithmetic the copy depends on; it is not a style choice.
+    expect(interval * SHARD_COUNT).toBe(15);
+  });
+});

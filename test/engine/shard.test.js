@@ -209,3 +209,39 @@ describe('shard defensive paths', () => {
     expect(shardDueAt(at)).toBe(shardDueAt(at, SHARD_COUNT, 5));
   });
 });
+
+describe('the cycle is balanced', () => {
+  // Hashing spreads vendors evenly IN EXPECTATION, not in practice: with 46
+  // vendors over 15 shards it left one shard empty and another with six —
+  // a wasted minute of the cycle next to the invocation most likely to exceed
+  // the CPU ceiling. Pins correct that, and this gate stops it drifting back
+  // as vendors are added.
+  const sizes = () =>
+    Array.from({ length: SHARD_COUNT }, (_, i) => selectShard(config.vendors, i).length);
+
+  it('wastes no slot while another shard is loaded', () => {
+    const s = sizes();
+    const empty = s.filter((n) => n === 0).length;
+    if (empty > 0) {
+      // An empty shard is legitimate (the handler skips it) but only while no
+      // other shard is carrying more than its share.
+      expect(Math.max(...s), `${empty} empty shard(s) while another carries the load`).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('keeps the busiest shard close to the average', () => {
+    const s = sizes();
+    const avg = config.vendors.length / SHARD_COUNT;
+    // Ceiling of the average plus one: enough slack for an odd division,
+    // tight enough that a six-vendor shard fails.
+    expect(Math.max(...s)).toBeLessThanOrEqual(Math.ceil(avg) + 1);
+  });
+
+  it('completes a full cycle inside the interval the page promises', () => {
+    // Adding a 16th shard would make this a 16-minute cycle while the page
+    // still says "Updates every 15 minutes". Cron granularity is one minute,
+    // so 15 shards is the ceiling; capacity has to come from balance, not
+    // from more slots.
+    expect(SHARD_COUNT).toBeLessThanOrEqual(15);
+  });
+});
