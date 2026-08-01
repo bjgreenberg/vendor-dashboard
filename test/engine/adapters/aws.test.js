@@ -203,3 +203,78 @@ describe('aws lists its service catalogue', () => {
     expect(r.components.map((c) => c.name)).toEqual(['Amazon S3']);
   });
 });
+
+describe('aws says WHAT is affected, not just that something is', () => {
+  // Reported 2026-08-01: "of the two services that are currently degraded, you
+  // don't specify which ones they are. You just say multiples."
+  //
+  // AWS genuinely does not enumerate services for a MULTIPLE_SERVICES event --
+  // those are region- or AZ-wide, and the ARN says so. The scope is stated only
+  // in the event log, which the adapter was discarding in favour of the
+  // top-level `summary` headline ("Increased Error Rates").
+  const evt = (region, messages) => ({
+    summary: 'Increased Error Rates',
+    end_time: null,
+    service_name: 'Multiple services',
+    region_name: region,
+    event_log: messages.map(([timestamp, message]) => ({ message, timestamp })),
+  });
+
+  it('describes the incident using the event log, not the headline', () => {
+    const r = parse([evt('UAE', [[1, 'We are investigating issues.'], [2, 'Power issue in AZ mec1-az2.']])]);
+    const c = r.components[0];
+    expect(c.description).toContain('mec1-az2');
+    expect(c.description).not.toBe('Increased Error Rates');
+  });
+
+  it('uses the NEWEST log entry, chosen by timestamp not position', () => {
+    // Entries arrive oldest-first, but picking by timestamp survives AWS
+    // reordering them; the newest is the current state of the incident.
+    const r = parse([evt('UAE', [[900, 'Newest state.'], [100, 'Stale first update.']])]);
+    expect(r.components[0].description).toContain('Newest state');
+    expect(r.components[0].description).not.toContain('Stale');
+  });
+
+  it('names EVERY affected region, not just the first', () => {
+    // Both regions were merged into one component and the description was
+    // truncated, so only the first survived.
+    const r = parse([
+      evt('UAE', [[1, 'The UAE Region has suffered damage and is unavailable.']]),
+      evt('Bahrain', [[1, 'The Bahrain Region has suffered damage and is unavailable.']]),
+    ]);
+    expect(r.components).toHaveLength(1);
+    expect(r.components[0].description).toContain('UAE');
+    expect(r.components[0].description).toContain('Bahrain');
+  });
+
+  it('keeps enough of a long message to reach the substance', () => {
+    // AWS opens with boilerplate; the substance is in the NEXT sentence, so a
+    // first-sentence excerpt described two regions identically and uselessly.
+    const boiler = 'We are providing an update on the ongoing service disruption.';
+    const meat = 'The Region has suffered damage and cannot support customer applications.';
+    const r = parse([evt('UAE', [[1, `${boiler} ${meat}`]])]);
+    expect(r.components[0].description).toContain('suffered damage');
+  });
+
+  it('cuts a long PROSE excerpt on a word boundary', () => {
+    const long = `${'situation update regarding the affected region '.repeat(20)}`;
+    const r = parse([evt('UAE', [[1, long]])]);
+    // Ends after a whole word, not mid-token.
+    expect(r.components[0].description).toMatch(/[a-z]…$/);
+    expect(r.components[0].description).not.toMatch(/\bregio…$|\bsituati…$/);
+  });
+
+  it('still truncates safely when there is no word boundary to cut on', () => {
+    // A single pathological token has no space to break at; a hard cut is the
+    // correct fallback, and it must not throw or return the whole string.
+    const r = parse([evt('UAE', [[1, 'x'.repeat(400)]])]);
+    expect(r.components[0].description.length).toBeLessThan(320);
+  });
+
+  it('falls back to the summary when an event has no log', () => {
+    const r = parse([
+      { summary: 'Increased Error Rates', end_time: null, service_name: 'Amazon S3', region_name: 'UAE' },
+    ]);
+    expect(r.components[0].description).toContain('Increased Error Rates');
+  });
+});

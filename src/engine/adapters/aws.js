@@ -62,6 +62,56 @@ export function awsSeverityOf(summary) {
 /** Distinct service names in the catalogue. Global, so lastIndex is reset. */
 const CATALOGUE_RE = /"service_name":"([^"]+)"/g;
 
+/**
+ * A readable excerpt of a long AWS log message.
+ *
+ * NOT the first sentence. AWS opens with boilerplate -- "We are providing an
+ * update on the ongoing service disruption." -- and the substance is in the
+ * NEXT sentence: "The Middle East (UAE) Region (ME-CENTRAL-1) has suffered
+ * damage... and is currently unable to reliably support customer
+ * applications." A first-sentence excerpt produced two impacted regions
+ * described identically and uselessly.
+ *
+ * A fixed window keeps both regions' detail inside one description, and cuts
+ * on a word boundary so it does not end mid-token.
+ *
+ * @param {string} text
+ * @param {number} [limit]
+ * @returns {string}
+ */
+function excerpt(text, limit = 240) {
+  const s = String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (s.length <= limit) return s;
+  const cut = s.slice(0, limit);
+  const at = cut.lastIndexOf(' ');
+  return `${(at > limit * 0.6 ? cut.slice(0, at) : cut).trimEnd()}…`;
+}
+
+/**
+ * Newest message from an event's log.
+ *
+ * Entries are ordered oldest-first and carry a unix `timestamp`; the newest is
+ * the current state of the incident, and the oldest is usually a generic "we
+ * are investigating". Picking by timestamp rather than position survives AWS
+ * reordering them.
+ *
+ * @param {any} event
+ * @returns {string}
+ */
+function latestLogMessage(event) {
+  const log = Array.isArray(event?.event_log) ? event.event_log : [];
+  let best = null;
+  for (const entry of log) {
+    const message = toPlainText(entry?.message ?? '');
+    if (!message) continue;
+    const at = Number(entry?.timestamp) || 0;
+    if (!best || at >= best.at) best = { at, message };
+  }
+  return best?.message ?? '';
+}
+
 /** @param {any} e */
 function isActive(e) {
   const resolved = /^\s*\[?resolved\]?/i.test(String(e?.summary ?? ''));
@@ -120,19 +170,32 @@ export function parseAws(payload, options) {
     const name = toPlainText(e?.service_name ?? '') || 'AWS';
     const region = toPlainText(e?.region_name ?? '');
     const severity = awsSeverityOf(e?.summary);
-    const entry = byService.get(name) ?? { severity: SEVERITY.OPERATIONAL, regions: [], summaries: [] };
+    const entry = byService.get(name) ?? { severity: SEVERITY.OPERATIONAL, regions: [], details: [] };
     if (rank(severity) > rank(entry.severity)) entry.severity = severity;
     if (region) entry.regions.push(region);
-    const summary = toPlainText(e?.summary ?? '');
-    if (summary && !entry.summaries.includes(summary)) entry.summaries.push(summary);
+
+    // Per-region DETAIL, from the newest event_log entry.
+    //
+    // The top-level `summary` is a headline ("Increased Error Rates") and says
+    // nothing about what is actually broken. AWS's real information is in the
+    // event log: "connectivity and power issues affecting APIs and instances
+    // in a single Availability Zone (mec1-az2)". Reported 2026-08-01 -- the row
+    // named two impacted things and described neither.
+    //
+    // This matters most for MULTIPLE_SERVICES events, where AWS deliberately
+    // does not enumerate services because the incident is region- or
+    // AZ-wide. The log message is the only place the scope is stated.
+    const latest = excerpt(latestLogMessage(e)) || toPlainText(e?.summary ?? '');
+    const detail = `${region ? `${region} — ` : ''}${latest}`;
+    if (detail && !entry.details.includes(detail)) entry.details.push(detail);
     byService.set(name, entry);
   }
 
-  const describe = (v) =>
-    [v.summaries.join('; '), v.regions.length ? `Regions: ${[...new Set(v.regions)].join(', ')}.` : '']
-      .filter(Boolean)
-      .join(' ')
-      .slice(0, 240);
+  // Each affected region contributes ONE sentence. A single event's latest log
+  // message can run to several hundred characters, so joining them whole meant
+  // the second region was truncated away entirely -- the row named two impacted
+  // regions and described only the first.
+  const describe = (v) => v.details.join('  ·  ').slice(0, 600);
 
   const components = [];
   for (const name of catalogue) {
