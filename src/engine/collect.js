@@ -25,7 +25,7 @@ import { parseSalesforce } from './adapters/salesforce.js';
 import { parseConcur } from './adapters/concur.js';
 import { parseSorryApp } from './adapters/sorryapp.js';
 import { parseBetterStack } from './adapters/betterstack.js';
-import { parseMicrosoft } from './adapters/microsoft.js';
+import { parseMicrosoft, parseMicrosoftFeed } from './adapters/microsoft.js';
 import { parseMetaStatus } from './adapters/metastatus.js';
 import { parseSignal } from './adapters/signal.js';
 
@@ -96,6 +96,7 @@ const JSON_ADAPTERS = {
  */
 const TEXT_ADAPTERS = {
   okta: parseOktaAtom,
+  'microsoft-feed': parseMicrosoftFeed,
   signal: parseSignal,
   betterstack: parseBetterStack,
 };
@@ -103,17 +104,22 @@ const TEXT_ADAPTERS = {
 /**
  * HTTP statuses worth a second look.
  *
- * 404 is deliberately included, which is unusual. Microsoft's status endpoint
- * was measured at roughly 50% availability on 2026-07-31 — the same URL
- * returning 200, then 404, then 404 within seconds, and its sibling on
- * admin.microsoft.com alternating 404/200/404/200. Treating that as permanent
- * would render a healthy vendor UNKNOWN half the time: technically fail-closed,
- * but the kind of noise that trains an operator to stop reading the board.
+ * 404 is NOT retryable, despite once being listed here.
  *
- * The cost of being wrong is bounded — after the attempt cap the answer is
- * still UNKNOWN, never a green row.
+ * It was added because Microsoft's endpoint measured ~50% availability on
+ * 2026-07-31 — the same URL returning 200, then 404, then 404 within seconds.
+ * That reading was real but the diagnosis was wrong: the route was being
+ * PROGRESSIVELY DECOMMISSIONED, not flapping. By 2026-08-01 it answered 404
+ * every time with `{"Message":"No HTTP resource was found ..."}`, and so did
+ * the admin.microsoft.com sibling configured as its fallback.
+ *
+ * Retrying a retired route cannot succeed. It spends up to three subrequests
+ * per vendor from a budget capped at 50 to arrive at the same `unknown` — and
+ * on the free plan that spend is exactly what starved other vendors. A 404 is
+ * a statement that the resource does not exist; the correct response is to fix
+ * the URL, which is what was done (see adapters/microsoft.js).
  */
-const RETRYABLE_STATUS = new Set([404, 408, 425, 429, 500, 502, 503, 504]);
+const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 /** Attempts per vendor, including the first. */
 const MAX_ATTEMPTS = 3;

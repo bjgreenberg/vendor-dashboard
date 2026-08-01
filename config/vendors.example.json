@@ -238,14 +238,11 @@
       "brandDomain": "meta.com"
     },
     {
-      "$comment": "CONSUMER services only - Outlook.com, OneDrive, Phone Link, Teams Free. Exchange Online, SharePoint, Entra, Intune and Defender are NOT in this feed. The adapter labels the row accordingly and warns. Enterprise tenant health needs the authenticated Microsoft Graph Service Health API. FLAKY: this endpoint returned 404 on roughly half of six measured rounds. admin.microsoft.com serves the same payload and fails partly independently - both failed together only twice in six - so it is configured as a fallback.",
+      "$comment": "Microsoft RETIRED portal.office.com/api/servicestatus/index (and the admin.microsoft.com sibling): both now answer 404 'No HTTP resource was found'. The earlier 'roughly 50% available' reading was a progressive decommission, not flakiness. status.cloud.microsoft/api/feed/mac is the replacement, found by reading the status site's JS bundle; it is RSS carrying a <status> element. NARROW SCOPE: it reports only whether the M365 admin centre itself is reachable - not consumer Outlook.com/OneDrive, and not Exchange/Entra/Intune/Defender, which are tenant-scoped and need the authenticated Graph Service Health API. The row is labelled for exactly what it measures.",
       "name": "Microsoft",
-      "type": "microsoft",
-      "url": "https://portal.office.com/api/servicestatus/index",
-      "brandDomain": "microsoft.com",
-      "fallbackUrls": [
-        "https://admin.microsoft.com/api/servicestatus/index"
-      ]
+      "type": "microsoft-feed",
+      "url": "https://status.cloud.microsoft/api/feed/mac",
+      "brandDomain": "microsoft.com"
     },
     {
       "name": "Monday.com",
