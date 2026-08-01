@@ -25,8 +25,8 @@ import { parseSalesforce } from './adapters/salesforce.js';
 import { parseConcur } from './adapters/concur.js';
 import { parseSorryApp } from './adapters/sorryapp.js';
 import { parseBetterStack } from './adapters/betterstack.js';
-import { parseMicrosoft, parseMicrosoftFeed } from './adapters/microsoft.js';
-import { parseAzureFeed, parseAzureDevOps } from './adapters/azure.js';
+import { parseMicrosoft, parseMicrosoftFeed, parseMicrosoftConsumer, parseMicrosoftAdminPost } from './adapters/microsoft.js';
+import { parseAzureFeed, parseAzureDevOps, parseAzurePost } from './adapters/azure.js';
 import { parseMetaStatus } from './adapters/metastatus.js';
 import { parseSignal } from './adapters/signal.js';
 
@@ -89,6 +89,9 @@ const JSON_ADAPTERS = {
   sorryapp: parseSorryApp,
   microsoft: parseMicrosoft,
   'azure-devops': parseAzureDevOps,
+  'azure-post': parseAzurePost,
+  'microsoft-consumer': parseMicrosoftConsumer,
+  'microsoft-admin': parseMicrosoftAdminPost,
   metastatus: parseMetaStatus,
 };
 

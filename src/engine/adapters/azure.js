@@ -9,10 +9,21 @@
  *   Azure         https://azure.status.microsoft/en-us/status/feed/   (RSS)
  *   Azure DevOps  https://status.dev.azure.com/_apis/status/health    (JSON)
  *
- * What was checked and rejected, so nobody re-treads it:
- *   - status.cloud.microsoft serves only /api/feed/mac and /api/feed/ppac.
- *     Every other product name (m365, exchange, teams, intune, entra,
- *     defender, sharepoint, outlook, azure) returns HTTP 400.
+ * CORRECTION (same day): an earlier version of this comment claimed
+ * status.cloud.microsoft serves *only* /api/feed/mac and /api/feed/ppac,
+ * because every other product name against /api/feed/{id} returns HTTP 400.
+ * That was a wrong inference from a true observation — a 400 from one route
+ * says that route rejects the id, not that the data is unpublished. There is a
+ * second API, /api/posts/{id}, serving azure, m365Consumer, mac and ppac; the
+ * bundle builds it as a bare relative string ("api/posts/m365Consumer", no
+ * leading slash) so a grep for quoted absolute paths missed it. Azure now uses
+ * /api/posts/azure (see parseAzurePost) and the consumer products are covered
+ * in adapters/microsoft.js.
+ *
+ * What was checked and genuinely rejected, so nobody re-treads it:
+ *   - status.bing.com is NOT a status page: it is a wildcard serving the Bing
+ *     search homepage for every path, including /api/v2/summary.json. A naive
+ *     probe that only checks the HTTP status would have added a fake row.
  *   - status.dynamics.com does not resolve.
  *   - powerbi.microsoft.com/support returns 403 to a non-browser client.
  *   - Xbox Live (xnotify.xboxlive.com/servicestatusv6) works and returns 92 KB
@@ -196,6 +207,85 @@ export function parseAzureDevOps(payload, options) {
       : toPlainText(payload?.status?.message) || 'All services report healthy.',
     sourceUrl: ADO_SOURCE_URL,
     components,
+    warnings: [],
+    now,
+  });
+}
+
+/* --------------------- Azure via status.cloud.microsoft ------------------- */
+
+/**
+ * Preferred over the RSS feed above.
+ *
+ * `/api/posts/azure` returns an explicit `Status` field plus a
+ * `LastUpdatedTime` that is regenerated every minute, so healthy is a POSITIVE
+ * assertion rather than an empty list. The RSS feed required inferring health
+ * from "no items", which is absence of evidence (finding H6) and needed a
+ * freshness guard to be trustworthy at all. A stated status with a proof of
+ * liveness is strictly better evidence.
+ *
+ * The freshness guard is kept regardless: a frozen endpoint repeating
+ * "Available" forever is exactly as misleading as a frozen empty feed.
+ */
+const AZURE_POST_MAX_AGE_MS = 30 * 60 * 1000;
+
+const AZURE_POST_STATUS = Object.freeze(
+  Object.assign(Object.create(null), {
+    available: SEVERITY.OPERATIONAL,
+    operational: SEVERITY.OPERATIONAL,
+    normal: SEVERITY.OPERATIONAL,
+    restored: SEVERITY.OPERATIONAL,
+    degraded: SEVERITY.DEGRADED,
+    investigating: SEVERITY.DEGRADED,
+    advisory: SEVERITY.DEGRADED,
+    incident: SEVERITY.PARTIAL_OUTAGE,
+    interruption: SEVERITY.PARTIAL_OUTAGE,
+    unavailable: SEVERITY.MAJOR_OUTAGE,
+    outage: SEVERITY.MAJOR_OUTAGE,
+    maintenance: SEVERITY.MAINTENANCE,
+  }),
+);
+
+/**
+ * @param {any} payload parsed /api/posts/azure
+ * @param {{vendor: string, now?: () => Date}} options
+ * @returns {import('../record.js').StatusRecord}
+ */
+export function parseAzurePost(payload, options) {
+  const { vendor, now } = options ?? {};
+  const at = (now ?? (() => new Date()))();
+  const opts = { now, sourceUrl: AZURE_SOURCE_URL, service: AZURE_LABEL };
+
+  const post = Array.isArray(payload) ? payload[0] : payload;
+  const raw = String(post?.Status ?? '').trim();
+  if (!raw) return unknownRecord(vendor, 'payload carried no Status field', opts);
+
+  const updated = Date.parse(post?.LastUpdatedTime ?? '');
+  if (!Number.isFinite(updated)) {
+    return unknownRecord(vendor, 'payload carried no parseable LastUpdatedTime', opts);
+  }
+  const ageMs = at.getTime() - updated;
+  if (ageMs > AZURE_POST_MAX_AGE_MS) {
+    return unknownRecord(
+      vendor,
+      `status has not been refreshed for ${Math.round(ageMs / 60000)} minutes`,
+      opts,
+    );
+  }
+
+  const severity = AZURE_POST_STATUS[raw.toLowerCase()] ?? SEVERITY.UNKNOWN;
+  if (severity === SEVERITY.UNKNOWN) {
+    return unknownRecord(vendor, `unrecognised status "${raw}"`, opts);
+  }
+
+  return makeRecord({
+    vendor,
+    service: AZURE_LABEL,
+    severity,
+    incidentName: severity === SEVERITY.OPERATIONAL ? '' : toPlainText(post?.Title ?? 'Azure issue'),
+    description: toPlainText(post?.Message ?? '') || 'No Azure issues reported.',
+    sourceUrl: AZURE_SOURCE_URL,
+    components: [],
     warnings: [],
     now,
   });

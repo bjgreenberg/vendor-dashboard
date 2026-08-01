@@ -104,3 +104,93 @@ describe('microsoft admin-centre feed', () => {
     expect(r.description).toMatch(/Power Platform Admin Center/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The RICH source, found after correcting a wrong conclusion. /api/feed/{id}
+// returns 400 for every product name, which I read as "Microsoft publishes no
+// per-app health". It only proved that ONE route rejects those ids. A second
+// API, /api/posts/{id}, serves the consumer products; the bundle builds it as
+// a bare relative string so a grep for quoted absolute paths missed it.
+// ---------------------------------------------------------------------------
+
+import { parseMicrosoftConsumer, parseMicrosoftAdminPost } from '../../../src/engine/adapters/microsoft.js';
+
+const consumerLive = JSON.parse(readFileSync('test/fixtures/Microsoft-consumer.json', 'utf8'));
+const adminLive = JSON.parse(readFileSync('test/fixtures/Microsoft-adminpost.json', 'utf8'));
+const consumer = (p) => parseMicrosoftConsumer(p, { vendor: 'Microsoft', now });
+const admin = (p, v = 'Microsoft 365') => parseMicrosoftAdminPost(p, { vendor: v, now: () => new Date() });
+
+describe('microsoft consumer products', () => {
+  it('covers the apps a reader actually asks about', () => {
+    const r = consumer(consumerLive);
+    const names = r.components.map((c) => c.name).join(' | ');
+    for (const app of ['Office for the web', 'Outlook.com', 'OneDrive', 'Copilot']) {
+      expect(names).toContain(app);
+    }
+    expect(r.components.length).toBeGreaterThanOrEqual(10);
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('labels the row as consumer and warns that business services are excluded', () => {
+    const r = consumer(consumerLive);
+    expect(r.service).toBe('Microsoft (Consumer Services)');
+    expect(r.warnings.join(' ')).toMatch(/Exchange, SharePoint and Intune/);
+  });
+
+  it('takes the worst service as the row severity and names it', () => {
+    const p = [
+      { ServiceDisplayName: 'Outlook.com', Status: 'Operational' },
+      { ServiceDisplayName: 'OneDrive', Status: 'Unavailable' },
+    ];
+    const r = consumer(p);
+    expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(r.description).toMatch(/OneDrive/);
+    expect(r.description).not.toMatch(/Outlook/);
+  });
+
+  it('fails closed on unknown vocabulary and malformed payloads', () => {
+    expect(consumer([{ ServiceDisplayName: 'X', Status: 'Sparkly' }]).severity).toBe(SEVERITY.UNKNOWN);
+    for (const bad of [null, undefined, [], {}, 'nope']) {
+      expect(consumer(bad).severity).toBe(SEVERITY.UNKNOWN);
+    }
+  });
+
+  it('keeps a healthy service readable when a sibling is broken', () => {
+    const r = consumer([
+      { ServiceDisplayName: 'Outlook.com', Status: 'Operational' },
+      { ServiceDisplayName: 'OneDrive', Status: 'Sparkly' },
+    ]);
+    // One unreadable service must not blank the row, but must not read green.
+    expect(r.components).toHaveLength(2);
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+  });
+});
+
+describe('microsoft admin-centre meta status', () => {
+  it('reads the live payload and names the product from the vendor', () => {
+    const r = admin(adminLive);
+    expect(r.service).toBe('Microsoft 365 (Admin Center reachability)');
+    expect(admin(adminLive, 'Microsoft Power Platform').service).toBe(
+      'Microsoft Power Platform (Admin Center reachability)',
+    );
+  });
+
+  it('warns that it does not measure the services inside', () => {
+    // The overclaiming trap: "Microsoft 365 - Operational" would be read as
+    // "my email works". This row does not measure that.
+    expect(admin(adminLive).warnings.join(' ')).toMatch(/only whether the admin centre itself is reachable/i);
+  });
+
+  it('refuses a stale post rather than repeating Available forever', () => {
+    const stale = { Status: 'Available', LastUpdatedTime: '2026-07-30T00:00:00+00:00' };
+    expect(admin(stale).severity).toBe(SEVERITY.UNKNOWN);
+  });
+
+  it('fails closed on missing status, bad timestamp or unknown vocabulary', () => {
+    expect(admin({ LastUpdatedTime: new Date().toISOString() }).severity).toBe(SEVERITY.UNKNOWN);
+    expect(admin({ Status: 'Available', LastUpdatedTime: 'nope' }).severity).toBe(SEVERITY.UNKNOWN);
+    expect(admin({ Status: 'Sparkly', LastUpdatedTime: new Date().toISOString() }).severity).toBe(
+      SEVERITY.UNKNOWN,
+    );
+  });
+});
