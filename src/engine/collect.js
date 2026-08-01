@@ -27,6 +27,7 @@ import { parseSorryApp } from './adapters/sorryapp.js';
 import { parseBetterStack } from './adapters/betterstack.js';
 import { parseMicrosoft, parseMicrosoftFeed, parseMicrosoftConsumer, parseMicrosoftAdminPost } from './adapters/microsoft.js';
 import { parseAzureFeed, parseAzureDevOps, parseAzurePost } from './adapters/azure.js';
+import { parseAws } from './adapters/aws.js';
 import { parseMetaStatus } from './adapters/metastatus.js';
 import { parseSignal } from './adapters/signal.js';
 
@@ -92,6 +93,7 @@ const JSON_ADAPTERS = {
   'azure-post': parseAzurePost,
   'microsoft-consumer': parseMicrosoftConsumer,
   'microsoft-admin': parseMicrosoftAdminPost,
+  aws: parseAws,
   metastatus: parseMetaStatus,
 };
 
@@ -167,6 +169,37 @@ async function fetchWithFallback(urls, ctx) {
  * @param {object} ctx
  * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string}>}
  */
+/**
+ * Decode a response body, honouring UTF-16.
+ *
+ * `response.text()` ALWAYS decodes as UTF-8 per the fetch spec, regardless of
+ * the charset the server declared. AWS serves
+ * health.aws.amazon.com/public/currentevents as
+ * `application/json;charset=utf-16` with a BOM, so text() would return
+ * mojibake and every parse would fail closed to `unknown` -- a vendor that
+ * looks broken when it is merely unusual.
+ *
+ * Sniffs the BOM rather than trusting the header, because the bytes are the
+ * ground truth and a mislabelled charset is commoner than a wrong BOM. Falls
+ * back to UTF-8, which is what every other vendor here uses.
+ *
+ * @param {Response} response
+ * @returns {Promise<string>}
+ */
+async function decodeBody(response) {
+  const declared = String(response.headers?.get?.('content-type') ?? '').toLowerCase();
+  if (!declared.includes('utf-16')) return response.text();
+
+  const buf = new Uint8Array(await response.arrayBuffer());
+  const encoding =
+    buf[0] === 0xff && buf[1] === 0xfe
+      ? 'utf-16le'
+      : buf[0] === 0xfe && buf[1] === 0xff
+        ? 'utf-16be'
+        : 'utf-16le'; // declared utf-16 with no BOM: little-endian is the common case
+  return new TextDecoder(encoding).decode(buf);
+}
+
 async function fetchWithRetry(url, ctx) {
   const { fetchFn, timeoutMs, retryDelayMs, budget } = ctx;
   let lastReason = 'fetch failed';
@@ -202,7 +235,7 @@ async function fetchWithRetry(url, ctx) {
         return { ok: false, reason: lastReason };
       }
 
-      return { ok: true, body: await response.text() };
+      return { ok: true, body: await decodeBody(response) };
     } catch (error) {
       // A network-level failure is transient by nature; retry it.
       lastReason = `fetch failed: ${error?.message ?? String(error)}`;

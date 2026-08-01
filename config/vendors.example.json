@@ -91,6 +91,14 @@
       "brandDomain": "alteryx.com"
     },
     {
+      "$comment": "health.aws.amazon.com/public/currentevents - the feed behind the AWS Health Dashboard. Served as charset=UTF-16 with a BOM, which response.text() decodes as UTF-8 per the fetch spec and turns into mojibake; collect.js decodeBody() sniffs the BOM. RESOLVED events stay in the feed, so an event counts as active only when it has no end_time AND is not marked resolved - filtering on presence alone would report AWS degraded over an incident closed hours ago.",
+      "name": "Amazon Web Services",
+      "type": "aws",
+      "url": "https://health.aws.amazon.com/public/currentevents",
+      "pageUrl": "https://health.aws.amazon.com/health/status",
+      "brandDomain": "aws.amazon.com"
+    },
+    {
       "name": "Anthropic",
       "type": "statuspage",
       "url": "https://status.anthropic.com/api/v2/summary.json",
@@ -340,6 +348,14 @@
       "type": "statuspage",
       "url": "https://status.openai.com/api/v2/summary.json",
       "brandDomain": "openai.com"
+    },
+    {
+      "$comment": "ocistatus.oraclecloud.com/api/v2/status.json is Atlassian Statuspage-shaped (page + status.indicator), so the existing statuspage adapter reads it with no new code. Deliberately NOT components_v2.json: that is 1.7 MB, hopeless against a 10 ms CPU budget.",
+      "name": "Oracle Cloud",
+      "type": "statuspage",
+      "url": "https://ocistatus.oraclecloud.com/api/v2/status.json",
+      "pageUrl": "https://ocistatus.oraclecloud.com/",
+      "brandDomain": "oracle.com"
     },
     {
       "$comment": "componentLevel 'group' because the leaves are REGIONS - 'US East / Virginia' repeats across 84 components. Rolling up to the 7 published groups gives services rather than points of presence, the same fix applied to Zoom, NetSuite, Docusign and Jamf.",
