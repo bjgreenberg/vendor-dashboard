@@ -103,13 +103,6 @@
       "brandDomain": "apple.com"
     },
     {
-      "$comment": "Public JSON health API, 7 services x 8 geographies. Components are per SERVICE carrying the worst health across regions - listing 56 region rows would repeat the PoP-vs-service problem solved for Zoom and Docusign.",
-      "name": "Azure DevOps",
-      "type": "azure-devops",
-      "url": "https://status.dev.azure.com/_apis/status/health",
-      "brandDomain": "dev.azure.com"
-    },
-    {
       "name": "Calendly",
       "type": "statuspage",
       "url": "https://www.calendlystatus.com/api/v2/summary.json",
@@ -245,32 +238,38 @@
       "brandDomain": "meta.com"
     },
     {
-      "$comment": "status.cloud.microsoft/api/posts/m365Consumer - 10 consumer services including Office for the web (Word/Excel/PowerPoint), Outlook.com, OneDrive, Copilot, Teams Free, To-Do, Whiteboard, Lists and Phone Link. Found only after correcting a wrong conclusion: /api/feed/{id} returns 400 for every product name, which proved that ONE route rejects those ids, not that the data is unpublished. The /api/posts/{id} route is built as a bare relative string in the bundle ('api/posts/m365Consumer', no leading slash) so a grep for quoted absolute paths missed it. Enterprise per-workload health (Exchange, SharePoint, Entra, Intune, Defender) does remain tenant-scoped behind the authenticated Graph Service Health API.",
+      "$comment": "ONE row for Microsoft, merged from every public feed they publish. As five sibling rows these sorted apart alphabetically and read as five unrelated companies. Row severity is the WORST across sources, and a source that fails contributes an `unknown` component rather than being dropped - otherwise the row could read green while a fifth of it was never checked. GitHub and LinkedIn are Microsoft-owned but stay separate: readers think of them as their own brands, and folding them in would hide a GitHub outage under a Microsoft row. Complete map of what Microsoft publishes: /api/posts/{id} accepts exactly four ids (azure, m365Consumer, mac, ppac), brute-forced across 40+ product names; Azure DevOps is on its own host. Enterprise per-workload health (Exchange, SharePoint, Entra, Intune, Defender) is tenant-scoped behind the authenticated Graph Service Health API and is not public.",
       "name": "Microsoft",
-      "type": "microsoft-consumer",
-      "url": "https://status.cloud.microsoft/api/posts/m365Consumer",
-      "brandDomain": "microsoft.com"
-    },
-    {
-      "$comment": "Meta-status ONLY: Microsoft's own text says this site updates when issues prevent admins from ACCESSING Service health in the admin centre. Green means the console is reachable, NOT that Exchange/Teams/SharePoint are healthy. Included because enterprise M365 has no other public signal; labelled and warned explicitly so it cannot be misread as 'my email works'.",
-      "name": "Microsoft 365",
-      "type": "microsoft-admin",
-      "url": "https://status.cloud.microsoft/api/posts/mac",
-      "brandDomain": "microsoft.com"
-    },
-    {
-      "$comment": "status.cloud.microsoft/api/posts/azure - an explicit Status field plus a LastUpdatedTime regenerated every minute, so healthy is a POSITIVE assertion. Preferred over azure.status.microsoft's RSS feed, where healthy had to be inferred from an empty item list (absence of evidence, finding H6). The freshness guard is kept anyway: a frozen endpoint repeating 'Available' forever is exactly as misleading as a frozen empty feed.",
-      "name": "Microsoft Azure",
-      "type": "azure-post",
-      "url": "https://status.cloud.microsoft/api/posts/azure",
-      "brandDomain": "azure.microsoft.com"
-    },
-    {
-      "$comment": "Meta-status ONLY, same shape and same caveat as the M365 admin centre: reachability of the Power Platform admin centre, not the health of Power Apps, Power Automate or Power BI.",
-      "name": "Microsoft Power Platform",
-      "type": "microsoft-admin",
-      "url": "https://status.cloud.microsoft/api/posts/ppac",
-      "brandDomain": "powerplatform.microsoft.com"
+      "type": "composite",
+      "brandDomain": "microsoft.com",
+      "pageUrl": "https://status.cloud.microsoft/",
+      "sources": [
+        {
+          "type": "microsoft-consumer",
+          "url": "https://status.cloud.microsoft/api/posts/m365Consumer",
+          "group": "Consumer"
+        },
+        {
+          "type": "azure-post",
+          "url": "https://status.cloud.microsoft/api/posts/azure",
+          "group": "Azure"
+        },
+        {
+          "type": "azure-devops",
+          "url": "https://status.dev.azure.com/_apis/status/health",
+          "group": "Azure DevOps"
+        },
+        {
+          "type": "microsoft-admin",
+          "url": "https://status.cloud.microsoft/api/posts/mac",
+          "group": "Microsoft 365 admin centre"
+        },
+        {
+          "type": "microsoft-admin",
+          "url": "https://status.cloud.microsoft/api/posts/ppac",
+          "group": "Power Platform admin centre"
+        }
+      ]
     },
     {
       "name": "Monday.com",

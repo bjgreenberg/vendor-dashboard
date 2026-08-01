@@ -14,8 +14,8 @@
  * none (finding M5).
  */
 
-import { SEVERITY, compareRecords, rank } from './severity.js';
-import { unknownRecord } from './record.js';
+import { SEVERITY, compareRecords, rank, worst as worstOf } from './severity.js';
+import { unknownRecord, makeRecord } from './record.js';
 import { parseStatuspage } from './adapters/statuspage.js';
 import { parseInstatus } from './adapters/instatus.js';
 import { parseGoogle } from './adapters/google.js';
@@ -220,6 +220,102 @@ async function fetchWithRetry(url, ctx) {
  * @param {object} ctx
  * @returns {Promise<import('./record.js').StatusRecord>}
  */
+/**
+ * Collect a vendor whose status comes from SEVERAL endpoints, merged into one
+ * row.
+ *
+ * Microsoft is the motivating case. It publishes four unrelated feeds --
+ * consumer products, Azure, the M365 admin centre, the Power Platform admin
+ * centre -- plus Azure DevOps on a separate host. As five sibling rows they
+ * sorted apart alphabetically and read as five unrelated companies. As one row
+ * with grouped components, a reader sees "Microsoft" and expands to find which
+ * part is affected, which is the same progressive disclosure every other
+ * multi-component vendor already uses.
+ *
+ * Merge rules, all of which follow from the governing rule:
+ *   - Row severity is the WORST across sources. One healthy source cannot mask
+ *     a broken sibling.
+ *   - A source that fails contributes an `unknown` component and its reason,
+ *     rather than being silently dropped. Dropping it would let the row read
+ *     green while a quarter of it was never checked -- the starvation bug
+ *     again, at vendor scope.
+ *   - Components are prefixed with their group so an expanded list is
+ *     readable; a source with no components of its own becomes a single
+ *     component named for its group.
+ *
+ * Subrequest cost is unchanged: five sources cost the same five fetches these
+ * did as five separate vendors.
+ *
+ * @param {object} vendor
+ * @param {object} ctx
+ */
+async function collectComposite(vendor, ctx) {
+  const { now } = ctx;
+  const name = vendor?.name ?? 'unknown';
+  const sources = Array.isArray(vendor.sources) ? vendor.sources : [];
+
+  if (sources.length === 0) {
+    return unknownRecord(name, 'composite vendor declared no sources', {
+      now,
+      sourceUrl: vendor?.pageUrl,
+    });
+  }
+
+  const parts = await Promise.all(
+    sources.map((s) =>
+      collectOne({ ...s, name }, ctx).then(
+        (r) => ({ source: s, record: r }),
+        (e) => ({
+          source: s,
+          record: unknownRecord(name, `collector error: ${e}`, { now }),
+        }),
+      ),
+    ),
+  );
+
+  const components = [];
+  const warnings = [];
+  const affected = [];
+
+  for (const { source, record } of parts) {
+    const group = source.group ?? record.service ?? 'Status';
+    const own = Array.isArray(record.components) ? record.components : [];
+
+    if (own.length > 0) {
+      for (const c of own) {
+        components.push({ ...c, name: `${group} · ${c.name}` });
+      }
+    } else {
+      // A single-status source (e.g. "Azure: Available") has no components of
+      // its own; represent it as one, so it is visible when expanded.
+      components.push({
+        name: group,
+        severity: record.severity,
+        description: record.description ?? '',
+      });
+    }
+
+    for (const w of record.warnings ?? []) warnings.push(`${group}: ${w}`);
+    if (rank(record.severity) > rank(SEVERITY.OPERATIONAL)) affected.push(group);
+  }
+
+  const severity = worstOf(components.map((c) => c.severity));
+
+  return makeRecord({
+    vendor: name,
+    service: vendor.service ?? name,
+    severity,
+    incidentName: affected.length ? 'Service issue' : '',
+    description: affected.length
+      ? `Affected: ${[...new Set(affected)].join(', ')}.`
+      : `All ${components.length} monitored Microsoft services report healthy.`,
+    sourceUrl: vendor?.pageUrl ?? '',
+    components,
+    warnings,
+    now,
+  });
+}
+
 async function collectOne(vendor, ctx) {
   const { fetchFn, now, timeoutMs } = ctx;
   const name = vendor?.name ?? 'unknown';
@@ -360,9 +456,10 @@ export async function collect(config, ctx) {
   const budget = { remaining: retryBudget };
 
   const settled = await Promise.allSettled(
-    config.vendors.map((v) =>
-      collectOne(v, { fetchFn: meteredFetch, now, timeoutMs, retryDelayMs, budget }),
-    ),
+    config.vendors.map((v) => {
+      const ctx = { fetchFn: meteredFetch, now, timeoutMs, retryDelayMs, budget };
+      return v?.type === 'composite' ? collectComposite(v, ctx) : collectOne(v, ctx);
+    }),
   );
 
   const records = settled.map((outcome, i) =>
