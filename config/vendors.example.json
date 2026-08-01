@@ -158,7 +158,7 @@
       "brandDomain": "cloudflare.com"
     },
     {
-      "$comment": "Uses the JSON API the Concur Open React app calls. Scrapes of the HTML page return an empty JS shell (audit finding H7).",
+      "$comment": "Uses the JSON API the Concur Open React app calls. Scrapes of the HTML page return an empty JS shell (audit finding H7). Service catalogue from get_subscription_components, found by reading the status page's network log - /api/open/{services,components,status} all 404. Incidents carry affected_services, so catalogue services are matched to open incidents by name.",
       "name": "Concur",
       "type": "concur",
       "url": "https://open.concur.com/api/open/incidents",
@@ -166,7 +166,8 @@
       "dataCenters": [
         "US2"
       ],
-      "brandDomain": "concur.com"
+      "brandDomain": "concur.com",
+      "componentsUrl": "https://open.concur.com/api/subscriptions/v4/get_subscription_components?application=Open"
     },
     {
       "name": "Couchdrop",
@@ -463,12 +464,13 @@
       "brandDomain": "signal.org"
     },
     {
-      "$comment": "Stormboard migrated from Statuspage to Better Stack; the old summary.json now returns HTML (audit finding H6).",
+      "$comment": "Stormboard migrated from Statuspage to Better Stack; the old summary.json now returns HTML (audit finding H6). Resource list comes from /sections, found by reading the network log - the main page HTML contains no resource names. Stormboard monitors endpoints rather than naming products, so components are the monitored hosts.",
       "name": "Stormboard",
       "type": "betterstack",
       "url": "https://status.stormboard.com/",
       "pageUrl": "https://status.stormboard.com",
-      "brandDomain": "stormboard.com"
+      "brandDomain": "stormboard.com",
+      "componentsUrl": "https://status.stormboard.com/sections"
     },
     {
       "$comment": "Salesforce publishes Tableau as per-region instances with no sub-service breakdown; instances drive severity but are not listed as components.",

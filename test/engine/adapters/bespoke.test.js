@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { parseBetterStackSections } from '../../../src/engine/adapters/betterstack.js';
 import { parseSorryApp } from '../../../src/engine/adapters/sorryapp.js';
 import { SEVERITY } from '../../../src/engine/severity.js';
 import { parseGoogle } from '../../../src/engine/adapters/google.js';
@@ -377,5 +378,53 @@ describe('sorryapp components (iorad)', () => {
     const r = parseSorryApp({ page: { state: 'operational' } }, { vendor: 'Iorad', now });
     expect(r.severity).toBe(SEVERITY.OPERATIONAL);
     expect(r.components).toEqual([]);
+  });
+});
+
+describe('betterstack /sections resources (stormboard)', () => {
+  // Found by reading the status page's network log: the main page HTML carries
+  // NO resource names, so the row had a page-level status and nothing under it.
+  const frag = (rows) =>
+    rows
+      .map(
+        ([state, name]) =>
+          `<div class='d-flex align-items-center status-page__resource-name'>` +
+          `<img src="https://x/assets/status_pages/${state}_small-abc.png" />\n${name}\n</div>`,
+      )
+      .join('');
+
+  it('extracts each resource and its state from the icon filename', () => {
+    // The state is read from the ICON FILENAME, not a colour: the inline hex
+    // colours would change silently with a theme tweak.
+    const c = parseBetterStackSections(frag([['operational', 'https://api.example.com/docs']]));
+    expect(c).toHaveLength(1);
+    expect(c[0].severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('names a resource by host, since these are monitored URLs', () => {
+    const c = parseBetterStackSections(frag([['operational', 'https://api.stormboard.com/docs']]));
+    expect(c[0].name).toBe('api.stormboard.com');
+  });
+
+  it('maps every state BetterStack ships and fails closed on a new one', () => {
+    const sev = (s) => parseBetterStackSections(frag([[s, 'https://x.example/']]))[0].severity;
+    expect(sev('operational')).toBe(SEVERITY.OPERATIONAL);
+    expect(sev('degraded')).toBe(SEVERITY.DEGRADED);
+    expect(sev('downtime')).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(sev('maintenance')).toBe(SEVERITY.MAINTENANCE);
+    expect(sev('not_monitored')).toBe(SEVERITY.UNKNOWN);
+    expect(sev('brand_new')).toBe(SEVERITY.UNKNOWN);
+  });
+
+  it('returns nothing rather than throwing when the fragment is absent', () => {
+    for (const bad of ['', null, undefined, '<html>nope</html>']) {
+      expect(parseBetterStackSections(bad)).toEqual([]);
+    }
+  });
+
+  it('keeps a non-URL label as written', () => {
+    expect(parseBetterStackSections(frag([['operational', 'Web application']]))[0].name).toBe(
+      'Web application',
+    );
   });
 });

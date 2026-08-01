@@ -380,7 +380,21 @@ async function collectOne(vendor, ctx) {
   const body = attempt.body;
 
   try {
-    if (isText) return TEXT_ADAPTERS[vendor.type](body, opts);
+    if (isText) {
+      // BetterStack renders its resource list from a separate /sections
+      // fragment; the main page carries no resource names at all.
+      if (vendor.type === 'betterstack' && vendor.componentsUrl) {
+        try {
+          const res = await fetchFn(vendor.componentsUrl, {
+            headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+          });
+          opts.sections = await res.text();
+        } catch {
+          /* advisory: the page-level state still stands */
+        }
+      }
+      return TEXT_ADAPTERS[vendor.type](body, opts);
+    }
 
     let payload;
     try {
@@ -430,6 +444,20 @@ async function collectOne(vendor, ctx) {
         if (Array.isArray(list)) payload.components = list;
       } catch {
         /* components are advisory; page state still decides severity */
+      }
+    }
+
+    // Concur's service catalogue lives on a separate endpoint, found by reading
+    // the status page's network log. Without it the row listed services only
+    // while something was broken, and showed nothing at all when healthy.
+    if (vendor.type === 'concur' && vendor.componentsUrl) {
+      try {
+        const res = await fetchFn(vendor.componentsUrl, {
+          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+        });
+        opts.serviceCatalogue = JSON.parse(await res.text());
+      } catch {
+        /* catalogue is advisory; incidents still decide severity */
       }
     }
 
