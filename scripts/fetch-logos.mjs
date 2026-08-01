@@ -97,6 +97,49 @@ async function download(url) {
   }
 }
 
+/**
+ * Make an SVG render deterministically on the logo chip.
+ *
+ * Vendor favicons increasingly ship a `prefers-color-scheme` block so they can
+ * adapt to the OS theme. That is right for a browser tab and wrong here: the
+ * chip these sit on has its OWN fixed near-white background, independent of the
+ * page theme. Signal's favicon flips every path to #FFFFFF in dark mode, so on
+ * a dark-themed page it rendered white-on-white and vanished (reported
+ * 2026-08-01). An embedded <style> also BEATS a path's own `fill` attribute, so
+ * the blue fills already present were being overridden.
+ *
+ * The light-mode declarations are what the chip wants, so they are emitted
+ * unconditionally and the dark block is dropped — preserving the vendor's
+ * intent for a light background rather than merely deleting styling.
+ *
+ * Comments are stripped before matching: Tailscale ships its dark rules inside
+ * a /* ... *\/ block, which is already inert, and rewriting it would be a
+ * pointless diff.
+ *
+ * @param {string} svg
+ * @returns {string}
+ */
+function neutralizeColorScheme(svg) {
+  return svg.replace(/<style>([\s\S]*?)<\/style>/gi, (whole, css) => {
+    const active = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    if (!/prefers-color-scheme/.test(active)) return whole;
+
+    // Keep the light-scheme body, unwrapped; drop dark entirely.
+    let kept = '';
+    // Inner capture must END on a brace, or the rule's own closing brace is
+    // eaten and the emitted CSS is malformed.
+    const light = /@media[^{]*prefers-color-scheme:\s*light[^{]*\{([\s\S]*?\})\s*\}/i.exec(active);
+    if (light) kept = light[1].trim();
+
+    const rest = active
+      .replace(/@media[^{]*prefers-color-scheme:[^{]*\{[\s\S]*?\}\s*\}/gi, '')
+      .trim();
+
+    const body = [rest, kept].filter(Boolean).join('\n');
+    return body ? `<style>${body}</style>` : '';
+  });
+}
+
 const config = JSON.parse(readFileSync(CONFIG, 'utf8'));
 mkdirSync(OUT_DIR, { recursive: true });
 

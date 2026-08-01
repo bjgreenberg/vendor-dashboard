@@ -103,6 +103,23 @@
       "brandDomain": "apple.com"
     },
     {
+      "$comment": "Scoped to Bubble's OWN services. Its Statuspage lists 25 components, but 18 are UPSTREAM third parties - AWS regions, Cloudflare, Intercom, SendGrid, imgix. Including them would blame Bubble for someone else's outage, and Cloudflare is already its own row here, so a Cloudflare incident would show twice and make Bubble look broken. Same principle as the Cloudflare scoping decision: report what the vendor says about ITS OWN service.",
+      "name": "Bubble",
+      "type": "statuspage",
+      "url": "https://status.bubble.io/api/v2/summary.json",
+      "brandDomain": "bubble.io",
+      "scope": {
+        "components": [
+          "Bubble Forum",
+          "Application Logs & Metrics",
+          "Bubble Security Dashboard",
+          "Support portal & ticket creation",
+          "Apple App Store deployment",
+          "BubbleGo"
+        ]
+      }
+    },
+    {
       "name": "Calendly",
       "type": "statuspage",
       "url": "https://www.calendlystatus.com/api/v2/summary.json",
@@ -323,6 +340,14 @@
       "type": "statuspage",
       "url": "https://status.openai.com/api/v2/summary.json",
       "brandDomain": "openai.com"
+    },
+    {
+      "$comment": "componentLevel 'group' because the leaves are REGIONS - 'US East / Virginia' repeats across 84 components. Rolling up to the 7 published groups gives services rather than points of presence, the same fix applied to Zoom, NetSuite, Docusign and Jamf.",
+      "name": "OutSystems",
+      "type": "statuspage",
+      "url": "https://status.outsystems.com/api/v2/summary.json",
+      "brandDomain": "outsystems.com",
+      "componentLevel": "group"
     },
     {
       "$comment": "Instatus splits page state and components across two endpoints; summary.json carries only page.status. componentsUrl is advisory - if it fails the page status still decides severity.",

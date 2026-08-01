@@ -118,7 +118,18 @@ import { parseMicrosoftConsumer, parseMicrosoftAdminPost } from '../../../src/en
 const consumerLive = JSON.parse(readFileSync('test/fixtures/Microsoft-consumer.json', 'utf8'));
 const adminLive = JSON.parse(readFileSync('test/fixtures/Microsoft-adminpost.json', 'utf8'));
 const consumer = (p) => parseMicrosoftConsumer(p, { vendor: 'Microsoft', now });
-const admin = (p, v = 'Microsoft 365') => parseMicrosoftAdminPost(p, { vendor: v, now: () => new Date() });
+// The clock is an explicit PARAMETER, never wall-clock time.
+//
+// First attempt used `new Date()`, and these tests began failing 30 minutes
+// after the fixture was recorded because the freshness guard correctly
+// rejected a stale post. Second attempt derived the clock FROM the payload,
+// which broke the opposite way: a deliberately-stale payload also got a stale
+// clock and looked fresh. Passing it in keeps both cases honest (testing.md §7).
+const FIXED = new Date('2026-08-01T01:00:00Z');
+/** Clock just after a payload's own timestamp — for the recorded live fixture. */
+const justAfter = (p) => new Date(Date.parse(p.LastUpdatedTime) + 60_000);
+const admin = (p, v = 'Microsoft 365', at = FIXED) =>
+  parseMicrosoftAdminPost(p, { vendor: v, now: () => at });
 
 describe('microsoft consumer products', () => {
   it('covers the apps a reader actually asks about', () => {
@@ -168,9 +179,9 @@ describe('microsoft consumer products', () => {
 
 describe('microsoft admin-centre meta status', () => {
   it('reads the live payload and names the product from the vendor', () => {
-    const r = admin(adminLive);
+    const r = admin(adminLive, 'Microsoft 365', justAfter(adminLive));
     expect(r.service).toBe('Microsoft 365 (Admin Center reachability)');
-    expect(admin(adminLive, 'Microsoft Power Platform').service).toBe(
+    expect(admin(adminLive, 'Microsoft Power Platform', justAfter(adminLive)).service).toBe(
       'Microsoft Power Platform (Admin Center reachability)',
     );
   });
@@ -178,7 +189,7 @@ describe('microsoft admin-centre meta status', () => {
   it('warns that it does not measure the services inside', () => {
     // The overclaiming trap: "Microsoft 365 - Operational" would be read as
     // "my email works". This row does not measure that.
-    expect(admin(adminLive).warnings.join(' ')).toMatch(/only whether the admin centre itself is reachable/i);
+    expect(admin(adminLive, 'Microsoft 365', justAfter(adminLive)).warnings.join(' ')).toMatch(/only whether the admin centre itself is reachable/i);
   });
 
   it('refuses a stale post rather than repeating Available forever', () => {
@@ -187,9 +198,9 @@ describe('microsoft admin-centre meta status', () => {
   });
 
   it('fails closed on missing status, bad timestamp or unknown vocabulary', () => {
-    expect(admin({ LastUpdatedTime: new Date().toISOString() }).severity).toBe(SEVERITY.UNKNOWN);
+    expect(admin({ LastUpdatedTime: FIXED.toISOString() }).severity).toBe(SEVERITY.UNKNOWN);
     expect(admin({ Status: 'Available', LastUpdatedTime: 'nope' }).severity).toBe(SEVERITY.UNKNOWN);
-    expect(admin({ Status: 'Sparkly', LastUpdatedTime: new Date().toISOString() }).severity).toBe(
+    expect(admin({ Status: 'Sparkly', LastUpdatedTime: FIXED.toISOString() }).severity).toBe(
       SEVERITY.UNKNOWN,
     );
   });
