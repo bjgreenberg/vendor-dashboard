@@ -59,6 +59,9 @@ export function awsSeverityOf(summary) {
   return SEVERITY.DEGRADED;
 }
 
+/** Distinct service names in the catalogue. Global, so lastIndex is reset. */
+const CATALOGUE_RE = /"service_name":"([^"]+)"/g;
+
 /** @param {any} e */
 function isActive(e) {
   const resolved = /^\s*\[?resolved\]?/i.test(String(e?.summary ?? ''));
@@ -82,17 +85,23 @@ export function parseAws(payload, options) {
 
   const active = events.filter(isActive);
 
-  if (active.length === 0) {
-    return makeRecord({
-      vendor,
-      service: SERVICE_LABEL,
-      severity: SEVERITY.OPERATIONAL,
-      description: 'No active AWS service events are published.',
-      sourceUrl: SOURCE_URL,
-      components: [],
-      warnings: [],
-      now,
-    });
+  // The catalogue, so the row lists SERVICES even when nothing is wrong.
+  // currentevents publishes only ACTIVE events, so without this AWS showed no
+  // services at all on a healthy day -- the same gap found on Oracle, IBM,
+  // Concur, Seismic, Iorad and Stormboard.
+  const catalogue = [];
+  const catalogueText = options?.catalogueText;
+  if (typeof catalogueText === 'string' && catalogueText.length > 0) {
+    const seen = new Set();
+    CATALOGUE_RE.lastIndex = 0;
+    let m;
+    while ((m = CATALOGUE_RE.exec(catalogueText)) !== null) {
+      if (!seen.has(m[1])) {
+        seen.add(m[1]);
+        catalogue.push(m[1]);
+      }
+    }
+    CATALOGUE_RE.lastIndex = 0; // global regex keeps state between runs
   }
 
   // SERVICES, not regions.
@@ -119,23 +128,56 @@ export function parseAws(payload, options) {
     byService.set(name, entry);
   }
 
-  const components = [...byService.entries()].map(([name, v]) => ({
-    name,
-    severity: v.severity,
-    description: [v.summaries.join('; '), v.regions.length ? `Regions: ${[...new Set(v.regions)].join(', ')}.` : '']
+  const describe = (v) =>
+    [v.summaries.join('; '), v.regions.length ? `Regions: ${[...new Set(v.regions)].join(', ')}.` : '']
       .filter(Boolean)
       .join(' ')
-      .slice(0, 240),
-  }));
+      .slice(0, 240);
+
+  const components = [];
+  for (const name of catalogue) {
+    const hit = byService.get(name);
+    components.push({
+      name,
+      severity: hit ? hit.severity : SEVERITY.OPERATIONAL,
+      description: hit ? describe(hit) : '',
+    });
+  }
+  // An event naming a service absent from the catalogue must still appear --
+  // AWS labels multi-service incidents "Multiple services", which is not a
+  // catalogue entry, and dropping it would hide a real outage.
+  for (const [name, v] of byService) {
+    if (!components.some((c) => c.name === name)) {
+      components.push({ name, severity: v.severity, description: describe(v) });
+    }
+  }
+  components.sort((a, b) => rank(b.severity) - rank(a.severity) || a.name.localeCompare(b.name));
+
+  if (active.length === 0) {
+    return makeRecord({
+      vendor,
+      service: SERVICE_LABEL,
+      severity: SEVERITY.OPERATIONAL,
+      description: components.length
+        ? `All ${components.length} services report no active events.`
+        : 'No active AWS service events are published.',
+      sourceUrl: SOURCE_URL,
+      components,
+      warnings: [],
+      now,
+    });
+  }
 
   return makeRecord({
     vendor,
     service: SERVICE_LABEL,
     severity: worst(components.map((c) => c.severity)),
     incidentName: toPlainText(active[0]?.summary ?? 'Service event').slice(0, 120),
-    description: `${active.length} active event${active.length === 1 ? '' : 's'}: ${components
-      .map((c) => c.name)
-      .slice(0, 3)
+    // Name the AFFECTED services, not the first few components. Once the
+    // catalogue was added, `components` became all 268 services sorted worst
+    // first, so slicing it listed healthy ones as though they were impacted.
+    description: `${active.length} active event${active.length === 1 ? '' : 's'}: ${[...byService.keys()]
+      .slice(0, 4)
       .join(', ')}.`,
     sourceUrl: SOURCE_URL,
     components,

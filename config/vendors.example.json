@@ -103,12 +103,13 @@
       "brandDomain": "apple.com"
     },
     {
-      "$comment": "health.aws.amazon.com/public/currentevents - the feed behind the AWS Health Dashboard. Served as charset=UTF-16 with a BOM, which response.text() decodes as UTF-8 per the fetch spec and turns into mojibake; collect.js decodeBody() sniffs the BOM. RESOLVED events stay in the feed, so an event counts as active only when it has no end_time AND is not marked resolved - filtering on presence alone would report AWS degraded over an incident closed hours ago. Named 'AWS' rather than 'Amazon Web Services': the dashboard filter indexes vendor and service labels, so the long name alone made the row unfindable by typing the name everyone uses. The service label carries both.",
+      "$comment": "health.aws.amazon.com/public/currentevents - the feed behind the AWS Health Dashboard. Served as charset=UTF-16 with a BOM, which response.text() decodes as UTF-8 per the fetch spec and turns into mojibake; collect.js decodeBody() sniffs the BOM. RESOLVED events stay in the feed, so an event counts as active only when it has no end_time AND is not marked resolved - filtering on presence alone would report AWS degraded over an incident closed hours ago. Named 'AWS' rather than 'Amazon Web Services': the dashboard filter indexes vendor and service labels, so the long name alone made the row unfindable by typing the name everyone uses. The service label carries both. Service catalogue from servicedata-us-east-1-prod.s3.amazonaws.com/services.json, found by reading the Health Dashboard's network log. currentevents lists ONLY active events, so with nothing wrong the row had no services at all. The catalogue is 5,848 service-region pairs covering 268 distinct services; scanned as raw text (1.71 ms) rather than JSON.parse (4.07 ms).",
       "name": "AWS",
       "type": "aws",
       "url": "https://health.aws.amazon.com/public/currentevents",
       "pageUrl": "https://health.aws.amazon.com/health/status",
-      "brandDomain": "aws.amazon.com"
+      "brandDomain": "aws.amazon.com",
+      "componentsUrl": "https://servicedata-us-east-1-prod.s3.amazonaws.com/services.json"
     },
     {
       "$comment": "Scoped to Bubble's OWN services. Its Statuspage lists 25 components, but 18 are UPSTREAM third parties - AWS regions, Cloudflare, Intercom, SendGrid, imgix. Including them would blame Bubble for someone else's outage, and Cloudflare is already its own row here, so a Cloudflare incident would show twice and make Bubble look broken. Same principle as the Cloudflare scoping decision: report what the vendor says about ITS OWN service.",

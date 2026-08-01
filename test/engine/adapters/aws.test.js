@@ -118,3 +118,88 @@ describe('the row is findable by the name people actually use', () => {
     expect(haystack(parse([]))).toContain('amazon');
   });
 });
+
+describe('aws lists its service catalogue', () => {
+  // Reported 2026-08-01: "Why isn't AWS giving details on services". Cause:
+  // currentevents publishes only ACTIVE events, so with nothing wrong the row
+  // had no services at all — the same gap found on Oracle, IBM, Concur,
+  // Seismic, Iorad and Stormboard. The catalogue is a separate document, found
+  // by reading the Health Dashboard's network log.
+  const cat = (names) =>
+    JSON.stringify(names.map((n) => ({ service: n.toLowerCase(), service_name: n, region_id: 'us-east-1' })));
+
+  const withCat = (events, names) =>
+    parseAws(events, { vendor: 'AWS', now, catalogueText: cat(names) });
+
+  it('lists every catalogued service when nothing is wrong', () => {
+    const r = withCat([], ['Amazon S3', 'Amazon EC2']);
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+    expect(r.components.map((c) => c.name).sort()).toEqual(['Amazon EC2', 'Amazon S3']);
+  });
+
+  it('dedupes the catalogue, which lists a service once per region', () => {
+    // 5,848 service-region pairs cover only 268 distinct services.
+    const raw = JSON.stringify([
+      { service_name: 'Amazon S3', region_id: 'us-east-1' },
+      { service_name: 'Amazon S3', region_id: 'eu-west-1' },
+    ]);
+    const r = parseAws([], { vendor: 'AWS', now, catalogueText: raw });
+    expect(r.components).toHaveLength(1);
+  });
+
+  it('marks only the services an active event names', () => {
+    const r = withCat(
+      [{ summary: 'Increased Error Rates', end_time: null, service_name: 'Amazon S3', region_name: 'UAE' }],
+      ['Amazon S3', 'Amazon EC2'],
+    );
+    expect(r.components.find((c) => c.name === 'Amazon S3').severity).toBe(SEVERITY.DEGRADED);
+    expect(r.components.find((c) => c.name === 'Amazon EC2').severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('still shows an event whose service is not in the catalogue', () => {
+    // AWS labels multi-service incidents "Multiple services", which is not a
+    // catalogue entry; dropping it would hide a real outage.
+    const r = withCat(
+      [{ summary: 'Increased Error Rates', end_time: null, service_name: 'Multiple services', region_name: 'UAE' }],
+      ['Amazon S3'],
+    );
+    expect(r.components.map((c) => c.name)).toContain('Multiple services');
+    expect(r.severity).toBe(SEVERITY.DEGRADED);
+  });
+
+  it('names only AFFECTED services in the summary line', () => {
+    // Once the catalogue landed, `components` became all services sorted worst
+    // first, so slicing it listed healthy ones as though they were impacted.
+    const r = withCat(
+      [{ summary: 'Increased Error Rates', end_time: null, service_name: 'Amazon S3', region_name: 'UAE' }],
+      ['Amazon S3', 'Amazon EC2', 'Amazon Athena'],
+    );
+    expect(r.description).toMatch(/Amazon S3/);
+    expect(r.description).not.toMatch(/Amazon EC2|Amazon Athena/);
+  });
+
+  it('sorts impacted services above healthy ones', () => {
+    const r = withCat(
+      [{ summary: 'S3 is unavailable', end_time: null, service_name: 'Amazon S3', region_name: 'UAE' }],
+      ['AAA First Alphabetically', 'Amazon S3'],
+    );
+    expect(r.components[0].name).toBe('Amazon S3');
+  });
+
+  it('is stable across repeated calls', () => {
+    // CATALOGUE_RE is global; a stale lastIndex would make the SECOND
+    // collection of the day return no services.
+    const names = ['Amazon S3', 'Amazon EC2'];
+    expect(withCat([], names).components.length).toBe(2);
+    expect(withCat([], names).components.length).toBe(2);
+  });
+
+  it('falls back to event-only components when the catalogue is unavailable', () => {
+    // Advisory: a failed catalogue fetch must not sink the row.
+    const r = parseAws(
+      [{ summary: 'Increased Error Rates', end_time: null, service_name: 'Amazon S3', region_name: 'UAE' }],
+      { vendor: 'AWS', now },
+    );
+    expect(r.components.map((c) => c.name)).toEqual(['Amazon S3']);
+  });
+});
