@@ -8,7 +8,6 @@ import { parseApple } from '../../../src/engine/adapters/apple.js';
 import { parseOkta } from '../../../src/engine/adapters/okta.js';
 import { parseSalesforce } from '../../../src/engine/adapters/salesforce.js';
 import { parseConcur } from '../../../src/engine/adapters/concur.js';
-import { parseSorryApp } from '../../../src/engine/adapters/sorryapp.js';
 import { parseBetterStack } from '../../../src/engine/adapters/betterstack.js';
 import { parseMicrosoft } from '../../../src/engine/adapters/microsoft.js';
 
