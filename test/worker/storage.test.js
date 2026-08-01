@@ -187,3 +187,46 @@ describe('read order is guaranteed by the reader, not by insertion order', () =>
     expect(records.map((r) => r.vendor)).toEqual(['zapier', 'Zoom']);
   });
 });
+
+describe('pruning vendors removed from config', () => {
+  // REGRESSION (2026-08-01). Shard-scoped deletes fixed one bug and created
+  // another: `DELETE ... WHERE vendor IN (checked)` only touches vendors the
+  // run checked, so a vendor REMOVED from config is never checked again and
+  // its row is orphaned forever. It keeps its last severity, freezes its
+  // timestamp, and still counts toward run_meta totals -- stale data presented
+  // as current, which is the whole failure class this project exists to
+  // prevent. Observed live: consolidating five Microsoft rows into one left
+  // all five on the board, showing 45 rows for 41 configured vendors.
+  it('removes rows for vendors no longer configured', async () => {
+    await writeRun(db, run([rec('Keep', 'operational'), rec('Dropped', 'operational')]));
+    // A later run of a DIFFERENT shard, with 'Dropped' no longer in config.
+    await writeRun(db, run([rec('Other', 'operational')]), { knownVendors: ['Keep', 'Other'] });
+    expect(snap().map((r) => r.vendor)).toEqual(['Keep', 'Other']);
+  });
+
+  it('keeps vendors that are configured but simply not in this shard', async () => {
+    // The critical distinction. Only 1/3 of vendors are checked per run; the
+    // other two thirds must survive untouched.
+    await writeRun(db, run([rec('ShardA', 'operational')]));
+    await writeRun(db, run([rec('ShardB', 'operational')]), {
+      knownVendors: ['ShardA', 'ShardB', 'ShardC'],
+    });
+    expect(snap().map((r) => r.vendor)).toEqual(['ShardA', 'ShardB']);
+  });
+
+  it('corrects run_meta totals after a prune', async () => {
+    await writeRun(db, run([rec('Keep', 'operational'), rec('Dropped', 'unknown')]));
+    expect(meta().total).toBe(2);
+    await writeRun(db, run([rec('Keep', 'operational')]), { knownVendors: ['Keep'] });
+    expect(meta().total).toBe(1);
+    expect(meta().unknown).toBe(0);
+  });
+
+  it('prunes nothing when knownVendors is not supplied', async () => {
+    // Back-compatible: a caller that does not know the full list must not
+    // accidentally wipe the other shards.
+    await writeRun(db, run([rec('A', 'operational'), rec('B', 'operational')]));
+    await writeRun(db, run([rec('A', 'operational')]));
+    expect(snap().map((r) => r.vendor)).toEqual(['A', 'B']);
+  });
+});

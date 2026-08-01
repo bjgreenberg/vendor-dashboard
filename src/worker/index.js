@@ -42,7 +42,12 @@ async function scheduled(controller, env) {
 
   const run = await collect({ ...vendorConfig, vendors }, { fetchFn: fetch.bind(globalThis) });
 
-  await writeRun(env.DB, run);
+  // Pass the FULL configured vendor list, not the shard: it is what lets
+  // storage prune rows for vendors that have been removed from config
+  // entirely, which a shard-scoped delete can never reach.
+  await writeRun(env.DB, run, {
+    knownVendors: vendorConfig.vendors.map((v) => v.name),
+  });
 
   // Structured, one event per line, machine-parseable. No vendor content is
   // logged beyond names and severities.

@@ -22,8 +22,15 @@ const feed = (builtIso, items = '') =>
 
 describe('azure incident feed', () => {
   it('reads the recorded live payload as operational', () => {
-    // Recorded while Azure had no active incidents.
-    const r = parseAzureFeed(azureLive, { vendor: 'Microsoft Azure', now: () => new Date() });
+    // Recorded while Azure had no active incidents. The clock is PINNED to
+    // just after the fixture's lastBuildDate: using real wall-clock time made
+    // this test start failing an hour after the fixture was recorded, because
+    // the freshness guard correctly rejected a stale feed (testing.md §7 --
+    // a test that passes or fails depending on when it runs is not a test).
+    const r = parseAzureFeed(azureLive, {
+      vendor: 'Microsoft Azure',
+      now: () => new Date(Date.parse(/<lastBuildDate>([^<]+)</.exec(azureLive)[1]) + 60_000),
+    });
     expect(r.severity).toBe(SEVERITY.OPERATIONAL);
     expect(r.service).toBe('Microsoft Azure');
   });
