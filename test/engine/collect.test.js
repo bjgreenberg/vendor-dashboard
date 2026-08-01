@@ -302,6 +302,45 @@ describe('collect — bounded retry for transient failures', () => {
 // on that platform needs an optional secondary fetch to expose its component
 // list — mirroring Concur's optional banner.
 describe('collect — optional secondary fetches', () => {
+  it('deadlines the secondary fetch too — a hung components endpoint cannot stall the shard', async () => {
+    // Audit finding M3: the advisory calls (instatus/google/sorryapp
+    // components, Concur banner + catalogue, concur-status per-DC docs,
+    // BetterStack sections) passed no AbortSignal, so one hung endpoint held
+    // the whole invocation open until the runtime killed it — nothing written,
+    // no alert, the same silent-stall class as the 2026-08-01 CPU outage. The
+    // deadline is enforced inside meteredFetch, so no call site (present or
+    // future) can escape it — the same wrap-the-injected-function shape that
+    // made the subrequest budget inescapable.
+    const advisorySignals = [];
+    const fetchFn = (url, init) => {
+      if (url === 'https://p/summary') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ page: { status: 'UP', url: 'https://p' } }),
+        });
+      }
+      advisorySignals.push(init?.signal);
+      // Never settles on its own; rejects only when the caller's deadline fires.
+      return new Promise((_, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted by deadline')));
+      });
+    };
+
+    const outcome = await Promise.race([
+      collect(
+        cfg([{ name: 'P', type: 'instatus', url: 'https://p/summary', componentsUrl: 'https://p/components' }]),
+        { fetchFn, now, retryDelayMs: 0, timeoutMs: 25 },
+      ),
+      new Promise((resolve) => setTimeout(() => resolve('HUNG'), 1500)),
+    ]);
+
+    expect(outcome, 'collect() never returned — the advisory fetch has no deadline').not.toBe('HUNG');
+    expect(advisorySignals[0], 'advisory fetch received no AbortSignal').toBeDefined();
+    // The page-level verdict still stands; the lost component list is advisory.
+    expect(outcome.records[0].severity).toBe('operational');
+  });
+
   it('merges an instatus components endpoint into the payload', async () => {
     const res = await collect(
       cfg([{ name: 'P', type: 'instatus', url: 'https://p/summary', componentsUrl: 'https://p/components' }]),
