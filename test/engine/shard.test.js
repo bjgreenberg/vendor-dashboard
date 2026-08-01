@@ -103,10 +103,35 @@ describe('subrequest budget', () => {
 
   it('a sharded run costs a fraction of the ceiling', async () => {
     for (let i = 0; i < SHARD_COUNT; i += 1) {
+      const vendors = selectShard(config.vendors, i);
+      // An empty shard is legitimate: pinning the expensive vendors elsewhere
+      // can leave a slot with nothing hashed into it. The scheduled handler
+      // skips those before calling collect(), which refuses an empty list.
+      if (vendors.length === 0) continue;
       const { state, fetchFn } = counting();
-      await collect({ ...config, vendors: selectShard(config.vendors, i) }, { fetchFn, retryDelayMs: 0 });
+      await collect({ ...config, vendors }, { fetchFn, retryDelayMs: 0 });
       expect(state.n).toBeLessThan(25);
     }
+  });
+
+  it('every vendor is still assigned to exactly one shard, empty slots aside', () => {
+    const seen = [];
+    for (let i = 0; i < SHARD_COUNT; i += 1) seen.push(...selectShard(config.vendors, i));
+    expect(seen.length).toBe(config.vendors.length);
+    expect(new Set(seen.map((v) => v.name)).size).toBe(config.vendors.length);
+  });
+
+  it('honours an explicit shard pin', () => {
+    const vendors = [{ name: 'Heavy', shard: 3 }, { name: 'Other' }];
+    expect(selectShard(vendors, 3, 15).map((v) => v.name)).toContain('Heavy');
+  });
+
+  it('falls back to the hash when a pin is out of range', () => {
+    // Lowering SHARD_COUNT must not strand a vendor in a shard that never runs.
+    const vendors = [{ name: 'Heavy', shard: 99 }];
+    const found = [];
+    for (let i = 0; i < 15; i += 1) found.push(...selectShard(vendors, i, 15));
+    expect(found).toHaveLength(1);
   });
 
   it('the FULL list is what used to exceed the ceiling', async () => {

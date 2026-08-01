@@ -23,6 +23,7 @@ import { parseApple } from './adapters/apple.js';
 import { parseOktaAtom } from './adapters/okta.js';
 import { parseSalesforce } from './adapters/salesforce.js';
 import { parseConcur } from './adapters/concur.js';
+import { parseConcurStatus } from './adapters/concur-status.js';
 import { parseSorryApp } from './adapters/sorryapp.js';
 import { parseBetterStack } from './adapters/betterstack.js';
 import { parseMicrosoft, parseMicrosoftFeed, parseMicrosoftConsumer, parseMicrosoftAdminPost } from './adapters/microsoft.js';
@@ -89,6 +90,7 @@ const JSON_ADAPTERS = {
   apple: parseApple,
   salesforce: parseSalesforce,
   concur: parseConcur,
+  'concur-status': parseConcurStatus,
   sorryapp: parseSorryApp,
   microsoft: parseMicrosoft,
   'azure-devops': parseAzureDevOps,
@@ -445,6 +447,25 @@ async function collectOne(vendor, ctx) {
       } catch {
         /* components are advisory; page state still decides severity */
       }
+    }
+
+    // concur-status reads one document PER DATA CENTRE and merges them.
+    // Reading only us2 would report Concur healthy while EU customers were
+    // down; the four together are still 38x cheaper than the 23.3 MB incidents
+    // feed they replace.
+    if (vendor.type === 'concur-status' && Array.isArray(vendor.statusUrls)) {
+      const docs = [];
+      for (const u of vendor.statusUrls) {
+        try {
+          const res = await fetchFn(u, {
+            headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+          });
+          docs.push(JSON.parse(await res.text()));
+        } catch {
+          /* a missing data centre must not sink the others */
+        }
+      }
+      payload = docs;
     }
 
     // Concur's service catalogue lives on a separate endpoint, found by reading

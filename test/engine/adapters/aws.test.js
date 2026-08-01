@@ -9,7 +9,15 @@ import { SEVERITY } from '../../../src/engine/severity.js';
 
 const now = () => new Date('2026-08-01T01:20:00Z');
 const live = JSON.parse(readFileSync('test/fixtures/AWS-currentevents.json', 'utf8'));
-const parse = (p) => parseAws(p, { vendor: 'AWS', now });
+// The catalogue comes from CONFIG (`serviceCatalog`), the same mechanism Okta
+// uses, so the pure engine imports no JSON of its own. Tests read the real
+// committed list rather than a fixture, so a truncated or renamed catalogue
+// fails here.
+const AWS_CATALOGUE = JSON.parse(readFileSync('config/vendors.example.json', 'utf8')).vendors.find(
+  (v) => v.name === 'AWS',
+).serviceCatalog;
+
+const parse = (p) => parseAws(p, { vendor: 'AWS', now, serviceCatalog: AWS_CATALOGUE });
 
 describe('aws current events', () => {
   /** Only the components an event actually marked — the rest is the catalogue. */

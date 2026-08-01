@@ -82,7 +82,30 @@ export function selectShard(vendors, index, count = SHARD_COUNT) {
   if (!Number.isInteger(index) || index < 0 || index >= count) {
     throw new Error(`selectShard: index must be 0..${count - 1}`);
   }
-  return vendors.filter((v) => shardOf(v?.name ?? '', count) === index);
+  return vendors.filter((v) => assignedShard(v, count) === index);
+}
+
+/**
+ * Which shard a vendor runs in, honouring an explicit `shard` in config.
+ *
+ * Hashing spreads vendors evenly by COUNT, but they are not evenly EXPENSIVE.
+ * AWS, IBM Cloud, Oracle Cloud, Concur and NetSuite each parse a large
+ * document, and when the hash put two of them together the invocation exceeded
+ * the free plan's 10 ms CPU ceiling and was killed -- collection stopped for
+ * 3.5 hours on 2026-08-01. No amount of rehashing fixes that reliably; the
+ * expensive ones have to be kept apart deliberately.
+ *
+ * An out-of-range value falls back to the hash rather than throwing, so
+ * lowering SHARD_COUNT cannot strand a vendor in a shard that never runs.
+ *
+ * @param {{name?: string, shard?: number}} vendor
+ * @param {number} count
+ * @returns {number}
+ */
+export function assignedShard(vendor, count = SHARD_COUNT) {
+  const pinned = vendor?.shard;
+  if (Number.isInteger(pinned) && pinned >= 0 && pinned < count) return pinned;
+  return shardOf(vendor?.name ?? '', count);
 }
 
 /**

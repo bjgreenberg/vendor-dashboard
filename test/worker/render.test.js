@@ -585,3 +585,61 @@ describe('permalink anchor on touch devices', () => {
     expect(css()).not.toMatch(/\.vs-anchor:focus(?!-visible)/);
   });
 });
+
+describe('per-component detail', () => {
+  // Reported 2026-08-01: "AWS doesn't seem to be breaking down what the
+  // specific failure is. It just is a general label." The adapters HAD been
+  // filling in per-component descriptions — AWS's event-log excerpt naming the
+  // affected regions and what happened, Oracle's and Azure DevOps' affected
+  // regions, IBM's incident title — and childLi dropped them on the floor. A
+  // reader saw "Multiple services / Degraded" and nothing about the failure.
+  const withChild = (child) =>
+    renderDashboard({
+      records: [
+        record({
+          vendor: 'AWS',
+          severity: 'degraded',
+          components: [child],
+        }),
+      ],
+      meta: { checked_at: '2026-08-01T12:00:00.000Z' },
+      now: () => new Date('2026-08-01T12:01:00.000Z'),
+    });
+
+  // Assert on the ELEMENT, not the class name: the stylesheet in the same
+  // document also mentions `vs-child-detail`, so a document-wide check passes
+  // whether or not anything is actually rendered.
+  const DETAIL_EL = '<p class="vs-child-detail">';
+
+  it('renders the detail of an impacted component', () => {
+    const html = withChild({
+      name: 'Multiple services',
+      severity: 'degraded',
+      description: 'UAE — The Region has suffered damage and is unavailable.',
+    });
+    expect(html).toContain(DETAIL_EL);
+    expect(html).toContain('suffered damage');
+  });
+
+  it('escapes the detail, which is third-party text', () => {
+    const html = withChild({
+      name: 'X',
+      severity: 'degraded',
+      description: '<img src=x onerror=alert(1)>',
+    });
+    expect(html).not.toContain('<img src=x');
+    expect(html).toContain('&lt;img');
+  });
+
+  it('renders NO detail element for a healthy component', () => {
+    // A healthy component's description is empty by construction; emitting the
+    // element anyway would put an empty box under all 268 AWS services.
+    const html = withChild({ name: 'Amazon S3', severity: 'operational', description: '' });
+    expect(html).not.toContain(DETAIL_EL);
+  });
+
+  it('renders no detail element when an impacted component has none', () => {
+    const html = withChild({ name: 'X', severity: 'degraded', description: '' });
+    expect(html).not.toContain(DETAIL_EL);
+  });
+});

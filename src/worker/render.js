@@ -546,10 +546,26 @@ function hostOf(url) {
 /** @param {{name: string, severity: string}} c */
 function childLi(c) {
   const cp = PRESENTATION[c.severity] ?? PRESENTATION.unknown;
-  return `<li class="vs-child">
+
+  // Per-component DETAIL. Adapters have been filling this in for a while --
+  // AWS's event-log excerpt naming the affected regions and what happened,
+  // Oracle's and Azure DevOps' affected regions, IBM's incident title -- and
+  // the renderer dropped it on the floor, so a reader saw "Multiple services /
+  // Degraded" and nothing about the actual failure. Reported 2026-08-01.
+  //
+  // Shown only for components that are NOT operational: a healthy component's
+  // description is empty by construction, and rendering the element anyway
+  // would put an empty box under all 268 AWS services.
+  const detail =
+    c.severity !== 'operational' && c.description
+      ? `<p class="vs-child-detail">${esc(c.description)}</p>`
+      : '';
+
+  return `<li class="vs-child${detail ? ' vs-child--detailed' : ''}">
     <span class="vs-dot vs-dot--${esc(cp.tone)}" aria-hidden="true">${esc(cp.symbol)}</span>
     <span class="vs-child-name">${esc(c.name)}</span>
     <span class="vs-child-state">${esc(cp.label)}</span>
+    ${detail}
   </li>`;
 }
 
@@ -740,6 +756,15 @@ const STYLES = `
 .vs-anchor:focus-visible { opacity: 1; }
 /* Deep-linked row gets a moment of emphasis so it is findable on arrival. */
 .vs-card:target { box-shadow: 0 0 0 2px currentColor; }
+
+.vs-child--detailed { flex-wrap: wrap; }
+.vs-child-detail {
+  flex: 1 0 100%;
+  margin: .35rem 0 0;
+  font-size: .85rem;
+  opacity: .8;
+  line-height: 1.45;
+}
 
 .vs-empty { opacity: .75; }
 .skip { position: absolute; left: -9999px; }

@@ -28,7 +28,6 @@
 
 import { SEVERITY, worst, rank } from '../severity.js';
 import { makeRecord, unknownRecord, toPlainText } from '../record.js';
-import AWS_SERVICES from '../../../config/aws-services.json';
 
 const SOURCE_URL = 'https://health.aws.amazon.com/health/status';
 // Label carries BOTH names deliberately. The dashboard filter indexes the
@@ -146,7 +145,12 @@ export function parseAws(payload, options) {
   // list of AWS services changes when AWS launches one, so it does not need
   // re-reading every fifteen minutes. Refresh with
   // `node scripts/fetch-aws-catalogue.mjs`.
-  const catalogue = Array.isArray(AWS_SERVICES?.services) ? AWS_SERVICES.services : [];
+  // Supplied by CONFIG (`serviceCatalog`), not imported here. Importing JSON
+  // into src/engine/ would couple the pure engine to a module loader -- it
+  // broke `npm run perf` under plain Node, which needs an import attribute
+  // that the Worker bundler does not require. `serviceCatalog` is the same
+  // mechanism Okta already uses for exactly this.
+  const catalogue = Array.isArray(options?.serviceCatalog) ? options.serviceCatalog : [];
 
   // SERVICES, not regions.
   //

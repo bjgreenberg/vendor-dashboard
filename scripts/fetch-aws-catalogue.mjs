@@ -17,10 +17,10 @@
  * Re-run when AWS launches services:  node scripts/fetch-aws-catalogue.mjs
  */
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 const URL_ = 'https://servicedata-us-east-1-prod.s3.amazonaws.com/services.json';
-const OUT = 'config/aws-services.json';
+const OUT = 'config/vendors.example.json';
 
 const res = await fetch(URL_, {
   headers: { 'User-Agent': 'vendor-dashboard/2.0 (+https://briangreenberg.net/service-status; build)' },
@@ -41,5 +41,19 @@ if (names.length < 100) {
   process.exit(1);
 }
 
-writeFileSync(OUT, `${JSON.stringify({ source: URL_, services: names }, null, 2)}\n`);
-console.log(`wrote ${names.length} AWS services to ${OUT} (from ${(buf.length / 1048576).toFixed(2)} MB)`);
+// Written into the vendor's `serviceCatalog`, the field the engine already
+// reads for Okta. Keeping it in config rather than a module the engine imports
+// preserves the engine's purity — importing JSON there broke `npm run perf`
+// under plain Node, which requires an import attribute the bundler does not.
+const config = JSON.parse(readFileSync(OUT, 'utf8'));
+const aws = config.vendors.find((v) => v.name === 'AWS');
+if (!aws) {
+  console.error('no AWS vendor in config');
+  process.exit(1);
+}
+const before = aws.serviceCatalog?.length ?? 0;
+aws.serviceCatalog = names;
+writeFileSync(OUT, `${JSON.stringify(config, null, 2)}\n`);
+console.log(
+  `wrote ${names.length} AWS services (was ${before}) into ${OUT} from a ${(buf.length / 1048576).toFixed(2)} MB source`,
+);
