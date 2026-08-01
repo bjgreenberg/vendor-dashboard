@@ -26,7 +26,7 @@
  * 2,556,694 bytes.
  */
 
-import { SEVERITY, worst } from '../severity.js';
+import { SEVERITY, worst, rank } from '../severity.js';
 import { makeRecord, unknownRecord, toPlainText } from '../record.js';
 
 const SOURCE_URL = 'https://cloud.ibm.com/status';
@@ -42,6 +42,9 @@ const INCIDENT_MARKER = '"type":"incident"';
  * the fail-closed direction: an incident whose state we do not recognise is an
  * incident we cannot confirm is finished.
  */
+/** Service catalogue pairs, precompiled and global. */
+const CATALOGUE_RE = /"resourceID":"([^"]+)","displayName":"([^"]*)"/g;
+
 const CLOSED_STATES = new Set(['resolved', 'completed', 'archived', 'closed']);
 
 /**
@@ -151,42 +154,82 @@ export function parseIbmCloud(text, options) {
     if (obj) {
       const state = field(obj, 'state').toLowerCase();
       if (!CLOSED_STATES.has(state)) {
+        const ids = [...obj.matchAll(/"resourceIDs":\[([^\]]*)\]/g)]
+          .flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
         active.push({
           severity: ibmSeverityOf(field(obj, 'sev')),
           title:
             toPlainText(field(obj, 'name') || field(obj, 'shortDescription')) || 'Service incident',
-          resource: toPlainText(field(obj, 'resourceIDs')),
+          resourceIDs: ids,
         });
       }
     }
     i = text.indexOf(INCIDENT_MARKER, i + INCIDENT_MARKER.length);
   }
 
-  if (active.length === 0) {
-    return makeRecord({
-      vendor,
-      service: SERVICE_LABEL,
-      severity: SEVERITY.OPERATIONAL,
-      description: 'No active IBM Cloud incidents are published.',
-      sourceUrl: SOURCE_URL,
-      components: [],
-      warnings: [],
-      now,
-    });
+  // LIST EVERY SERVICE, not only the broken ones.
+  //
+  // With no active incidents the row previously had zero components, so a
+  // reader could not see what IBM Cloud even covers — the same complaint that
+  // was raised about Oracle. The payload carries a `resources` catalogue of
+  // 166 services; each is reported healthy unless an active incident names its
+  // resourceID.
+  //
+  // Extracted from the tail of the document (the catalogue begins ~2.03 MB in)
+  // rather than the whole string: measured 1.15 ms for all 166.
+  const affected = new Map();
+  for (const a of active) {
+    for (const id of a.resourceIDs.length ? a.resourceIDs : ['__unattributed__']) {
+      const prev = affected.get(id);
+      if (!prev || rank(a.severity) > rank(prev.severity)) affected.set(id, a);
+    }
   }
 
-  const components = active.map((a) => ({
-    name: a.resource ? `${a.title} (${a.resource})` : a.title,
-    severity: a.severity,
-    description: '',
-  }));
+  const components = [];
+  const seen = new Set();
+  // Scan from the catalogue offset WITHOUT slicing. `text.slice()` here copies
+  // ~521 KB, which measured 2.6 ms on its own -- more than the scan it was
+  // meant to speed up. Setting lastIndex walks the same region with no copy.
+  const catalogueAt = text.indexOf('"resources"');
+  if (catalogueAt !== -1) {
+    CATALOGUE_RE.lastIndex = catalogueAt;
+    let m;
+    while ((m = CATALOGUE_RE.exec(text)) !== null) {
+      const id = m[1];
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const hit = affected.get(id);
+      components.push({
+        name: toPlainText(m[2] || id),
+        severity: hit ? hit.severity : SEVERITY.OPERATIONAL,
+        description: hit ? hit.title : '',
+      });
+    }
+    CATALOGUE_RE.lastIndex = 0; // a global regex keeps state between calls
+  }
+
+  // An incident naming a resource absent from the catalogue must still show.
+  for (const [id, a] of affected) {
+    if (!seen.has(id)) {
+      components.push({ name: toPlainText(id === '__unattributed__' ? a.title : id), severity: a.severity, description: a.title });
+    }
+  }
+
+  if (components.length === 0) {
+    return unknownRecord(vendor, 'payload carried no service catalogue', opts);
+  }
+
+  components.sort((a, b) => rank(b.severity) - rank(a.severity) || a.name.localeCompare(b.name));
+  const unhealthy = components.filter((c) => c.severity !== SEVERITY.OPERATIONAL);
 
   return makeRecord({
     vendor,
     service: SERVICE_LABEL,
     severity: worst(components.map((c) => c.severity)),
-    incidentName: active[0].title.slice(0, 120),
-    description: `${active.length} active incident${active.length === 1 ? '' : 's'}.`,
+    incidentName: unhealthy.length ? unhealthy[0].description.slice(0, 120) : '',
+    description: unhealthy.length
+      ? `Affected: ${unhealthy.slice(0, 4).map((c) => c.name).join(', ')}.`
+      : `All ${components.length} services report no active incidents.`,
     sourceUrl: SOURCE_URL,
     components,
     warnings: [],

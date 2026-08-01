@@ -12,11 +12,17 @@ const now = () => new Date('2026-08-01T01:40:00Z');
 const live = readFileSync('test/fixtures/IBM-enhancedstatus.json', 'utf8');
 const parse = (t) => parseIbmCloud(t, { vendor: 'IBM Cloud', now });
 
-/** Build a payload with the given incidents, in the minified real shape. */
+/**
+ * Build a payload with the given incidents, in the minified real shape.
+ *
+ * The resources entry needs a displayName: the adapter builds its component
+ * list from the resourceID/displayName catalogue, and a payload with no usable
+ * catalogue reports UNKNOWN rather than inventing a healthy row.
+ */
 const doc = (incidents) =>
   JSON.stringify({
     statusItems: incidents,
-    resources: [{ resourceID: 'is-vpc' }],
+    resources: [{ resourceID: 'is-vpc', displayName: 'Virtual Private Cloud' }],
   });
 
 describe('ibm cloud enhanced status', () => {
@@ -39,12 +45,15 @@ describe('ibm cloud enhanced status', () => {
     expect(r.severity).toBe(SEVERITY.OPERATIONAL);
   });
 
-  it('reports an ACTIVE incident and names the affected resource', () => {
+  it('reports an ACTIVE incident against the affected service', () => {
     const r = parse(
       doc([{ type: 'incident', state: 'investigating', sev: 1, name: 'VPC disruption', resourceIDs: ['is-vpc'] }]),
     );
     expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
-    expect(r.components[0].name).toContain('is-vpc');
+    // Named by DISPLAY name, not the raw resourceID: the catalogue maps
+    // "is-vpc" to "Virtual Private Cloud", which is what a reader recognises.
+    expect(r.components[0].name).toBe('Virtual Private Cloud');
+    expect(r.components[0].description).toBe('VPC disruption');
   });
 
   it('excludes resolved incidents', () => {
@@ -115,5 +124,72 @@ describe('ibm cloud enhanced status', () => {
     );
     expect(r.severity).toBe(SEVERITY.PARTIAL_OUTAGE);
     expect(r.components).toHaveLength(1);
+  });
+});
+
+describe('ibm lists its full service catalogue', () => {
+  // Reported 2026-08-01: "I don't see all the separate services for IBM
+  // Cloud". With no active incidents the row had zero components, so a reader
+  // could not see what IBM Cloud even covers — the same complaint raised about
+  // Oracle. The payload carries a `resources` catalogue of 166 services.
+  const cat = (services, incidents = []) =>
+    JSON.stringify({
+      statusItems: incidents,
+      resources: services.map(([resourceID, displayName]) => ({ resourceID, displayName, regions: [] })),
+    });
+
+  it('reports every catalogued service, healthy ones included', () => {
+    const r = parse(cat([['is-vpc', 'Virtual Private Cloud'], ['cloudshell', 'IBM Cloud Shell']]));
+    expect(r.components.map((c) => c.name).sort()).toEqual(['IBM Cloud Shell', 'Virtual Private Cloud']);
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('marks only the services an active incident names', () => {
+    const r = parse(
+      cat(
+        [['is-vpc', 'Virtual Private Cloud'], ['cloudshell', 'IBM Cloud Shell']],
+        [{ type: 'incident', state: 'investigating', sev: 1, name: 'VPC down', resourceIDs: ['is-vpc'] }],
+      ),
+    );
+    const vpc = r.components.find((c) => c.name === 'Virtual Private Cloud');
+    const shell = r.components.find((c) => c.name === 'IBM Cloud Shell');
+    expect(vpc.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(shell.severity).toBe(SEVERITY.OPERATIONAL);
+    expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+  });
+
+  it('sorts affected services above healthy ones', () => {
+    const r = parse(
+      cat(
+        [['aaa-healthy', 'AAA Healthy'], ['zzz-broken', 'ZZZ Broken']],
+        [{ type: 'incident', state: 'investigating', sev: 1, name: 'X', resourceIDs: ['zzz-broken'] }],
+      ),
+    );
+    expect(r.components[0].name).toBe('ZZZ Broken');
+  });
+
+  it('still surfaces an incident naming a resource missing from the catalogue', () => {
+    // Otherwise a real outage would vanish because of a catalogue gap.
+    const r = parse(
+      cat(
+        [['is-vpc', 'Virtual Private Cloud']],
+        [{ type: 'incident', state: 'investigating', sev: 1, name: 'Mystery', resourceIDs: ['not-in-catalogue'] }],
+      ),
+    );
+    expect(r.components.map((c) => c.name)).toContain('not-in-catalogue');
+    expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+  });
+
+  it('falls back to the resourceID when a service has no display name', () => {
+    const r = parse(cat([['ngdc-network-underlay', '']]));
+    expect(r.components[0].name).toBe('ngdc-network-underlay');
+  });
+
+  it('is stable across repeated calls', () => {
+    // CATALOGUE_RE is a global regex; leaving lastIndex set would make the
+    // SECOND collection of the day return no services at all.
+    const doc = cat([['is-vpc', 'Virtual Private Cloud'], ['cloudshell', 'IBM Cloud Shell']]);
+    expect(parse(doc).components.length).toBe(parse(doc).components.length);
+    expect(parse(doc).components.length).toBe(2);
   });
 });

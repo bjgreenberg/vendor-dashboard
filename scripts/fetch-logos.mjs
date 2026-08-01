@@ -168,7 +168,16 @@ for (const vendor of config.vendors) {
     continue;
   }
 
-  writeFileSync(join(OUT_DIR, `${slug}.${got.ext}`), got.buf);
+  // SVGs are sanitised before writing so an OS-theme-adaptive favicon cannot
+  // render invisibly on the chip's fixed background. This call was once added
+  // to the file but never actually wired in — the function sat as dead code and
+  // a --force refetch silently reintroduced Signal's white-on-white logo.
+  // test/worker/logos.test.js is what caught it.
+  const bytes =
+    got.ext === 'svg'
+      ? Buffer.from(neutralizeColorScheme(got.buf.toString('utf8')), 'utf8')
+      : got.buf;
+  writeFileSync(join(OUT_DIR, `${slug}.${got.ext}`), bytes);
   results.written.push(`${vendor.name} -> ${slug}.${got.ext} (${(got.buf.length / 1024).toFixed(1)}kB)`);
 }
 
