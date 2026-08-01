@@ -179,7 +179,7 @@ describe('render escaping', () => {
 });
 
 describe('config as a hostile input', () => {
-  const config = JSON.parse(readFileSync('config/vendors.example.json', 'utf8'));
+  const config = JSON.parse(readFileSync('config/vendors.json', 'utf8'));
 
   it('every configured vendor lands in a real shard', () => {
     for (const v of config.vendors) {

@@ -2,7 +2,6 @@
   "name": "vendor-dashboard",
   "version": "2.0.0",
   "description": "Monitors the live status of a configurable SaaS vendor set by polling each vendor's public status endpoint. Cloudflare Worker + runtime-agnostic engine.",
-  "main": "Code.js",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
@@ -12,11 +11,11 @@
     "perf": "node scripts/perf-check.mjs"
   },
   "keywords": [
-    "google-apps-script",
+    "cloudflare-workers",
     "status-monitoring",
     "statuspage",
     "vendor-status",
-    "google-sheets",
+    "d1",
     "observability"
   ],
   "author": "Brian Greenberg <bjg@acm.org> (https://briangreenberg.net)",
@@ -33,7 +32,6 @@
   "devDependencies": {
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
-    "@types/google-apps-script": "^2.0.8",
     "@vitest/coverage-v8": "^3.2.7",
     "axe-core": "^4.12.1",
     "fast-check": "^3.23.2",

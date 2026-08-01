@@ -39,7 +39,7 @@ a future non-Cloudflare deployment possible.
 
 ## Settled decisions — don't re-derive
 
-- **Config is not code.** The vendor list lives in `config/vendors.example.json`.
+- **Config is not code.** The vendor list lives in `config/vendors.json`.
   Never hardcode vendors in source.
 - **Incidents inform context, never severity.** Deriving status from incidents
   caused errors in *both* directions: missed component-only outages, and marked
@@ -69,13 +69,15 @@ a future non-Cloudflare deployment possible.
   available. Bounded by an attempt cap and a run-wide budget.
 - **Retries share a run-wide budget** — the Workers *free* plan caps subrequests
   at 50 per invocation; 34 vendors retrying twice would be 102.
-- **Collection is SHARDED: 3 shards on a `*/5` cron** (each vendor still
-  refreshed every 15 min). The free plan's 50-external-subrequest ceiling cannot
-  be raised (`limits.subrequests` is paid-only). A full 41-vendor run measured
-  **47** — 41 vendors + 3 second-calls + 3 redirect chains — so a run needing a
-  few retries was killed with "Too many subrequests" and every vendor after the
-  cutoff reported `unknown` while healthy. Intermittent, because it depended on
-  how many retries a run happened to need. One shard costs ~15.
+- **Collection is SHARDED: 15 shards on a `* * * * *` (every-minute) cron**
+  (each vendor still refreshed every 15 min — `shards × cron interval` IS the
+  refresh promise on the page). Two ceilings forced this, in sequence: the free
+  plan's 50-external-subrequest cap (a full 41-vendor run measured **47**, so a
+  few retries killed the run and every vendor after the cutoff read `unknown`
+  while healthy), then the free plan's **10 ms CPU cap** (two multi-megabyte
+  parsers in one shard → `exceededResources`, collection stopped 3.5 h on
+  2026-08-01). One shard now covers ~3 vendors; expensive vendors (AWS, IBM,
+  Oracle, Concur, NetSuite) are pinned to separate shards in config.
   - `CRON_EVERY_MINUTES` in `src/worker/index.js` **must** match
     `triggers.crons`. Shard rotation is derived from the clock; a mismatch
     silently starves some shards forever.
@@ -99,8 +101,9 @@ a future non-Cloudflare deployment possible.
 
 `.github/workflows/ci.yml` on every PR and push to `main`:
 
-- `test` — `npm ci` + 165 vitest tests + `wrangler deploy --dry-run` build check
-  + `npm audit --audit-level=high`
+- `test` — `npm ci` + the full vitest suite + `wrangler deploy --dry-run` build
+  check + `npm audit --audit-level=high` (don't cite a test count here — it
+  drifts; `npm test` prints the current one)
 - `secret-scan` — gitleaks over full history and working tree
 - `cff-validate` — `CITATION.cff` against the CFF schema
 - `docs-render` — every Mermaid block renders (needs Docker; OrbStack locally)

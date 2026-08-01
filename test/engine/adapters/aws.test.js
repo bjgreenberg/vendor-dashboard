@@ -13,7 +13,7 @@ const live = JSON.parse(readFileSync('test/fixtures/AWS-currentevents.json', 'ut
 // uses, so the pure engine imports no JSON of its own. Tests read the real
 // committed list rather than a fixture, so a truncated or renamed catalogue
 // fails here.
-const AWS_CATALOGUE = JSON.parse(readFileSync('config/vendors.example.json', 'utf8')).vendors.find(
+const AWS_CATALOGUE = JSON.parse(readFileSync('config/vendors.json', 'utf8')).vendors.find(
   (v) => v.name === 'AWS',
 ).serviceCatalog;
 

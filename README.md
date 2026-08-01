@@ -3,7 +3,7 @@
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-07-31 10:47 AM CDT
+Last updated: 2026-08-01 06:07 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -102,7 +102,7 @@ children. Zoom publishes 283 components — you should never see 283 green rows.
 
 ## Configuring vendors
 
-The monitored set lives entirely in [`config/vendors.example.json`](config/vendors.example.json).
+The monitored set lives entirely in [`config/vendors.json`](config/vendors.json).
 **No vendor list exists in source code.** That separation is what lets one
 codebase serve different deployments with different configs.
 
@@ -155,7 +155,7 @@ network and portable to another runtime.
 
 ```bash
 npm ci
-npm test              # 165 tests
+npm test              # full unit suite (runs in ~1 s)
 npm run test:watch
 npx wrangler dev      # local Worker
 ```
@@ -192,7 +192,7 @@ All must pass before merge:
 
 | Job | What it proves |
 |---|---|
-| `test` | 165 unit tests, every adapter pinned against a recorded payload; plus `wrangler --dry-run` build check and `npm audit --audit-level=high` |
+| `test` | the unit suite, every adapter pinned against a recorded payload; plus `wrangler --dry-run` build check and `npm audit --audit-level=high` |
 | `secret-scan` | gitleaks over full history **and** working tree |
 | `cff-validate` | `CITATION.cff` against the CFF schema |
 | `docs-render` | every Mermaid block renders (a broken diagram is a broken deliverable) |

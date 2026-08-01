@@ -7,7 +7,7 @@ import { collect } from '../../src/engine/collect.js';
 // subrequests against a free-plan ceiling of 50, so any run needing a few
 // retries was killed mid-flight and 17 healthy vendors were reported `unknown`.
 
-const config = JSON.parse(readFileSync('config/vendors.example.json', 'utf8'));
+const config = JSON.parse(readFileSync('config/vendors.json', 'utf8'));
 
 describe('sharding', () => {
   it('covers every vendor exactly once across a full cycle', () => {
