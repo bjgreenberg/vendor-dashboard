@@ -9,7 +9,7 @@
 
 import { collect } from '../engine/collect.js';
 import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
-import { writeRun, readSnapshot } from './storage.js';
+import { writeRun, readSnapshot, readMeta } from './storage.js';
 import { renderDashboard } from './render.js';
 import vendorConfig from '../../config/vendors.json';
 
@@ -142,7 +142,41 @@ async function handleFetch(request, env) {
   const path = url.pathname.startsWith(base) ? url.pathname.slice(base.length) || '/' : url.pathname;
 
   if (path === '/health') {
-    return json({ ok: true });
+    // A real health answer, not a static {ok:true} (audit findings H3 + L3).
+    // Three questions, all answered by actual reads: Worker up (we are
+    // responding), D1 reachable (the query below throws loudly if not — a 500
+    // is the CORRECT signal for the monitor's curl -f), snapshot fresh.
+    //
+    // Stale after THREE full 15-minute cycles where the page banner warns at
+    // two (render.js STALE_AFTER_MS): the banner is an early hint for a human
+    // reader; this endpoint pages a human, so it gets one extra cycle of
+    // hysteresis to keep a single slow shard from flapping the alert.
+    const HEALTH_STALE_AFTER_MS = 3 * 15 * 60 * 1000;
+
+    const meta = await readMeta(env.DB);
+    if (!meta?.checked_at) {
+      return json(
+        { ok: false, reason: 'no collection has ever completed' },
+        { 'Cache-Control': 'no-store' },
+        503,
+      );
+    }
+
+    const ageMs = Date.now() - Date.parse(meta.checked_at);
+    const fresh = Number.isFinite(ageMs) && ageMs <= HEALTH_STALE_AFTER_MS;
+    return json(
+      {
+        ok: fresh,
+        ...(fresh ? {} : { reason: 'snapshot is stale — collection has stopped' }),
+        checked_at: meta.checked_at,
+        age_minutes: Number.isFinite(ageMs) ? Math.round(ageMs / 60_000) : null,
+        total: meta.total,
+        impacted: meta.impacted,
+        unknown: meta.unknown,
+      },
+      { 'Cache-Control': 'no-store' },
+      fresh ? 200 : 503,
+    );
   }
 
   const { records, meta } = await readSnapshot(env.DB);
@@ -177,9 +211,10 @@ async function handleFetch(request, env) {
   return new Response('Not found', { status: 404 });
 }
 
-/** @param {any} body @param {Record<string,string>} [headers] */
-function json(body, headers = {}) {
+/** @param {any} body @param {Record<string,string>} [headers] @param {number} [status] */
+function json(body, headers = {}, status = 200) {
   return new Response(JSON.stringify(body), {
+    status,
     headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers },
   });
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { writeRun, readSnapshot } from '../../src/worker/storage.js';
 import { makeD1 } from '../helpers/d1.js';
+import worker from '../../src/worker/index.js';
 
 // Contract tests (testing.md §1): prove the WIRE SHAPE, not just the logic.
 //
@@ -127,5 +128,54 @@ describe('the site consumer reads what this actually returns', () => {
     const payload = await readSnapshot(db);
     const count = Number(payload.meta?.total) || payload.records.length;
     expect(count).toBe(1);
+  });
+});
+
+// /health used to return a static {ok:true} without touching D1 — a check that
+// could not change when the thing it guards broke (the handoff's own test for
+// decorative checks). It is now the probe target for the external dead-man
+// monitor, so it must answer three questions with real reads: is the Worker
+// up, is D1 reachable, and is the snapshot FRESH. Audit findings H3 + L3.
+describe('/health answers from run_meta, not from hope', () => {
+  const call = (db) => worker.fetch(new Request('https://x.example/health'), { DB: db });
+
+  it('reports ok with freshness fields while the snapshot is current', async () => {
+    const db = makeD1();
+    await writeRun(db, {
+      records: [rec('Alpha', 'operational')],
+      checkedAt: new Date().toISOString(),
+      total: 1, impacted: 0, unknown: 0, warnings: [],
+    });
+    const res = await call(db);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.age_minutes).toBeLessThan(2);
+    expect(body.total).toBe(1);
+    // A cached health answer is a lie waiting to happen.
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+  });
+
+  it('returns 503 when the last collection is older than three full cycles', async () => {
+    const db = makeD1();
+    await writeRun(db, {
+      records: [rec('Alpha', 'operational')],
+      checkedAt: '2020-01-01T00:00:00.000Z',
+      total: 1, impacted: 0, unknown: 0, warnings: [],
+    });
+    const res = await call(db);
+    expect(res.status).toBe(503);
+    expect((await res.json()).ok).toBe(false);
+  });
+
+  it('returns 503 when no collection has ever completed', async () => {
+    const res = await call(makeD1());
+    expect(res.status).toBe(503);
+    expect((await res.json()).reason).toMatch(/no collection/i);
+  });
+
+  it('fails loudly when D1 itself is unreachable', async () => {
+    const broken = { prepare: () => { throw new Error('D1 is down'); } };
+    await expect(call(broken)).rejects.toThrow('D1 is down');
   });
 });
