@@ -10,7 +10,10 @@ export default defineConfig({
 
     coverage: {
       provider: 'v8',
-      include: ['src/engine/**', 'src/worker/render.js', 'src/worker/storage.js'],
+      // The WHOLE deployable surface. index.js was excluded until audit
+      // finding M4 — the scheduled() handler and its self-monitoring alerts
+      // had no coverage gate at all.
+      include: ['src/engine/**', 'src/worker/**'],
       reporter: ['text', 'lcov'],
 
       // BRANCH coverage, and the gate FAILS the build (testing.md §3a). Line
@@ -18,13 +21,21 @@ export default defineConfig({
       // exactly where "fail closed to unknown" lives -- an untested catch
       // block is how a vendor silently reads green.
       //
-      // Tiered PER-FILE on the dangerous code rather than as one blended
-      // number, so a thoroughly-tested adapter cannot mask an untested core.
+      // perFile: EVERY file must clear the floor individually. The previous
+      // config said "tiered per-file" but only three named files were; the
+      // rest was one blended 80%, and concur-status.js sat at 16.66% branch
+      // inside a passing gate (audit finding M4). A blended number lets a
+      // well-tested adapter mask an untested one — the exact failure the
+      // comment claimed to prevent.
+      //
+      // Floor 75, ratchet upward: raise it when the laggards improve; never
+      // lower it to admit new code.
       thresholds: {
-        branches: 80,
-        functions: 80,
-        lines: 80,
-        statements: 80,
+        perFile: true,
+        branches: 75,
+        functions: 75,
+        lines: 75,
+        statements: 75,
         'src/engine/severity.js': { branches: 90, functions: 90, lines: 90, statements: 90 },
         'src/engine/shard.js': { branches: 90, functions: 90, lines: 90, statements: 90 },
         'src/worker/storage.js': { branches: 90, functions: 90, lines: 90, statements: 90 },
