@@ -30,7 +30,12 @@ import { SEVERITY, worst } from '../severity.js';
 import { makeRecord, unknownRecord, toPlainText } from '../record.js';
 
 const SOURCE_URL = 'https://health.aws.amazon.com/health/status';
-const SERVICE_LABEL = 'Amazon Web Services';
+// Label carries BOTH names deliberately. The dashboard filter indexes the
+// vendor and service labels, so a row named only "Amazon Web Services" cannot
+// be found by typing "AWS" -- which is what everyone actually calls it, and
+// what it was asked for by. Reported 2026-08-01: the row was on the board,
+// degraded, and still looked missing.
+const SERVICE_LABEL = 'AWS (Amazon Web Services)';
 
 /**
  * Classify an active event from its summary.

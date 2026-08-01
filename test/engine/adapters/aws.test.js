@@ -9,7 +9,7 @@ import { SEVERITY } from '../../../src/engine/severity.js';
 
 const now = () => new Date('2026-08-01T01:20:00Z');
 const live = JSON.parse(readFileSync('test/fixtures/AWS-currentevents.json', 'utf8'));
-const parse = (p) => parseAws(p, { vendor: 'Amazon Web Services', now });
+const parse = (p) => parseAws(p, { vendor: 'AWS', now });
 
 describe('aws current events', () => {
   it('reports only the ACTIVE events from the recorded payload', () => {
@@ -74,5 +74,26 @@ describe('aws current events', () => {
     for (const bad of [null, undefined, {}, 'nope', 42]) {
       expect(parse(bad).severity).toBe(SEVERITY.UNKNOWN);
     }
+  });
+});
+
+
+describe('the row is findable by the name people actually use', () => {
+  // Reported 2026-08-01: "I don't see AWS". The row WAS on the board and
+  // degraded — it was named "Amazon Web Services", and the dashboard filter
+  // indexes vendor + service + component names, so typing "aws" matched
+  // nothing and scanning for it found nothing either.
+  const haystack = (r) =>
+    [r.vendor, r.service, ...r.components.map((c) => c.name)].join(' ').toLowerCase();
+
+  it.each(['aws', 'amazon', 'amazon web services'])('is matched by "%s"', (term) => {
+    expect(haystack(parse(live))).toContain(term);
+  });
+
+  it('still matches when nothing is wrong and there are no components', () => {
+    // The healthy path has an empty component list, so the names must come
+    // from the vendor and service labels alone.
+    expect(haystack(parse([]))).toContain('aws');
+    expect(haystack(parse([]))).toContain('amazon');
   });
 });
