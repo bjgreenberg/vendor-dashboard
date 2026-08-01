@@ -356,7 +356,7 @@ async function collectComposite(vendor, ctx) {
 }
 
 async function collectOne(vendor, ctx) {
-  const { fetchFn, now, timeoutMs } = ctx;
+  const { fetchFn, now } = ctx;
   const name = vendor?.name ?? 'unknown';
   const opts = {
     vendor: name,

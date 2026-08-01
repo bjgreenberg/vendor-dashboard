@@ -78,7 +78,7 @@ describe('share bar', () => {
     // This script lives inside a template literal, so an escaping slip yields a
     // regex that silently rejects every host rather than a syntax error.
     const doc = html();
-    const m = doc.match(/if \(!(\/\^\[a-z0-9\.\-\]\+.*?\/i)\.test\(host\)\) return;/);
+    const m = doc.match(/if \(!(\/\^\[a-z0-9\.-\]\+.*?\/i)\.test\(host\)\) return;/);
     expect(m, 'the host-validation regex is present').toBeTruthy();
 
     const re = new RegExp(m[1].replace(/^\//, '').replace(/\/i$/, ''), 'i');
