@@ -447,21 +447,6 @@ async function collectOne(vendor, ctx) {
       }
     }
 
-    // AWS's service catalogue is a separate 1.25 MB document, found by reading
-    // the Health Dashboard's network log. Passed as RAW TEXT: the adapter
-    // regex-scans it for distinct service names at 1.71 ms, where JSON.parse
-    // costs 4.07 ms for the same answer.
-    if (vendor.type === 'aws' && vendor.componentsUrl) {
-      try {
-        const res = await fetchFn(vendor.componentsUrl, {
-          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-        });
-        opts.catalogueText = await res.text();
-      } catch {
-        /* catalogue is advisory; active events still decide severity */
-      }
-    }
-
     // Concur's service catalogue lives on a separate endpoint, found by reading
     // the status page's network log. Without it the row listed services only
     // while something was broken, and showed nothing at all when healthy.

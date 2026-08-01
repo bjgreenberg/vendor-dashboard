@@ -24,8 +24,21 @@
  * neighbours change.
  */
 
-/** Number of shards one full cycle is split into. */
-export const SHARD_COUNT = 3;
+/**
+ * Number of shards one full cycle is split into.
+ *
+ * RAISED 3 -> 15 on 2026-08-01 after every cron began failing with
+ * `exceededResources` at cpuP99 = 10,000 us -- exactly the free plan's 10 ms
+ * CPU ceiling. The subrequest ceiling was never the binding constraint here;
+ * CPU was. Oracle (3.17 ms), IBM (2.29 ms) and AWS (~3.7 ms with its
+ * catalogue) parse multi-megabyte documents, and three of them in one
+ * invocation exceeds the budget on their own.
+ *
+ * With a 1-minute cron and 15 shards, each invocation handles ~3 vendors and
+ * every vendor is still refreshed once per 15 minutes -- the interval the page
+ * promises is unchanged, for the second time.
+ */
+export const SHARD_COUNT = 15;
 
 /**
  * FNV-1a, 32-bit. Chosen for being tiny and dependency-free against a 10 ms CPU

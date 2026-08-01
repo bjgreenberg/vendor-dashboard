@@ -28,6 +28,7 @@
 
 import { SEVERITY, worst, rank } from '../severity.js';
 import { makeRecord, unknownRecord, toPlainText } from '../record.js';
+import AWS_SERVICES from '../../../config/aws-services.json';
 
 const SOURCE_URL = 'https://health.aws.amazon.com/health/status';
 // Label carries BOTH names deliberately. The dashboard filter indexes the
@@ -58,9 +59,6 @@ export function awsSeverityOf(summary) {
   if (/informational|advisory/.test(s)) return SEVERITY.DEGRADED;
   return SEVERITY.DEGRADED;
 }
-
-/** Distinct service names in the catalogue. Global, so lastIndex is reset. */
-const CATALOGUE_RE = /"service_name":"([^"]+)"/g;
 
 /**
  * A readable excerpt of a long AWS log message.
@@ -139,20 +137,16 @@ export function parseAws(payload, options) {
   // currentevents publishes only ACTIVE events, so without this AWS showed no
   // services at all on a healthy day -- the same gap found on Oracle, IBM,
   // Concur, Seismic, Iorad and Stormboard.
-  const catalogue = [];
-  const catalogueText = options?.catalogueText;
-  if (typeof catalogueText === 'string' && catalogueText.length > 0) {
-    const seen = new Set();
-    CATALOGUE_RE.lastIndex = 0;
-    let m;
-    while ((m = CATALOGUE_RE.exec(catalogueText)) !== null) {
-      if (!seen.has(m[1])) {
-        seen.add(m[1]);
-        catalogue.push(m[1]);
-      }
-    }
-    CATALOGUE_RE.lastIndex = 0; // global regex keeps state between runs
-  }
+  // Catalogue comes from a BUILD-TIME snapshot (config/aws-services.json),
+  // not a live fetch.
+  //
+  // The live document is 1.25 MB of 5,848 service-region pairs; reading it in
+  // the collector cost a subrequest and ~1.7 ms of CPU every cycle, against a
+  // 10 ms per-invocation ceiling that production was already exceeding. The
+  // list of AWS services changes when AWS launches one, so it does not need
+  // re-reading every fifteen minutes. Refresh with
+  // `node scripts/fetch-aws-catalogue.mjs`.
+  const catalogue = Array.isArray(AWS_SERVICES?.services) ? AWS_SERVICES.services : [];
 
   // SERVICES, not regions.
   //

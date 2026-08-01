@@ -14,7 +14,7 @@ import { renderDashboard } from './render.js';
 import vendorConfig from '../../config/vendors.example.json';
 
 /** Must match `triggers.crons` in wrangler.jsonc; shard rotation is derived from it. */
-const CRON_EVERY_MINUTES = 5;
+const CRON_EVERY_MINUTES = 1;
 
 /**
  * Scheduled collection.
