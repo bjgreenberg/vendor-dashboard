@@ -292,6 +292,11 @@ export function renderDashboard({
     that vendor&rsquo;s own status page, which you can open from any row.</p>
     <p>If a check fails, the service is marked <strong>Unknown</strong> rather
     than green. A check that didn&rsquo;t happen isn&rsquo;t good news.</p>
+    <p>This board watches from a <strong>US vantage point</strong>: where a
+    vendor publishes per-region status, a row&rsquo;s state reflects its US
+    regions. Trouble elsewhere in the world still appears as a note on that
+    provider&rsquo;s card &mdash; it informs, but it doesn&rsquo;t change the
+    row&rsquo;s color.</p>
   </div>
 
   <!-- Share bar: plain intent links only, zero third-party JS or SDKs, matching

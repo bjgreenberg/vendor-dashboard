@@ -199,19 +199,38 @@ export function parseStatuspage(payload, options) {
     : [];
   const useGroups = componentLevel === 'group' && groups.length > 0;
 
-  const { selected, scoped, warnings: scopeWarnings } = useGroups
-    ? { selected: groups, scoped: true, warnings: [] }
-    : selectComponents(payload, scope);
-  warnings.push(...scopeWarnings);
+  // Scope and group mode COMPOSE (operator decision 2026-08-03: this board
+  // judges severity from a US vantage point). Scope picks the leaves that
+  // VOTE on severity; group mode decides what the card DISPLAYS. A vendor
+  // can therefore show "ODC — Affected: Middle East / UAE (major outage)"
+  // as card detail while the row stays green, because the scoped US leaves
+  // are healthy. Non-US trouble informs; it does not vote.
+  const leafSelection = selectComponents(payload, scope);
+  warnings.push(...leafSelection.warnings);
 
-  const componentSeverities = selected.map((c) => normalizeSeverity(c.status));
+  const selected = useGroups ? groups : leafSelection.selected;
+  const scoped = leafSelection.scoped;
 
   let severity;
   if (scoped) {
-    // The operator declared what matters; judge only on that.
-    severity = worst(componentSeverities);
+    // The operator declared what matters; judge only on that. An EMPTY
+    // scoped selection is not health — it means the configured names matched
+    // nothing live (vendor renamed things, payload reshaped), so nothing was
+    // verified. worst([]) would read operational; fail closed instead.
+    severity =
+      leafSelection.selected.length > 0
+        ? worst(leafSelection.selected.map((c) => normalizeSeverity(c.status)))
+        : SEVERITY.UNKNOWN;
+  } else if (useGroups) {
+    // Unscoped group mode: the groups' own rolled-up statuses decide, as
+    // before (the page indicator stays out of it — groups ARE the vendor's
+    // roll-up).
+    severity = worst(selected.map((c) => normalizeSeverity(c.status)));
   } else {
-    severity = worst([indicatorSeverity(payload), ...componentSeverities]);
+    severity = worst([
+      indicatorSeverity(payload),
+      ...selected.map((c) => normalizeSeverity(c.status)),
+    ]);
   }
 
   // Incidents supply context only, never severity.
