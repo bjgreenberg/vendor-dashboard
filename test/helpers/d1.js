@@ -21,7 +21,14 @@
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
-const SCHEMA = readFileSync('db/schema.sql', 'utf8');
+// Apply every migration in order, exactly as `wrangler d1 migrations apply`
+// does in production — the test schema can never drift from the deployed one.
+import { readdirSync } from 'node:fs';
+const SCHEMA = readdirSync('migrations')
+  .filter((f) => f.endsWith('.sql'))
+  .sort()
+  .map((f) => readFileSync(`migrations/${f}`, 'utf8'))
+  .join('\n');
 
 /** @returns {{sqlite: DatabaseSync, prepare: Function, batch: Function}} */
 export function makeD1() {
