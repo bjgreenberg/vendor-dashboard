@@ -477,6 +477,35 @@ ${rows || '<p class="vs-empty">No status has been collected yet. The collector r
         var hit = !term || card.getAttribute('data-search').indexOf(term) !== -1;
         card.hidden = !hit;
         if (hit) shown++;
+
+        // Reported 2026-08-03: "google" returned Calendly, Oracle and Seismic
+        // alongside Google, with nothing saying why. Every one was a real
+        // component match (Calendly publishes "Google Analytics", Oracle
+        // "Oracle Database@Google Cloud"), and matching component names is
+        // what lets "gmail" find Google — so the fix is to EXPLAIN the match,
+        // not to narrow it: the vendor whose own name matches sorts first,
+        // and a card matched only on its components says which ones.
+        var why = card.querySelector('.vs-why');
+        if (why) why.remove();
+        card.style.order = '';
+        if (!term || !hit) return;
+
+        var nameMatch = (card.getAttribute('data-vendor') || '').indexOf(term) !== -1;
+        card.style.order = nameMatch ? '-1' : '0';
+        if (nameMatch) return;
+
+        var matched = [];
+        card.querySelectorAll('.vs-child-name').forEach(function (el) {
+          var n = (el.textContent || '').trim();
+          if (n && n.toLowerCase().indexOf(term) !== -1 && matched.indexOf(n) === -1) matched.push(n);
+        });
+        if (!matched.length) return;
+
+        var p = document.createElement('p');
+        p.className = 'vs-why';
+        p.textContent = 'Matches: ' + matched.slice(0, 3).join(', ') +
+          (matched.length > 3 ? ' (+' + (matched.length - 3) + ' more)' : '');
+        card.appendChild(p);
       });
       status.textContent = term
         ? shown + (shown === 1 ? ' service matches' : ' services match')
@@ -560,7 +589,16 @@ function renderRow(record) {
   // the row already links the vendor's own page.
   const anchor = logoSlug(record.vendor);
 
-  return `<article id="${esc(anchor)}" class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}">
+  // data-vendor is the vendor's own NAME text, kept apart from the combined
+  // haystack so the filter can distinguish "you searched for this vendor"
+  // from "this vendor merely mentions your term". Component names are NOT
+  // duplicated into an attribute: they already exist in the card's disclosure
+  // list, so the filter reads them from there. One source of truth, and
+  // healthy component names stay out of the always-visible markup, which is
+  // a presentation contract two tests pin.
+  return `<article id="${esc(anchor)}" class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}" data-vendor="${esc(
+    `${record.vendor} ${record.service ?? ''}`.toLowerCase(),
+  )}">
   <div class="vs-head">
     ${logo || `<span class="vs-dot vs-dot--${esc(p.tone)}" aria-hidden="true">${esc(p.symbol)}</span>`}
     <h2>${nameHtml}</h2>
@@ -796,6 +834,11 @@ const STYLES = `
   opacity: .8;
   line-height: 1.45;
 }
+
+/* Why a card is in the filtered results, when the match came from a component
+   name rather than the vendor's own name. Same muted register as .vs-warn so
+   it reads as a note about the search, not as vendor status. */
+.vs-why { margin: .6rem 0 0; font-size: .8rem; opacity: .75; overflow-wrap: anywhere; }
 
 .vs-empty { opacity: .75; }
 .skip { position: absolute; left: -9999px; }
