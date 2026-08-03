@@ -1,0 +1,16 @@
+vendor-dashboard
+Copyright 2026 Brian Greenberg
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this work except in compliance with the License. You may obtain a copy of the
+License at https://www.apache.org/licenses/LICENSE-2.0 (see the LICENSE file).
+
+Vendor names referenced in the configuration and documentation are trademarks
+of their respective owners, used nominatively to identify the services whose
+public status endpoints this tool reads. Vendor logos are NOT distributed with
+this repository: they are fetched at build time from each vendor's own site by
+scripts/fetch-logos.mjs and remain the property of their owners.
+
+Recorded status-endpoint responses under test/fixtures/ were captured from
+each vendor's public, unauthenticated status API and are included solely as
+test fixtures pinning this tool's parsing behavior.
