@@ -1,7 +1,7 @@
 version: 2
 updates:
-  # Dev tooling (@types/google-apps-script) — the only npm surface; runtime is
-  # Google Apps Script, not Node.
+  # Dev tooling (vitest, stryker, wrangler). The Worker itself has no runtime
+  # npm dependencies; everything here is build/test surface.
   - package-ecosystem: npm
     directory: "/"
     schedule:

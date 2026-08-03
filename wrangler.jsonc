@@ -53,11 +53,19 @@
   // served `noindex` so it cannot compete with the canonical URL.
   "workers_dev": true,
 
-  // Collect every 15 minutes. Cron invocations get a 15-minute wall-time
-  // budget, against a run that completes in seconds - the vendors are fetched
-  // concurrently, not serially.
+  // Fires every minute and collects ONE of fifteen shards, so each vendor is
+  // still refreshed once per 15 minutes -- the interval the page promises is
+  // unchanged. The split exists because of two free-plan ceilings: 50 external
+  // subrequests per invocation (the full 41-vendor list measured 47, so a run
+  // needing a few retries was killed mid-flight and reported healthy vendors
+  // as `unknown`) and 10 ms of CPU (two multi-megabyte parsers in one shard
+  // exceeded it on 2026-08-01). One shard covers ~3 vendors.
+  //
+  // CRON_EVERY_MINUTES in src/worker/index.js MUST match this interval -- shard
+  // rotation is derived from the clock, so a change here without a change there
+  // silently stops some shards from ever being collected.
   "triggers": {
-    "crons": ["*/15 * * * *"]
+    "crons": ["* * * * *"]
   },
 
   // Workers Logs on from day one. The 2026-07-25 Turnstile false alarm ran

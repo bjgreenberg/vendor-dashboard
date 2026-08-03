@@ -1,5 +1,11 @@
 node_modules/
+coverage/
 .DS_Store
 .clasp.json
 creds.json
 AGENTS.md
+# Vendor marks are a BUILD ARTIFACT, not repo content: redistributing 46
+# trademarked logos in a public repo is a different act from serving them on
+# the dashboard (nominative use). scripts/fetch-logos.mjs regenerates them.
+assets/icons/
+public/service-status/icons/

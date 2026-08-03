@@ -22,7 +22,7 @@
  * document-wide word match.
  */
 
-import { SEVERITY } from '../severity.js';
+import { SEVERITY, worst } from '../severity.js';
 import { makeRecord, unknownRecord } from '../record.js';
 
 /** Better Stack's overview modifier -> our vocabulary. */
@@ -62,15 +62,84 @@ export function parseBetterStack(html, options) {
     return unknownRecord(vendor, `unrecognised Better Stack state "${state}"`, { now, sourceUrl });
   }
 
+  // Per-resource detail, when collect.js supplied the /sections fragment.
+  // A broken resource outranks a green page-level state: the summary is not
+  // authoritative over its own parts.
+  const components = parseBetterStackSections(options?.sections ?? '');
+  const rowSeverity = components.length
+    ? worst([severity, ...components.map((c) => c.severity)])
+    : severity;
+  const unhealthy = components.filter((c) => c.severity !== SEVERITY.OPERATIONAL);
+
   return makeRecord({
     vendor,
-    severity,
+    severity: rowSeverity,
     description:
-      severity === SEVERITY.OPERATIONAL
-        ? 'Systems operational.'
-        : `Vendor status page reports: ${state}.`,
-    incidentName: severity === SEVERITY.OPERATIONAL ? '' : 'Active issue',
+      rowSeverity === SEVERITY.OPERATIONAL
+        ? components.length
+          ? `All ${components.length} monitored services operational.`
+          : 'Systems operational.'
+        : unhealthy.length
+          ? `Affected: ${unhealthy.map((c) => c.name).join(', ')}.`
+          : `Vendor status page reports: ${state}.`,
+    incidentName: rowSeverity === SEVERITY.OPERATIONAL ? '' : 'Active issue',
     sourceUrl,
+    components,
     now,
   });
 }
+
+/**
+ * Per-resource status from BetterStack's /sections fragment.
+ *
+ * The status page renders its resource list from `<host>/sections`, found by
+ * reading the network log — the main page HTML contains no resource names at
+ * all, so the row previously had a page-level status and nothing underneath.
+ *
+ * The fragment is JSON-wrapped HTML. Each resource block carries its state in
+ * an ICON FILENAME (`operational_small-<hash>.png`) and its name as bare text
+ * after that image. Reading the icon rather than a colour or a label is
+ * deliberate: the CSS colours are inline hex values that would silently change
+ * with a theme tweak, whereas the filename is a state name.
+ *
+ * Names are the monitored URLs — Stormboard monitors endpoints rather than
+ * naming products — so the host is used, which is what a reader recognises.
+ *
+ * @param {string} html
+ * @returns {{name: string, severity: string, description: string}[]}
+ */
+export function parseBetterStackSections(html) {
+  if (typeof html !== 'string' || html.length === 0) return [];
+  const text = html.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+
+  const out = [];
+  const BLOCK = /status-page__resource-name'>([\s\S]{0,400}?)<\/div>/g;
+  let m;
+  while ((m = BLOCK.exec(text)) !== null) {
+    const block = m[1];
+    const icon = /status_pages\/([a-z_]+)_small/.exec(block);
+    const raw = block.replace(/<[^>]+>/g, '').trim();
+    if (!raw) continue;
+
+    let name = raw;
+    try {
+      if (/^https?:\/\//.test(raw)) name = new URL(raw).host;
+    } catch {
+      /* keep the raw label */
+    }
+
+    out.push({ name, severity: BETTERSTACK_STATE[icon?.[1] ?? ''] ?? SEVERITY.UNKNOWN, description: raw });
+  }
+  return out;
+}
+
+/** Icon-filename states BetterStack ships. Unknown names fail closed. */
+const BETTERSTACK_STATE = Object.freeze(
+  Object.assign(Object.create(null), {
+    operational: SEVERITY.OPERATIONAL,
+    degraded: SEVERITY.DEGRADED,
+    downtime: SEVERITY.MAJOR_OUTAGE,
+    maintenance: SEVERITY.MAINTENANCE,
+    not_monitored: SEVERITY.UNKNOWN,
+  }),
+);
