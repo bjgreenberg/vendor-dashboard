@@ -1,0 +1,19 @@
+# CODEOWNERS — documents who owns each part of the project, and (when the
+# ruleset's "require review from Code Owners" is enabled) routes review on the
+# parts where a bad change does the most harm. Every path must resolve to a
+# user with repo access, or GitHub silently skips the owner — keep these
+# current.
+
+# Default owner for everything
+*                       @bjgreenberg
+
+# The fail-closed engine and the rendering/security boundary
+/src/engine/            @bjgreenberg
+/src/worker/            @bjgreenberg
+
+# Deploy surface, schema, CI gates, and the vendor set
+/wrangler.jsonc         @bjgreenberg
+/migrations/            @bjgreenberg
+/.github/               @bjgreenberg
+/config/                @bjgreenberg
+/scripts/               @bjgreenberg
