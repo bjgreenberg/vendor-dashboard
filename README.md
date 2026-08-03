@@ -3,13 +3,20 @@
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-08-01 06:22 PM CDT
+Last updated: 2026-08-02 09:35 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
 single-pane dashboard. Runs as a Cloudflare Worker on a 15-minute schedule.
 
 Live at **<https://briangreenberg.net/service-status>**.
+
+> **What this repo is:** a working reference implementation, wired to
+> briangreenberg.net — the dashboard reuses that site's chrome, stylesheet and
+> theme keys (`src/worker/render.js`). To run your own: fork, replace
+> [`config/vendors.json`](config/vendors.json) with your vendor set, swap the
+> header/footer markup, and deploy. The engine (`src/engine/`) is deliberately
+> runtime-agnostic and does not know Cloudflare exists.
 
 > **Note on badges:** the **Release** and **OpenSSF Scorecard** badges are
 > intentionally absent while this repository is **private** — both services read
@@ -57,13 +64,16 @@ Failing closed is the whole point.
 
 ## How it works
 
-A Cron Trigger fires every 15 minutes. The Worker fetches every configured
-vendor concurrently, normalizes each response into a common record, writes a
-snapshot transactionally to D1, and serves a rendered dashboard.
+A Cron Trigger fires **every minute** and collects one of **15 shards**, so
+each vendor is still re-checked every 15 minutes (`shards × interval` is the
+refresh promise; sharding exists because of the free plan's 50-subrequest and
+10 ms CPU ceilings). The Worker fetches its shard's vendors concurrently,
+normalizes each response into a common record, writes a snapshot
+transactionally to D1, and serves a rendered dashboard.
 
 ```mermaid
 flowchart TB
-    cron["Cron Trigger<br/>*/15 * * * *"] --> collect["collect()<br/>concurrent + per-vendor deadline"]
+    cron["Cron Trigger<br/>every minute · 1 of 15 shards"] --> collect["collect()<br/>concurrent + per-vendor deadline"]
     collect --> adapters{"dispatch by type"}
     adapters -->|"Statuspage v2"| a1["statuspage"]
     adapters -->|"Instatus"| a2["instatus"]
@@ -155,10 +165,21 @@ network and portable to another runtime.
 
 ```bash
 npm ci
-npm test              # full unit suite (runs in ~1 s)
+node scripts/fetch-logos.mjs   # regenerate vendor marks (build artifact — see below)
+npm test                       # full unit suite (runs in ~1 s)
 npm run test:watch
-npx wrangler dev      # local Worker
+npx wrangler dev               # local Worker
 ```
+
+**Vendor marks are a build artifact, not repo content.** Serving each vendor's
+own favicon on the dashboard is ordinary nominative use; *redistributing* 46
+trademarked marks in a public repository is a different act, so the icon
+directories are gitignored. `fetch-logos.mjs` downloads each vendor's declared
+favicon (magic-byte validated — a bot wall's challenge page is refused), mirrors
+it into the served `public/` directory, and regenerates
+[`config/logos.json`](config/logos.json). The manifest *is* tracked because the
+renderer imports it at build time; on a clone that has never run the script,
+the icon test gates skip loudly and rows fall back to their status dots.
 
 Tests run against recorded fixtures — no network required, and deterministic
 because the clock is injected.
@@ -166,10 +187,13 @@ because the clock is injected.
 ## Deployment
 
 ```bash
-npx wrangler deploy
+node scripts/fetch-logos.mjs   # ensure the served icon set exists (skips ones already fetched)
+npx --no-install wrangler deploy
 ```
 
-Requires `wrangler login` (OAuth) or `CLOUDFLARE_API_TOKEN`.
+Requires `wrangler login` (OAuth) or `CLOUDFLARE_API_TOKEN`. Deploy uploads
+whatever is in `public/` — including the gitignored icons — so run the logo
+step at least once on a fresh clone or the board ships without vendor marks.
 
 Routing is declared in [`wrangler.jsonc`](wrangler.jsonc) as a **route**, not a
 Custom Domain. `briangreenberg.net` is itself a Custom Domain bound to a
@@ -261,20 +285,31 @@ All third-party Actions are SHA-pinned; container tools are digest-pinned.
 
 ## Going public
 
-This repository is **private**. Before flipping it public:
+This repository is **private**. Pre-flight completed 2026-08-02 (audit
+follow-up): vendor marks untracked as a build artifact (trademark-clean tree),
+internal project-notes references removed, reference-implementation framing
+added, and the 2026-08-01 security audit fully remediated (PRs #32–#44).
+Remaining steps, in order:
 
-- Re-add the **Release** and **OpenSSF Scorecard** badges to the badge row:
-  ```markdown
-  [![Release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard)](https://github.com/bjgreenberg/vendor-dashboard/releases)
-  [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bjgreenberg/vendor-dashboard/badge)](https://securityscorecards.dev/viewer/?uri=github.com/bjgreenberg/vendor-dashboard)
-  ```
-- The `scorecard` workflow activates on the next push to `main`; confirm the
-  badge renders after one run.
-- Verify no credential ever entered history (`.clasp.json` and `creds.json` are
-  gitignored and were never committed — confirmed at the v2 squash).
-- Branch protection on `main` is already in place: required PR reviews, four
-  required status checks (`test`, `docs-render`, `cff-validate`, `secret-scan`),
-  linear history, no force pushes, and **enforced for admins**. Nothing to do.
+1. **Deploy first, then flip** — make public only after the pending
+   `wrangler deploy` verifies clean, so the code people read matches what runs.
+   The repo name/URL becomes load-bearing once public (`.gitleaksignore`
+   fingerprints, badge URLs) — no rename after.
+2. Flip visibility, then re-add the **Release** and **OpenSSF Scorecard**
+   badges to the badge row:
+   ```markdown
+   [![Release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard)](https://github.com/bjgreenberg/vendor-dashboard/releases)
+   [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bjgreenberg/vendor-dashboard/badge)](https://securityscorecards.dev/viewer/?uri=github.com/bjgreenberg/vendor-dashboard)
+   ```
+3. The `scorecard` workflow activates on the first push to `main` after the
+   flip; confirm the badge renders after one run.
+4. History hygiene is verified, mechanically: gitleaks runs over the full
+   history as a required check (green; two documented public-identifier
+   fingerprints in `.gitleaksignore`), and `.clasp.json` / `creds.json` were
+   confirmed never committed via `git log --all --follow`.
+5. Branch protection on `main` is already in place: five required status
+   checks (`test`, `lint`, `docs-render`, `cff-validate`, `secret-scan`),
+   linear history, no force pushes, **enforced for admins**. Nothing to do.
 
 ## License
 
