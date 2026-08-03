@@ -368,7 +368,9 @@ ${rows || '<p class="vs-empty">No status has been collected yet. The collector r
 
   // Timestamp: show the VIEWER's own timezone plus a relative age, keeping the
   // server-rendered Chicago time in the title. Progressive enhancement — the
-  // Chicago time is already meaningful without this running.
+  // Chicago time is already meaningful without this running. renderAge re-runs
+  // on a minute interval so the page never claims to be fresher than it is;
+  // the interval only rewrites this one text node, it never reloads.
   var el = document.getElementById('vs-checked');
   if (el) {
     var d = new Date(el.getAttribute('datetime'));
@@ -378,17 +380,39 @@ ${rows || '<p class="vs-empty">No status has been collected yet. The collector r
         month: 'short', day: 'numeric',
         hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
       }).format(d);
-      var mins = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
-      var hrs = Math.round(mins / 60);
-      var ago = mins < 1 ? 'just now'
-        : mins === 1 ? '1 minute ago'
-        : mins < 60 ? mins + ' minutes ago'
-        : hrs === 1 ? '1 hour ago'
-        : hrs + ' hours ago';
-      el.textContent = local + ' (' + ago + ')';
-      el.title = 'Chicago time: ' + chicago;
+      var renderAge = function () {
+        var mins = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+        var hrs = Math.round(mins / 60);
+        var ago = mins < 1 ? 'just now'
+          : mins === 1 ? '1 minute ago'
+          : mins < 60 ? mins + ' minutes ago'
+          : hrs === 1 ? '1 hour ago'
+          : hrs + ' hours ago';
+        el.textContent = local + ' (' + ago + ')';
+        el.title = 'Chicago time: ' + chicago;
+      };
+      renderAge();
+      setInterval(function () { renderAge(); }, 60000);
     }
   }
+
+  // Tab-return refresh. The board changes every minute (one shard per cron
+  // tick), but a timed reload would wipe the filter and expanded components
+  // mid-reading — a WCAG 2.2.1 problem and plain rude. So: NO reload while
+  // visible, ever. Returning to a tab hidden for 5+ minutes reloads it, so
+  // the board is never stale when someone actually looks at it. The filter
+  // text survives via sessionStorage (restored below).
+  var RELOAD_AFTER_HIDDEN_MS = 5 * 60 * 1000;
+  var hiddenAt = null;
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') {
+      hiddenAt = Date.now();
+    } else if (hiddenAt !== null && Date.now() - hiddenAt >= RELOAD_AFTER_HIDDEN_MS) {
+      location.reload();
+    } else {
+      hiddenAt = null;
+    }
+  });
 
   // Share bar: copy-link and the native share sheet. No SDKs - the platform
   // links above are plain intents.
@@ -433,12 +457,15 @@ ${rows || '<p class="vs-empty">No status has been collected yet. The collector r
   }
 
   // Client-side filter over an already-rendered list. Also searches component
-  // names, so typing "gmail" finds Google.
+  // names, so typing "gmail" finds Google. The value is mirrored into
+  // sessionStorage so the tab-return reload above cannot eat a typed query —
+  // sessionStorage deliberately, not localStorage: a filter is a this-visit
+  // thought, not a preference.
   var q = document.getElementById('vs-q');
   var status = document.getElementById('vs-qstatus');
   var cards = Array.prototype.slice.call(document.querySelectorAll('[data-search]'));
   if (q) {
-    q.addEventListener('input', function () {
+    var applyFilter = function () {
       var term = q.value.trim().toLowerCase();
       var shown = 0;
       cards.forEach(function (card) {
@@ -449,7 +476,15 @@ ${rows || '<p class="vs-empty">No status has been collected yet. The collector r
       status.textContent = term
         ? shown + (shown === 1 ? ' service matches' : ' services match')
         : '';
+    };
+    q.addEventListener('input', function () {
+      try { sessionStorage.setItem('vs-filter', q.value); } catch (e) {}
+      applyFilter();
     });
+    try {
+      var saved = sessionStorage.getItem('vs-filter');
+      if (saved) { q.value = saved; applyFilter(); }
+    } catch (e) { /* storage unavailable; filter still works, just unsaved */ }
   }
 })();
 </script>
