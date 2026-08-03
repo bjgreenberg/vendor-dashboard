@@ -3,7 +3,7 @@
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-08-02 09:35 PM CDT
+Last updated: 2026-08-02 10:01 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -109,6 +109,44 @@ planned maintenance is a *known* benign state.
 **Roll-up:** a vendor is a parent over many sub-services. All healthy renders one
 collapsed row; anything unhealthy renders the parent plus **only** the affected
 children. Zoom publishes 283 components — you should never see 283 green rows.
+
+### Data model
+
+```mermaid
+erDiagram
+    snapshot {
+        TEXT vendor PK "one row per configured vendor"
+        TEXT service "display name"
+        TEXT severity "the ordered enum above"
+        TEXT incident_name
+        TEXT description
+        TEXT source_url "vendor's own status page"
+        TEXT components "JSON array of children"
+        TEXT warnings "JSON array"
+        TEXT checked_at "ISO-8601"
+    }
+    history {
+        INTEGER id PK
+        TEXT vendor
+        TEXT severity
+        TEXT checked_at "ISO-8601; 90-day rolling window"
+    }
+    run_meta {
+        INTEGER id PK "CHECK id = 1 - single row"
+        TEXT checked_at "freshness signal for /health + the stale banner"
+        INTEGER total
+        INTEGER impacted
+        INTEGER unknown
+        TEXT warnings "JSON array"
+    }
+    snapshot ||--o{ history : "appends one row per collection"
+```
+
+`snapshot` is the current board, replaced per-shard inside one transaction so a
+reader never sees a half-written board. `history` is a 90-day rolling window
+(pruned in the same write batch) for uptime/MTTR analysis. `run_meta` is the
+single-row freshness record that `/health`, the stale banner, and the external
+dead-man monitor all read.
 
 ## Configuring vendors
 
@@ -278,6 +316,7 @@ All third-party Actions are SHA-pinned; container tools are digest-pinned.
 | Paths 404 right after deploy | Propagation lag. Wait 20–30 s and retest before debugging |
 | A vendor shows `unknown` | Read its `warnings` in `/service-status/api/status` — it names the HTTP status or parse failure |
 | Board reads "No status data" | The cron has not run yet, or is failing. Check `wrangler tail` and `run_meta` in D1 |
+| Vendor logos vanished after `git pull` | You pulled across the commit that untracked the icon dirs — git removed the previously-tracked files. Run `node scripts/fetch-logos.mjs`, or restore the exact prior set: `git checkout <pre-untracking-sha> -- assets/icons public/service-status/icons && git restore --staged assets/icons public/service-status/icons` |
 | Is collection alive right now? | `curl -sf /service-status/health` — 200 with `age_minutes` while fresh; 503 once the snapshot is older than three cycles (45 min) or D1 is unreachable |
 | "This data may be stale" banner | Collection has not succeeded in >30 minutes. The collector, not the vendors, is the problem |
 | `Apple` unknown locally but fine in production | A host with no IPv6 egress. Node's fetch tries AAAA first; Apple is the only vendor publishing AAAA records |
@@ -309,7 +348,18 @@ Remaining steps, in order:
    confirmed never committed via `git log --all --follow`.
 5. Branch protection on `main` is already in place: five required status
    checks (`test`, `lint`, `docs-render`, `cff-validate`, `secret-scan`),
-   linear history, no force pushes, **enforced for admins**. Nothing to do.
+   linear history, no force pushes, **enforced for admins**.
+6. At flip time, in repo settings (mirroring `senior-engineering-partner`):
+   enable **secret scanning + push protection** and **private vulnerability
+   reporting** (both free once public); set **Actions → fork PR workflow
+   approval** to "require approval for all outside collaborators"; and raise
+   required reviews 0 → 1 via a **ruleset with a repo-admin bypass** so
+   outside PRs get a real review while solo self-merge stays unblocked
+   (classic protection with `enforce_admins` cannot express the bypass —
+   this is the one place the ruleset model is required).
+7. Community files are in place: NOTICE (Apache-2.0 + trademark statement),
+   CONTRIBUTING, CODE_OF_CONDUCT, MAINTAINERS, PRIVACY, SECURITY. Topics are
+   set on the repo for discoverability.
 
 ## License
 
