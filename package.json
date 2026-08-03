@@ -8,7 +8,8 @@
     "lint": "eslint .",
     "test:coverage": "vitest run --coverage",
     "test:mutation": "stryker run",
-    "perf": "node scripts/perf-check.mjs"
+    "perf": "node scripts/perf-check.mjs",
+    "deploy": "node scripts/fetch-logos.mjs && wrangler d1 migrations apply vendor-dashboard --remote && wrangler deploy"
   },
   "keywords": [
     "cloudflare-workers",

@@ -3,7 +3,7 @@
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-08-02 10:19 PM CDT
+Last updated: 2026-08-02 10:23 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -193,7 +193,7 @@ emits a warning rather than silently ignoring it.
 | `src/engine/collect.js` | Orchestrator: concurrency, deadlines, bounded retry |
 | `src/worker/` | Cloudflare bindings **only** — `scheduled()`, `fetch()`, D1, rendering |
 | `config/` | Vendor configuration |
-| `db/schema.sql` | D1 schema |
+| `migrations/` | D1 schema as ordered migrations (`wrangler d1 migrations apply`) |
 | `test/fixtures/` | Recorded vendor payloads (golden fixtures) |
 | `docs/audit/` | The extraction audit driving this rewrite |
 
@@ -227,13 +227,30 @@ because the clock is injected.
 ## Deployment
 
 ```bash
-node scripts/fetch-logos.mjs   # ensure the served icon set exists (skips ones already fetched)
-npx --no-install wrangler deploy
+npm run deploy   # fetch-logos → d1 migrations apply → wrangler deploy
 ```
 
-Requires `wrangler login` (OAuth) or `CLOUDFLARE_API_TOKEN`. Deploy uploads
-whatever is in `public/` — including the gitignored icons — so run the logo
-step at least once on a fresh clone or the board ships without vendor marks.
+Requires `wrangler login` (OAuth) or `CLOUDFLARE_API_TOKEN`. The script order
+matters: logos first (deploy uploads whatever is in the gitignored `public/`
+icons dir — without this step the board ships without vendor marks), then
+migrations (idempotent; D1 tracks applied ones), then the Worker itself.
+
+### Deploy your own
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/bjgreenberg/vendor-dashboard)
+
+One click forks this repo into your own GitHub and Cloudflare accounts,
+provisions a fresh D1 database from the Wrangler config, and runs `npm run
+deploy` — migrations and vendor logos included. (The button works once this
+repository is public.) Then make it yours:
+
+1. Replace [`config/vendors.json`](config/vendors.json) with your vendor set
+   (each entry's `brandDomain` is what the logo fetcher uses).
+2. **Delete or repoint the `routes` block in `wrangler.jsonc`** — it binds to
+   briangreenberg.net, which is not your zone. Your deployment serves on your
+   `*.workers.dev` subdomain immediately (`BASE_PATH` handles both mounts).
+3. Swap the site chrome in `src/worker/render.js` (header, footer, share bar)
+   for your own.
 
 Routing is declared in [`wrangler.jsonc`](wrangler.jsonc) as a **route**, not a
 Custom Domain. `briangreenberg.net` is itself a Custom Domain bound to a
