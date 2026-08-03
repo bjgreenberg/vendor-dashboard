@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-08-02 11:49 PM CDT
+Last updated: 2026-08-03 08:38 AM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -112,6 +112,13 @@ planned maintenance is a *known* benign state.
   components.
 - **Incidents never contribute to severity**, only to context. Deriving status
   from incidents alone caused errors in both directions in the predecessor.
+- **The board judges from a US vantage point, and the page says so.** For
+  vendors publishing per-region status, `scope` picks the US components that
+  vote on severity, while `componentLevel: 'group'` keeps the card showing the
+  vendor's service groups with non-US trouble as detail: it informs, but it
+  does not vote. Scope and group mode compose (first applied to OutSystems);
+  a scope that matches nothing live fails closed to `unknown`, because an
+  empty selection is not health.
 
 **Roll-up:** a vendor is a parent over many sub-services. All healthy renders one
 collapsed row; anything unhealthy renders the parent plus **only** the affected

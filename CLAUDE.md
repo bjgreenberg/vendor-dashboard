@@ -48,6 +48,11 @@ a future non-Cloudflare deployment possible.
 - **A configured scope overrides the vendor's page indicator.** The operator has
   declared what matters. This is what lets Cloudflare read operational while 26
   edge PoPs re-route.
+- **US vantage point (decision 2026-08-03).** Severity is judged from US
+  regions where a vendor publishes them: `scope` picks the voting leaves and
+  COMPOSES with `componentLevel: 'group'` (groups display, scoped leaves
+  vote; non-US trouble rides as card detail). The page intro states this.
+  An empty scoped selection fails closed to `unknown` — never operational.
 - **Cloudflare is scoped to services only** (decision D1) — PoP groups excluded.
 - **Microsoft is labelled "Microsoft (Consumer Services)".** That endpoint has no
   Exchange/SharePoint/Entra/Intune/Defender. Never relabel it "Microsoft 365".

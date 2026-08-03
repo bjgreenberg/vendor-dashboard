@@ -650,12 +650,17 @@
       "shard": 14
     },
     {
-      "$comment": "componentLevel 'group' because the leaves are REGIONS - 'US East / Virginia' repeats across 84 components. Rolling up to the 7 published groups gives services rather than points of presence, the same fix applied to Zoom, NetSuite, Docusign and Jamf.",
+      "$comment": "componentLevel 'group' because the leaves are REGIONS. scope picks the US leaves that VOTE on severity (US-focus decision 2026-08-03); the groups still display, carrying non-US trouble as card detail that informs without voting.",
       "name": "OutSystems",
       "type": "statuspage",
       "url": "https://status.outsystems.com/api/v2/summary.json",
       "brandDomain": "outsystems.com",
-      "componentLevel": "group"
+      "componentLevel": "group",
+      "scope": {
+        "components": [
+          "US East / Virginia"
+        ]
+      }
     },
     {
       "$comment": "Instatus splits page state and components across two endpoints; summary.json carries only page.status. componentsUrl is advisory - if it fails the page status still decides severity. PINNED to shard 7 so IBM Cloud and Oracle Cloud, the two largest parses left, each get an invocation to themselves.",

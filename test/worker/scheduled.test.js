@@ -15,10 +15,19 @@ import vendorConfig from '../../config/vendors.json';
 const SHARD = 1;
 const AT_MS = (SHARD_COUNT + SHARD) * 60_000;
 
+// The stub must carry a component matching Cloudflare's configured scope
+// ("Cloudflare Sites and Services"): since the US-focus change, a scoped
+// vendor whose scope matches NOTHING fails closed to unknown instead of
+// silently reading operational (worst-of-empty was a false-green hole this
+// test had unknowingly depended on). Unscoped vendors just see one healthy
+// leaf, which is equivalent to the old empty list for their purposes.
 const GREEN_STATUSPAGE = JSON.stringify({
   page: { url: 'https://status.example.com' },
   status: { indicator: 'none', description: 'All Systems Operational' },
-  components: [],
+  components: [
+    { id: 'g1', name: 'Cloudflare Sites and Services', group: true },
+    { id: 'c1', name: 'Service', status: 'operational', group_id: 'g1' },
+  ],
 });
 
 const shardVendors = selectShard(vendorConfig.vendors, SHARD, SHARD_COUNT);
@@ -100,6 +109,10 @@ describe('fetch() — routing and response headers', () => {
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
     const html = await res.text();
     expect(html).toContain('<h1>Service Status</h1>');
+    // The US-focus policy must be STATED on the page (operator decision
+    // 2026-08-03): a green row judged from US regions only is honest solely
+    // because the page says that is the vantage point.
+    expect(html).toContain('US vantage point');
   });
 
   it('404s anything else', async () => {
