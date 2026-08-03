@@ -39,7 +39,7 @@
     "fast-check": "^4.9.0",
     "globals": "^17.8.0",
     "jsdom": "^30.0.1",
-    "vitest": "^3.2.7",
+    "vitest": "^4.1.10",
     "wrangler": "4.118.0"
   }
 }
