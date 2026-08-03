@@ -21,7 +21,7 @@
  *   node scripts/fetch-logos.mjs [--force] [--only <vendor>]
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -207,13 +207,28 @@ for (const vendor of config.vendors) {
   results.written.push(`${vendor.name} -> ${slug}.${got.ext} (${(got.buf.length / 1024).toFixed(1)}kB)`);
 }
 
+// Mirror the fetched set into the Worker's served asset directory. This used
+// to be a manual copy nobody owned; the byte-parity test in logos.test.js is
+// what caught runs that updated one side only. Extras in public/ that no
+// longer exist in assets/ are removed, so a renamed vendor cannot leave its
+// old mark shipping forever.
+const PUB_DIR = join(REPO, 'public', 'service-status', 'icons');
+mkdirSync(PUB_DIR, { recursive: true });
+const fetched = new Set(readdirSync(OUT_DIR).filter((f) => !f.startsWith('.')).sort());
+for (const f of fetched) writeFileSync(join(PUB_DIR, f), readFileSync(join(OUT_DIR, f)));
+for (const f of readdirSync(PUB_DIR)) {
+  if (!f.startsWith('.') && !fetched.has(f)) rmSync(join(PUB_DIR, f));
+}
+
 // Regenerate the manifest the renderer reads. It emits an <img> only for logos
 // that exist, so a vendor without one degrades to its status dot rather than a
-// broken image.
+// broken image. The manifest IS tracked (render.js imports it at build time);
+// the image files are not — they are a build artifact this script regenerates
+// (see .gitignore for why).
 const manifest = {};
-for (const f of readdirSync(OUT_DIR).sort()) manifest[f.replace(/\.[^.]+$/, '')] = f;
+for (const f of fetched) manifest[f.replace(/\.[^.]+$/, '')] = f;
 writeFileSync(join(REPO, 'config', 'logos.json'), JSON.stringify(manifest, null, 2) + '\n');
-console.log(`manifest: ${Object.keys(manifest).length} logos -> config/logos.json`);
+console.log(`manifest: ${Object.keys(manifest).length} logos -> config/logos.json (mirrored to public/)`);
 
 console.log(`written: ${results.written.length}  skipped: ${results.skipped.length}  missing: ${results.missing.length}  no brandDomain: ${results.noBrand.length}`);
 for (const w of results.written) console.log(`  + ${w}`);
