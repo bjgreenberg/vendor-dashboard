@@ -49,23 +49,18 @@ const DEFAULT_RETRY_DELAY_MS = 250;
 const DEFAULT_RETRY_BUDGET = 10;
 
 /**
- * Hard ceiling on subrequests for one invocation.
+ * Sanity ceiling on subrequests for one invocation.
  *
- * The Workers *free* plan allows 50 EXTERNAL subrequests per invocation and
- * refuses `limits.subrequests` (paid-plan only). Exceeding it is not a
- * recoverable error: the runtime kills every remaining fetch, so vendors late
- * in the run report `unknown` while being healthy.
- *
- * This budget is deliberately lower than 50. Redirect chains are followed by
- * the runtime and count against the ceiling WITHOUT being visible to us as
- * fetch calls, so our count always understates the true spend — measured
- * 2026-07-31, three vendors redirect. The margin absorbs that.
- *
- * Reaching this budget is a real defect, not a routine condition: with
- * sharding a run costs ~16. It is a backstop that converts a fatal, silent,
- * whole-run failure into a bounded and LOUD one.
+ * ORIGIN: the Workers free plan killed an invocation at 50 external
+ * subrequests, so this budget existed to convert a fatal, silent, whole-run
+ * failure into a bounded and LOUD one. Workers Paid (2026-08-02) raised the
+ * plan ceiling to 1,000, so the hard kill is gone — but the budget stays:
+ * a sharded run costs ~5, so anything approaching 40 means a retry storm or
+ * a config mistake, and bounding it keeps the failure mode loud instead of
+ * letting a bug burn quota invisibly. Redirect chains still count against
+ * the plan ceiling without being visible as fetch calls here.
  */
-const DEFAULT_SUBREQUEST_BUDGET = 40;
+export const DEFAULT_SUBREQUEST_BUDGET = 40;
 
 /** Marker so an exhausted budget is reported distinctly from a vendor outage. */
 export const BUDGET_EXHAUSTED = 'subrequest budget exhausted';

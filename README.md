@@ -3,7 +3,7 @@
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-08-02 10:01 PM CDT
+Last updated: 2026-08-02 10:15 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -66,8 +66,10 @@ Failing closed is the whole point.
 
 A Cron Trigger fires **every minute** and collects one of **15 shards**, so
 each vendor is still re-checked every 15 minutes (`shards × interval` is the
-refresh promise; sharding exists because of the free plan's 50-subrequest and
-10 ms CPU ceilings). The Worker fetches its shard's vendors concurrently,
+refresh promise; sharding was forced by the free plan's 50-subrequest and
+10 ms CPU ceilings and retained after the 2026-08-02 move to Workers Paid —
+tiny invocations and per-vendor blast-radius isolation are worth keeping).
+The Worker fetches its shard's vendors concurrently,
 normalizes each response into a common record, writes a snapshot
 transactionally to D1, and serves a rendered dashboard.
 
@@ -254,7 +256,9 @@ All must pass before merge:
 
 | Job | What it proves |
 |---|---|
-| `test` | the unit suite, every adapter pinned against a recorded payload; plus `wrangler --dry-run` build check and `npm audit --audit-level=high` |
+| `test` | the unit suite, every adapter pinned against a recorded payload; per-file coverage floors; plus `wrangler --dry-run` build check and `npm audit --audit-level=high` |
+| `lint` | `eslint .` — zero findings |
+| `perf` | per-shard parse-cost regression envelope (150 ms) — catches the multi-megabyte-feed class of mistake |
 | `secret-scan` | gitleaks over full history **and** working tree |
 | `cff-validate` | `CITATION.cff` against the CFF schema |
 | `docs-render` | every Mermaid block renders (a broken diagram is a broken deliverable) |
@@ -278,8 +282,9 @@ All third-party Actions are SHA-pinned; container tools are digest-pinned.
 - **404 is treated as retryable**, unusually. Microsoft's endpoint was measured
   at ~50% availability; the cost of being wrong is bounded because the answer
   after the cap is still `unknown`.
-- **Retries share a run-wide budget**, because the Workers free plan caps
-  subrequests at 50 per invocation.
+- **Retries share a run-wide budget** — originally because the free plan
+  killed an invocation at 50 subrequests; kept on Workers Paid as a sanity
+  bound that turns a retry storm into a loud, bounded failure.
 - **Honest User-Agent.** The predecessor forged a Chrome 91 string from 2021; a
   stale forged UA is *more* likely to be bot-filtered than an honest one.
 

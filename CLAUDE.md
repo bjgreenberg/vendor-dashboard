@@ -71,13 +71,14 @@ a future non-Cloudflare deployment possible.
   at 50 per invocation; 34 vendors retrying twice would be 102.
 - **Collection is SHARDED: 15 shards on a `* * * * *` (every-minute) cron**
   (each vendor still refreshed every 15 min — `shards × cron interval` IS the
-  refresh promise on the page). Two ceilings forced this, in sequence: the free
-  plan's 50-external-subrequest cap (a full 41-vendor run measured **47**, so a
-  few retries killed the run and every vendor after the cutoff read `unknown`
-  while healthy), then the free plan's **10 ms CPU cap** (two multi-megabyte
-  parsers in one shard → `exceededResources`, collection stopped 3.5 h on
-  2026-08-01). One shard now covers ~3 vendors; expensive vendors (AWS, IBM,
-  Oracle, Concur, NetSuite) are pinned to separate shards in config.
+  refresh promise on the page). Two free-plan ceilings forced this originally
+  (50 subrequests, then the 10 ms CPU cap that stopped collection for 3.5 h on
+  2026-08-01). **Workers Paid since 2026-08-02** (30 s CPU, 1,000 subrequests)
+  removed the hard limits; sharding is retained deliberately — tiny
+  invocations, per-vendor blast-radius isolation, battle-tested. One shard
+  covers ~3 vendors; expensive vendors (AWS, IBM, Oracle, Concur, NetSuite)
+  stay pinned to separate shards in config. `wrangler.jsonc` declares
+  `limits.cpu_ms` on purpose: a plan lapse fails the deploy loudly.
   - `CRON_EVERY_MINUTES` in `src/worker/index.js` **must** match
     `triggers.crons`. Shard rotation is derived from the clock; a mismatch
     silently starves some shards forever.
@@ -108,9 +109,11 @@ a future non-Cloudflare deployment possible.
 - `secret-scan` — gitleaks over full history and working tree
 - `cff-validate` — `CITATION.cff` against the CFF schema
 - `docs-render` — every Mermaid block renders (needs Docker; OrbStack locally)
-- `perf` — per-shard parse-CPU budget; runs on every PR but is NOT required
-  and is expected red on free-plan CPU limits (promotion trigger documented in
-  ci.yml). CI-runner numbers read ~3–4x hotter than Apple-silicon local runs.
+- `perf` — per-shard parse-cost REGRESSION gate (required): fails a PR when a
+  shard's parse exceeds a 150 ms envelope — the 23.3 MB-feed class of mistake
+  — long before the paid plan's 30 s ceiling would care. CI-runner numbers
+  read ~3–4x hotter than Apple-silicon local runs; the envelope accounts for
+  that.
 
 Run `npm test` locally before pushing. Every adapter is pinned against a
 recorded payload in `test/fixtures/` — that is the gate that would have caught

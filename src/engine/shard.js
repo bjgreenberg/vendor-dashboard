@@ -37,6 +37,11 @@
  * With a 1-minute cron and 15 shards, each invocation handles ~3 vendors and
  * every vendor is still refreshed once per 15 minutes -- the interval the page
  * promises is unchanged, for the second time.
+ *
+ * WORKERS PAID (2026-08-02): the 10 ms and 50-subrequest ceilings that forced
+ * all of the above are gone (30 s / 1,000 now). Sharding is RETAINED
+ * deliberately -- tiny invocations, per-vendor blast-radius isolation, and a
+ * battle-tested rotation beat collapsing back to one big run for no benefit.
  */
 export const SHARD_COUNT = 15;
 

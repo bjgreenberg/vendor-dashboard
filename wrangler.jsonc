@@ -55,11 +55,11 @@
 
   // Fires every minute and collects ONE of fifteen shards, so each vendor is
   // still refreshed once per 15 minutes -- the interval the page promises is
-  // unchanged. The split exists because of two free-plan ceilings: 50 external
-  // subrequests per invocation (the full 41-vendor list measured 47, so a run
-  // needing a few retries was killed mid-flight and reported healthy vendors
-  // as `unknown`) and 10 ms of CPU (two multi-megabyte parsers in one shard
-  // exceeded it on 2026-08-01). One shard covers ~3 vendors.
+  // unchanged. The split was forced by two FREE-plan ceilings (50 subrequests,
+  // 10 ms CPU -- both bit in production); Workers Paid (2026-08-02) removed
+  // them, and sharding is retained deliberately: tiny invocations, per-vendor
+  // blast-radius isolation, battle-tested rotation. One shard covers ~3
+  // vendors. See src/engine/shard.js.
   //
   // CRON_EVERY_MINUTES in src/worker/index.js MUST match this interval -- shard
   // rotation is derived from the clock, so a change here without a change there
@@ -74,21 +74,13 @@
   // inference.
   "observability": { "enabled": true, "head_sampling_rate": 1 },
 
-  // NOTE: the `limits` block is PAID-PLAN ONLY. Deploying it on the Free plan
-  // fails outright with "CPU limits are not supported for the Free plan"
-  // (code 100328), so it is commented out rather than deleted.
-  //
-  // Free-plan ceilings that actually bind this workload:
-  //   CPU per Cron Trigger        10 ms   (Paid: 30 s)
-  //   Subrequests per invocation  50      (Paid: 10,000)
-  //   Simultaneous connections    6       (same on both plans)
-  //
-  // ~35 vendors sits under the subrequest ceiling but redirects count toward
-  // it, and parsing 34 payloads — Cloudflare alone is ~200 KB across 470
-  // components — is the part at risk of exceeding 10 ms of CPU. Measure with
-  // observability before assuming either way.
-  //
-  // "limits": { "subrequests": 200, "cpu_ms": 30000 },
+  // Workers PAID (activated 2026-08-02). Declaring the CPU limit is
+  // deliberate and load-bearing: `limits` is rejected on the Free plan
+  // ("CPU limits are not supported for the Free plan", code 100328), so if
+  // the subscription ever lapses, the next deploy FAILS LOUDLY here instead
+  // of production silently reverting to 10 ms kills mid-cron — the failure
+  // mode that stopped collection for 3.5 hours on 2026-08-01.
+  "limits": { "cpu_ms": 30000 },
 
   "d1_databases": [
     {

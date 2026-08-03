@@ -73,10 +73,15 @@ describe('cron and shard rotation agree', () => {
   });
 });
 
-describe('free-plan ceilings are respected', () => {
-  it('does not declare a limits block', () => {
-    // `limits` is paid-plan only; deploying it fails outright with code 100328.
-    expect(wrangler.limits).toBeUndefined();
+describe('plan assumptions are declared, not implied', () => {
+  it('declares the paid-plan CPU limit as a plan-lapse tripwire', () => {
+    // INVERTED 2026-08-02 with the move to Workers Paid. This test used to
+    // assert NO limits block (free plan rejects it, code 100328). Now the
+    // block is deliberate and load-bearing: if the paid subscription ever
+    // lapses, the next deploy fails loudly on this very setting instead of
+    // production silently reverting to 10 ms kills mid-cron — the 2026-08-01
+    // failure mode. Removing `limits` again must be a conscious decision.
+    expect(wrangler.limits).toEqual({ cpu_ms: 30000 });
   });
 
   it('never declares custom_domain on a route', () => {
