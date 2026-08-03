@@ -9,9 +9,10 @@
 [![cff-validate](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/cff-validate.yml/badge.svg?branch=main)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/cff-validate.yml)
 [![secret-scan](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/secret-scan.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bjgreenberg/vendor-dashboard/badge)](https://scorecard.dev/viewer/?uri=github.com/bjgreenberg/vendor-dashboard)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-08-02 11:23 PM CDT
+Last updated: 2026-08-02 11:49 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
