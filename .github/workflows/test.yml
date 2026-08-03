@@ -1,0 +1,37 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Real unit tests, every adapter pinned against a recorded vendor
+      # payload. Coverage is a GATE, not a report: vitest exits non-zero when
+      # a threshold is missed. BRANCH coverage, per-file — an untested catch
+      # block is how a vendor silently reads green.
+      - name: Run tests with coverage thresholds
+        run: npm run test:coverage
+
+      # Catch bundling/binding errors without deploying. --no-install: the
+      # lockfile-pinned wrangler, never a fetched-latest one.
+      - name: Build check (wrangler dry-run)
+        run: npx --no-install wrangler deploy --dry-run --outdir=/tmp/build
+
+      - name: Audit dependencies (high+)
+        run: npm audit --audit-level=high

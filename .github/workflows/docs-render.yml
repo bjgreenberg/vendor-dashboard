@@ -1,0 +1,21 @@
+name: docs-render
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Render-check every mermaid block in the repo's Markdown. A diagram that
+  # fails to render is a broken deliverable (a red box for every reader), so
+  # it is gated like a test. Digest-pinned mermaid-cli container.
+  docs-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Render-check Mermaid diagrams
+        run: scripts/render-diagrams.sh
