@@ -100,7 +100,7 @@ a future non-Cloudflare deployment possible.
 
 ## Gates — all must be green before merge
 
-`.github/workflows/ci.yml` on every PR and push to `main`:
+One workflow file per gate under `.github/workflows/` (each with its own live badge), all on every PR and push to `main`:
 
 - `test` — `npm ci` + the full vitest suite with per-file coverage floors +
   `wrangler deploy --dry-run` build check + `npm audit --audit-level=high`

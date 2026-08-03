@@ -1,12 +1,17 @@
 # Vendor Status Dashboard
 
-[![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard?sort=semver&label=release)](https://github.com/bjgreenberg/vendor-dashboard/releases)
+[![test](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/test.yml)
+[![lint](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/lint.yml)
+[![perf](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/perf.yml/badge.svg?branch=main)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/perf.yml)
+[![docs-render](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/docs-render.yml/badge.svg?branch=main)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/docs-render.yml)
+[![cff-validate](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/cff-validate.yml/badge.svg?branch=main)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/cff-validate.yml)
+[![secret-scan](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/secret-scan.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bjgreenberg/vendor-dashboard/badge)](https://scorecard.dev/viewer/?uri=github.com/bjgreenberg/vendor-dashboard)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-08-02 11:13 PM CDT
+Last updated: 2026-08-02 11:23 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -279,7 +284,7 @@ All must pass before merge:
 | `cff-validate` | `CITATION.cff` against the CFF schema |
 | `docs-render` | every Mermaid block renders (a broken diagram is a broken deliverable) |
 
-All third-party Actions are SHA-pinned; container tools are digest-pinned.
+One workflow per gate (mirroring the skill repo), so each carries its own live badge. All third-party Actions are SHA-pinned; container tools are digest-pinned.
 
 ## Design decisions
 

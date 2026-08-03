@@ -1,0 +1,24 @@
+name: cff-validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Validate CITATION.cff against the CFF schema. An invalid file silently
+  # breaks GitHub's "Cite this repository" button — a broken deliverable, so
+  # it is gated like a test. Digest-pinned cffconvert container.
+  cff-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Validate CITATION.cff
+        run: |
+          docker run --rm -v "$PWD:/app" -w /app \
+            citationcff/cffconvert@sha256:f8c5dc5fa8013e5c3635b1c2695bf54eac4d319719f8acdbb7b7ad7a778e46ea \
+            --validate

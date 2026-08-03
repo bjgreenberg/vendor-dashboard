@@ -1,0 +1,25 @@
+name: perf
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Per-shard parse-cost REGRESSION gate (audit H2). Required since
+  # 2026-08-02: Workers Paid (30 s CPU) fired the promotion trigger, and the
+  # thresholds were re-based from free-plan survival math (4 ms warn / 10 ms
+  # kill) to an honest 150 ms envelope that catches the 23.3 MB-feed class of
+  # parser mistake on the PR instead of in production.
+  perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+      - run: npm ci
+      - run: npm run perf
