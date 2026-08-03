@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-08-03 08:38 AM CDT
+Last updated: 2026-08-03 08:50 AM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -116,7 +116,8 @@ planned maintenance is a *known* benign state.
   vendors publishing per-region status, `scope` picks the US components that
   vote on severity, while `componentLevel: 'group'` keeps the card showing the
   vendor's service groups with non-US trouble as detail: it informs, but it
-  does not vote. Scope and group mode compose (first applied to OutSystems);
+  does not vote. Scope and group mode compose (applied to OutSystems, and to AWS via region-code
+  prefixes in its bespoke adapter);
   a scope that matches nothing live fails closed to `unknown`, because an
   empty selection is not health.
 

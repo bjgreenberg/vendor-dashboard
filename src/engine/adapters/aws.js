@@ -116,6 +116,31 @@ function isActive(e) {
   return !resolved && !ended;
 }
 
+/** AWS region code at the end of an event's service key, e.g. "me-central-1". */
+const REGION_CODE_RE = /(?:^|-)([a-z]{2}(?:-gov)?-[a-z]+-\d+)$/;
+
+/**
+ * Does this event get a VOTE on the row's severity, under the board's US
+ * vantage point (operator decision 2026-08-03)?
+ *
+ * Fail-closed polarity: an event loses its vote only when its region code is
+ * positively parsed AND positively outside the scope prefixes. Global
+ * services (IAM, CloudFront, Route 53) carry no region suffix, so they keep
+ * voting; so does any event whose service key the parser cannot read. The
+ * event still appears on the card either way — out-of-scope trouble informs,
+ * it does not vote. Mirrors the scope/group composition in statuspage.js.
+ *
+ * @param {any} e
+ * @param {string[]|undefined} regionPrefixes
+ * @returns {boolean}
+ */
+function votes(e, regionPrefixes) {
+  if (!Array.isArray(regionPrefixes) || regionPrefixes.length === 0) return true;
+  const code = REGION_CODE_RE.exec(String(e?.service ?? ''))?.[1];
+  if (!code) return true; // global or unparseable: fail closed, keep the vote
+  return regionPrefixes.some((p) => code.startsWith(p));
+}
+
 /**
  * @param {any} payload parsed currentevents array
  * @param {{vendor: string, now?: () => Date}} options
@@ -163,13 +188,21 @@ export function parseAws(payload, options) {
   //
   // Each service therefore appears once, carrying the worst severity across
   // its regions, with the affected regions listed underneath it.
+  const regionPrefixes = options?.scope?.regionPrefixes;
   const byService = new Map();
   for (const e of active) {
     const name = toPlainText(e?.service_name ?? '') || 'AWS';
     const region = toPlainText(e?.region_name ?? '');
     const severity = awsSeverityOf(e?.summary);
-    const entry = byService.get(name) ?? { severity: SEVERITY.OPERATIONAL, regions: [], details: [] };
+    const entry =
+      byService.get(name) ??
+      { severity: SEVERITY.OPERATIONAL, voteSeverity: SEVERITY.OPERATIONAL, regions: [], details: [] };
+    // Display severity is the truth about the service anywhere in the world;
+    // vote severity counts only in-scope events toward the ROW.
     if (rank(severity) > rank(entry.severity)) entry.severity = severity;
+    if (votes(e, regionPrefixes) && rank(severity) > rank(entry.voteSeverity)) {
+      entry.voteSeverity = severity;
+    }
     if (region) entry.regions.push(region);
 
     // Per-region DETAIL, from the newest event_log entry.
@@ -229,17 +262,32 @@ export function parseAws(payload, options) {
     });
   }
 
+  // The ROW is judged on voting (in-scope) events only; the components above
+  // already carry the worldwide truth for the card. When every active event
+  // is outside the scope, the row stays green and SAYS why — a green row over
+  // visible amber cards must explain itself.
+  const rowSeverity = worst([...byService.values()].map((v) => v.voteSeverity));
+  const inScope = active.filter((e) => votes(e, regionPrefixes));
+
   return makeRecord({
     vendor,
     service: SERVICE_LABEL,
-    severity: worst(components.map((c) => c.severity)),
-    incidentName: toPlainText(active[0]?.summary ?? 'Service event').slice(0, 120),
+    severity: rowSeverity,
+    incidentName:
+      inScope.length > 0 ? toPlainText(inScope[0]?.summary ?? 'Service event').slice(0, 120) : '',
     // Name the AFFECTED services, not the first few components. Once the
     // catalogue was added, `components` became all 268 services sorted worst
     // first, so slicing it listed healthy ones as though they were impacted.
-    description: `${active.length} active event${active.length === 1 ? '' : 's'}: ${[...byService.keys()]
-      .slice(0, 4)
-      .join(', ')}.`,
+    description:
+      inScope.length > 0
+        ? `${active.length} active event${active.length === 1 ? '' : 's'}: ${[...byService.keys()]
+            .slice(0, 4)
+            .join(', ')}.`
+        : `${active.length} active event${active.length === 1 ? '' : 's'} outside US focus: ${[
+            ...byService.keys(),
+          ]
+            .slice(0, 4)
+            .join(', ')}.`,
     sourceUrl: SOURCE_URL,
     components,
     warnings: [],

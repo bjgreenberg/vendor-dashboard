@@ -103,7 +103,7 @@
       "brandDomain": "apple.com"
     },
     {
-      "$comment": "health.aws.amazon.com/public/currentevents - the feed behind the AWS Health Dashboard. Served as charset=UTF-16 with a BOM, which response.text() decodes as UTF-8 per the fetch spec and turns into mojibake; collect.js decodeBody() sniffs the BOM. RESOLVED events stay in the feed, so an event counts as active only when it has no end_time AND is not marked resolved - filtering on presence alone would report AWS degraded over an incident closed hours ago. Named 'AWS' rather than 'Amazon Web Services': the dashboard filter indexes vendor and service labels, so the long name alone made the row unfindable by typing the name everyone uses. The service label carries both. Service catalogue from servicedata-us-east-1-prod.s3.amazonaws.com/services.json, found by reading the Health Dashboard's network log. currentevents lists ONLY active events, so with nothing wrong the row had no services at all. The catalogue is 5,848 service-region pairs covering 268 distinct services; snapshotted at BUILD time into config/aws-services.json (7.7 KB) by scripts/fetch-aws-catalogue.mjs. Reading it live cost a subrequest and ~1.7 ms CPU every cycle against a 10 ms ceiling production was already exceeding; the service list changes only when AWS launches a service. PINNED to shard 10: this vendor parses a large document, and hash assignment put several such vendors in one invocation, exceeding the free plan's 10 ms CPU ceiling and killing collection for 3.5 hours on 2026-08-01. Expensive vendors are kept apart deliberately.",
+      "$comment": "health.aws.amazon.com/public/currentevents - the feed behind the AWS Health Dashboard. Served as charset=UTF-16 with a BOM, which response.text() decodes as UTF-8 per the fetch spec and turns into mojibake; collect.js decodeBody() sniffs the BOM. RESOLVED events stay in the feed, so an event counts as active only when it has no end_time AND is not marked resolved - filtering on presence alone would report AWS degraded over an incident closed hours ago. Named 'AWS' rather than 'Amazon Web Services': the dashboard filter indexes vendor and service labels, so the long name alone made the row unfindable by typing the name everyone uses. The service label carries both. Service catalogue from servicedata-us-east-1-prod.s3.amazonaws.com/services.json, found by reading the Health Dashboard's network log. currentevents lists ONLY active events, so with nothing wrong the row had no services at all. The catalogue is 5,848 service-region pairs covering 268 distinct services; snapshotted at BUILD time into config/aws-services.json (7.7 KB) by scripts/fetch-aws-catalogue.mjs. Reading it live cost a subrequest and ~1.7 ms CPU every cycle against a 10 ms ceiling production was already exceeding; the service list changes only when AWS launches a service. PINNED to shard 10: this vendor parses a large document, and hash assignment put several such vendors in one invocation, exceeding the free plan's 10 ms CPU ceiling and killing collection for 3.5 hours on 2026-08-01. Expensive vendors are kept apart deliberately. US-focus (2026-08-03): events vote on row severity only when their region code starts us- (covers us-east/west and us-gov-); global/unparseable events keep their vote (fail closed); foreign events still show on the card.",
       "name": "AWS",
       "type": "aws",
       "url": "https://health.aws.amazon.com/public/currentevents",
@@ -379,7 +379,12 @@
         "Traffic Mirroring",
         "VM Import/Export"
       ],
-      "shard": 10
+      "shard": 10,
+      "scope": {
+        "regionPrefixes": [
+          "us-"
+        ]
+      }
     },
     {
       "$comment": "Scoped to Bubble's OWN services. Its Statuspage lists 25 components, but 18 are UPSTREAM third parties - AWS regions, Cloudflare, Intercom, SendGrid, imgix. Including them would blame Bubble for someone else's outage, and Cloudflare is already its own row here, so a Cloudflare incident would show twice and make Bubble look broken. Same principle as the Cloudflare scoping decision: report what the vendor says about ITS OWN service.",
