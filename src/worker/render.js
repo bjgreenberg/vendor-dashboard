@@ -565,7 +565,6 @@ function renderRow(record) {
     ${logo || `<span class="vs-dot vs-dot--${esc(p.tone)}" aria-hidden="true">${esc(p.symbol)}</span>`}
     <h2>${nameHtml}</h2>
     <span class="vs-badge vs-badge--${esc(p.tone)}">${esc(p.label)}</span>
-    <a class="vs-anchor" href="#${esc(anchor)}" aria-label="Link to ${esc(record.vendor)}">#</a>
   </div>
   ${record.incidentName ? `<p class="vs-incident">${esc(record.incidentName)}</p>` : ''}
   <p class="vs-desc">${esc(record.description)}</p>
@@ -775,26 +774,17 @@ const STYLES = `
 .vs-all > summary:hover { opacity: 1; }
 
 .vs-share { margin: 0 0 1rem; }
-.vs-anchor {
-  opacity: 0; text-decoration: none; font-weight: 600;
-  padding: 0 .25rem; flex: 0 0 auto;
-}
-/* Reveal the permalink only where a real pointer can hover.
-   iOS and Android apply :hover to a TAPPED element and its ancestors
-   ("sticky hover"), so on a phone the vs-card:hover rule fired on touch and a
-   stray # appeared beside the status pill whenever a card was touched.
-   Reported from a phone 2026-08-01. The hover/pointer media query matches a
-   mouse or trackpad and excludes touch, so the anchor stays hidden there.
-   :focus-visible is kept OUTSIDE the query so keyboard users still get it -
-   and it is :focus-visible rather than :focus deliberately, because a tap can
-   raise :focus on some mobile browsers and would reintroduce the same flash.
+/* The per-row permalink glyph is GONE (2026-08-03), and this comment is the
+   reason it should not come back. It was reported twice as a rendering
+   artifact: once from a phone, where sticky hover revealed it on tap, and
+   once from a desktop, where it appeared on hover exactly as designed. An
+   affordance that gets mistaken for a bug on both pointer types is not
+   discoverable, it is noise sitting next to the status pill.
+   Deep linking is unaffected: every card still carries a slug id, so
+   /service-status#cloudflare works, and the :target rule below still
+   emphasises the row on arrival. Nothing was lost except the glyph.
    NOTE: no backticks in this comment. They terminate the JS template literal
    this CSS lives in - the same trap that silently dropped 52 tests once. */
-@media (hover: hover) and (pointer: fine) {
-  .vs-card:hover .vs-anchor { opacity: .55; }
-  .vs-anchor:hover { opacity: 1; }
-}
-.vs-anchor:focus-visible { opacity: 1; }
 /* Deep-linked row gets a moment of emphasis so it is findable on arrival. */
 .vs-card:target { box-shadow: 0 0 0 2px currentColor; }
 
