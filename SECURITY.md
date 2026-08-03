@@ -44,6 +44,13 @@ dashboard** at `briangreenberg.net/service-status` plus a JSON API and a
    (`wrangler` OAuth / `CLOUDFLARE_API_TOKEN`) live outside the repo;
    `.clasp.json` / `creds.json` are gitignored relics verified never
    committed.
+5. **Committed identifiers are not credentials.** The D1 `database_id` in
+   `wrangler.jsonc` is an account-scoped identifier: every operation against
+   it requires an API token for the owning Cloudflare account, and no
+   unauthenticated Cloudflare surface accepts a bare database ID. It is
+   committed deliberately — the deploy is not reproducible without it. The
+   same reasoning covers the account's zone/route names, which are public by
+   virtue of serving the site.
 
 ## Automated security checks (CI)
 

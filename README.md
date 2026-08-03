@@ -3,11 +3,12 @@
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-08-02 10:23 PM CDT
+Last updated: 2026-08-02 10:31 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
-single-pane dashboard. Runs as a Cloudflare Worker on a 15-minute schedule.
+single-pane dashboard. Runs as a Cloudflare Worker; every vendor is
+re-checked on a 15-minute cycle.
 
 Live at **<https://briangreenberg.net/service-status>**.
 
@@ -294,7 +295,7 @@ All third-party Actions are SHA-pinned; container tools are digest-pinned.
   data", never "All systems operational".
 - **Staleness is surfaced.** If the newest snapshot is older than two collection
   intervals, the page says so — the dead-man's switch for our own cron.
-- **Vendor content is untrusted input.** ~35 third-party feeds are escaped on
+- **Vendor content is untrusted input.** Every vendor feed is escaped on
   output; a strict CSP with a per-response nonce is the second line.
 - **404 is treated as retryable**, unusually. Microsoft's endpoint was measured
   at ~50% availability; the cost of being wrong is bounded because the answer
@@ -319,15 +320,16 @@ All third-party Actions are SHA-pinned; container tools are digest-pinned.
   Entra, Intune and Defender are absent. The row is labelled accordingly.
   Enterprise tenant health requires the authenticated Microsoft Graph Service
   Health API.
-- **Five vendors cannot show a component breakdown.** Google, Okta and Concur
-  publish only current *incidents*; Iorad and Stormboard publish a single
-  page-level state. There is no service catalogue to expand without inventing
-  one, so those rows have no disclosure.
+- **Signal cannot show a component breakdown** — it publishes a single
+  page-level sentence and nothing underneath (verified 2026-08-01). Every
+  other vendor now lists components, several via secondary catalogue
+  endpoints found by reading their status pages' network logs.
 - **Okta has no public JSON API** — `summary.json`, `index.json`,
   `history.atom` and `history.rss` all return 401. The adapter parses the
   incident records the status page embeds as JSON, using `indexOf` plus a linear
-  bracket walk rather than regex, because the page is ~347 KB against a 10 ms
-  CPU budget.
+  bracket walk rather than regex — written against the original free plan's
+  10 ms CPU budget and kept because cheap parsing is still enforced (see the
+  `perf` gate).
 - **No uptime history UI yet.** History *is* recorded from day one; only the
   reporting is unbuilt.
 
@@ -342,14 +344,14 @@ All third-party Actions are SHA-pinned; container tools are digest-pinned.
 | Is collection alive right now? | `curl -sf /service-status/health` — 200 with `age_minutes` while fresh; 503 once the snapshot is older than three cycles (45 min) or D1 is unreachable |
 | "This data may be stale" banner | Collection has not succeeded in >30 minutes. The collector, not the vendors, is the problem |
 | `Apple` unknown locally but fine in production | A host with no IPv6 egress. Node's fetch tries AAAA first; Apple is the only vendor publishing AAAA records |
-| Deploy fails: "CPU limits are not supported for the Free plan" | The `limits` block is paid-only. It is commented out in `wrangler.jsonc` |
+| Deploy fails: "CPU limits are not supported for the Free plan" | The declared `limits` block is a deliberate tripwire: it means the Workers Paid subscription has lapsed. Restore the plan (or consciously remove the block AND accept 10 ms CPU kills) |
 
 ## Going public
 
 This repository is **private**. Pre-flight completed 2026-08-02 (audit
 follow-up): vendor marks untracked as a build artifact (trademark-clean tree),
 internal project-notes references removed, reference-implementation framing
-added, and the 2026-08-01 security audit fully remediated (PRs #32–#44).
+added, and the 2026-08-01 security audit fully remediated (PRs #32–#51).
 Remaining steps, in order:
 
 1. **Deploy first, then flip** — make public only after the pending
@@ -368,7 +370,7 @@ Remaining steps, in order:
    history as a required check (green; two documented public-identifier
    fingerprints in `.gitleaksignore`), and `.clasp.json` / `creds.json` were
    confirmed never committed via `git log --all --follow`.
-5. Branch protection on `main` is already in place: five required status
+5. Branch protection on `main` is already in place: six required status
    checks (`test`, `lint`, `perf`, `docs-render`, `cff-validate`, `secret-scan`),
    linear history, no force pushes, **enforced for admins**.
 6. At flip time, in repo settings (mirroring `senior-engineering-partner`):
