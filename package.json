@@ -9,7 +9,7 @@
     "test:coverage": "vitest run --coverage",
     "test:mutation": "stryker run",
     "perf": "node scripts/perf-check.mjs",
-    "deploy": "node scripts/fetch-logos.mjs && wrangler d1 migrations apply vendor-dashboard --remote && wrangler deploy"
+    "deploy": "bash scripts/deploy.sh"
   },
   "keywords": [
     "cloudflare-workers",
