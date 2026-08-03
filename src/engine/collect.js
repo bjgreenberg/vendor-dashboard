@@ -3,8 +3,8 @@
  *
  * Runtime-agnostic by construction: the caller injects `fetchFn` and `now`, so
  * this same module runs under a Cloudflare Worker, plain Node, a GCP Cloud Run
- * service, or a test with zero network. That injection is what keeps RHR's
- * hosting options open (see the RHR project notes).
+ * service, or a test with zero network. That injection is what keeps a future
+ * non-Cloudflare deployment possible without touching the engine.
  *
  * Preserves the one property the predecessor genuinely got right: every vendor
  * is isolated, so one vendor's outage or payload change degrades exactly one
