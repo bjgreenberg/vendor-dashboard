@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseGoogle } from '../../../src/engine/adapters/google.js';
 import { parseBetterStack, parseBetterStackSections } from '../../../src/engine/adapters/betterstack.js';
 import { parseConcur } from '../../../src/engine/adapters/concur.js';
+import { coerceApplePayload } from '../../../src/engine/adapters/apple.js';
 import { SEVERITY } from '../../../src/engine/severity.js';
 
 // Audit finding M4, second pass: when the coverage gate went per-file, three
@@ -60,6 +61,59 @@ describe('betterstack — section resource names', () => {
     const out = parseBetterStackSections(section('https://%%%'));
     expect(out).toHaveLength(1);
     expect(out[0].name).toBe('https://%%%');
+  });
+});
+
+// Vitest 4's AST-aware coverage remapping exposed these as never-executed
+// (the v3 ruler credited them): Apple's raw-text coercion path and
+// BetterStack's page+sections merge. Both are real inputs in production —
+// Apple serves a JS-wrapped payload, Stormboard's resources ride a separate
+// fragment — so they get pinned, not threshold-waived.
+describe('apple — payload coercion accepts objects and JS-wrapped text', () => {
+  it('passes a parsed object straight through', () => {
+    const obj = { services: [] };
+    expect(coerceApplePayload(obj)).toBe(obj);
+  });
+
+  it('extracts the JSON object from a JS-wrapped body', () => {
+    const wrapped = 'jsonCallback({"services":[{"serviceName":"iCloud"}]});';
+    expect(coerceApplePayload(wrapped)).toEqual({ services: [{ serviceName: 'iCloud' }] });
+  });
+
+  it.each([
+    ['non-string, non-object input', 42],
+    ['text with no JSON object', 'entirely braceless'],
+    ['braces in the wrong order', '}{'],
+    ['invalid JSON between the braces', '{not json}'],
+  ])('fails closed (null) on %s', (_label, input) => {
+    expect(coerceApplePayload(input)).toBeNull();
+  });
+});
+
+describe('betterstack — page state merges with the sections fragment', () => {
+  const page = `<div class="status-page__overview-icon status-page__overview-icon--operational">`;
+  const section = (icon, label) =>
+    `<div class='status-page__resource-name'><img src="/status_pages/${icon}_small-abc.png">${label}</div>`;
+
+  it('a broken resource outranks a green page-level state', () => {
+    const r = parseBetterStack(page, {
+      vendor: 'Stormboard',
+      now,
+      sections: section('downtime', 'https://api.stormboard.com/'),
+    });
+    expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(r.incidentName).toBe('Active issue');
+    expect(r.description).toBe('Affected: api.stormboard.com.');
+  });
+
+  it('healthy resources leave the page verdict green and name the count', () => {
+    const r = parseBetterStack(page, {
+      vendor: 'Stormboard',
+      now,
+      sections: section('operational', 'https://app.stormboard.com/'),
+    });
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+    expect(r.description).toBe('All 1 monitored services operational.');
   });
 });
 
