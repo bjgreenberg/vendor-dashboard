@@ -245,6 +245,29 @@ export function parseStatuspage(payload, options) {
     description = toPlainText(payload?.status?.description) || 'Status reported as degraded by vendor.';
   }
 
+  // In group mode, a group's status is Statuspage's roll-up of its worst
+  // regional child — so ONE broken region reads as a globally broken service
+  // with nothing on the board saying which region. Seen live 2026-08-03:
+  // OutSystems' Middle East / UAE region was down, all three ODC groups went
+  // major_outage, and the regional detail lived only in the leaves that group
+  // mode discards. Name the unhealthy children on the group component, so a
+  // reader can tell a one-region failure from a global one.
+  const regionDetail = (group) => {
+    const kids = (payload?.components ?? []).filter(
+      (c) => !c.group && c.group_id === group.id,
+    );
+    const bad = kids
+      .map((c) => ({ name: c.name, severity: normalizeSeverity(c.status) }))
+      .filter((c) => c.severity !== SEVERITY.OPERATIONAL);
+    if (bad.length === 0) return '';
+    const shown = bad
+      .slice(0, 4)
+      .map((c) => `${c.name} (${c.severity.replace(/_/g, ' ')})`)
+      .join(', ');
+    const more = bad.length > 4 ? ` (+${bad.length - 4} more)` : '';
+    return `Affected: ${shown}${more}.`;
+  };
+
   // Children are always returned in full, healthy ones included. rollup.js
   // decides which are worth showing; hiding them here would throw away data the
   // dashboard needs the moment something breaks.
@@ -257,6 +280,7 @@ export function parseStatuspage(payload, options) {
           selected.map((c) => ({
             name: stripRegionSuffix(c.name),
             severity: normalizeSeverity(c.status),
+            ...(useGroups ? { description: regionDetail(c) } : {}),
           })),
         );
 
