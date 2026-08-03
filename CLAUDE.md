@@ -51,7 +51,9 @@ a future non-Cloudflare deployment possible.
 - **US vantage point (decision 2026-08-03).** Severity is judged from US
   regions where a vendor publishes them: `scope` picks the voting leaves and
   COMPOSES with `componentLevel: 'group'` (groups display, scoped leaves
-  vote; non-US trouble rides as card detail). The page intro states this.
+  vote; non-US trouble rides as card detail). AWS uses the same policy via
+  `scope.regionPrefixes` on region codes parsed from event service keys —
+  global/unparseable events keep their vote. The page intro states this.
   An empty scoped selection fails closed to `unknown` — never operational.
 - **Cloudflare is scoped to services only** (decision D1) — PoP groups excluded.
 - **Microsoft is labelled "Microsoft (Consumer Services)".** That endpoint has no
