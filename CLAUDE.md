@@ -182,7 +182,7 @@ and `CITATION.cff` (annotated) — all bumped together by the tooling.
 Visibility and the go-public checklist live in README → *Going public* — check
 there rather than assuming; this file does not track visibility.
 
-`main` is **fully protected**: required PR reviews, five required status checks
+`main` is **fully protected**: required PR reviews, six required status checks
 (`test`, `lint`, `docs-render`, `cff-validate`, `secret-scan`), linear history,
 no force pushes, **enforced for admins**. Land work by PR — a direct push or
 force-push is rejected with `protected branch hook declined`.

@@ -3,7 +3,7 @@
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-08-02 10:15 PM CDT
+Last updated: 2026-08-02 10:19 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -352,7 +352,7 @@ Remaining steps, in order:
    fingerprints in `.gitleaksignore`), and `.clasp.json` / `creds.json` were
    confirmed never committed via `git log --all --follow`.
 5. Branch protection on `main` is already in place: five required status
-   checks (`test`, `lint`, `docs-render`, `cff-validate`, `secret-scan`),
+   checks (`test`, `lint`, `perf`, `docs-render`, `cff-validate`, `secret-scan`),
    linear history, no force pushes, **enforced for admins**.
 6. At flip time, in repo settings (mirroring `senior-engineering-partner`):
    enable **secret scanning + push protection** and **private vulnerability
