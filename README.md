@@ -1,13 +1,16 @@
 # Vendor Status Dashboard
 
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard)](https://github.com/bjgreenberg/vendor-dashboard/releases)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bjgreenberg/vendor-dashboard/badge)](https://securityscorecards.dev/viewer/?uri=github.com/bjgreenberg/vendor-dashboard)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-08-02 10:23 PM CDT
+Last updated: 2026-08-02 10:55 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
-single-pane dashboard. Runs as a Cloudflare Worker on a 15-minute schedule.
+single-pane dashboard. Runs as a Cloudflare Worker; every vendor is
+re-checked on a 15-minute cycle.
 
 Live at **<https://briangreenberg.net/service-status>**.
 
@@ -17,11 +20,6 @@ Live at **<https://briangreenberg.net/service-status>**.
 > [`config/vendors.json`](config/vendors.json) with your vendor set, swap the
 > header/footer markup, and deploy. The engine (`src/engine/`) is deliberately
 > runtime-agnostic and does not know Cloudflare exists.
-
-> **Note on badges:** the **Release** and **OpenSSF Scorecard** badges are
-> intentionally absent while this repository is **private** — both services read
-> the repo over the public API and would render an error, which is worse than no
-> badge. They are staged in [Going public](#going-public).
 
 ## Contents
 
@@ -294,7 +292,7 @@ All third-party Actions are SHA-pinned; container tools are digest-pinned.
   data", never "All systems operational".
 - **Staleness is surfaced.** If the newest snapshot is older than two collection
   intervals, the page says so — the dead-man's switch for our own cron.
-- **Vendor content is untrusted input.** ~35 third-party feeds are escaped on
+- **Vendor content is untrusted input.** Every vendor feed is escaped on
   output; a strict CSP with a per-response nonce is the second line.
 - **404 is treated as retryable**, unusually. Microsoft's endpoint was measured
   at ~50% availability; the cost of being wrong is bounded because the answer
@@ -319,15 +317,16 @@ All third-party Actions are SHA-pinned; container tools are digest-pinned.
   Entra, Intune and Defender are absent. The row is labelled accordingly.
   Enterprise tenant health requires the authenticated Microsoft Graph Service
   Health API.
-- **Five vendors cannot show a component breakdown.** Google, Okta and Concur
-  publish only current *incidents*; Iorad and Stormboard publish a single
-  page-level state. There is no service catalogue to expand without inventing
-  one, so those rows have no disclosure.
+- **Signal cannot show a component breakdown** — it publishes a single
+  page-level sentence and nothing underneath (verified 2026-08-01). Every
+  other vendor now lists components, several via secondary catalogue
+  endpoints found by reading their status pages' network logs.
 - **Okta has no public JSON API** — `summary.json`, `index.json`,
   `history.atom` and `history.rss` all return 401. The adapter parses the
   incident records the status page embeds as JSON, using `indexOf` plus a linear
-  bracket walk rather than regex, because the page is ~347 KB against a 10 ms
-  CPU budget.
+  bracket walk rather than regex — written against the original free plan's
+  10 ms CPU budget and kept because cheap parsing is still enforced (see the
+  `perf` gate).
 - **No uptime history UI yet.** History *is* recorded from day one; only the
   reporting is unbuilt.
 
@@ -342,46 +341,32 @@ All third-party Actions are SHA-pinned; container tools are digest-pinned.
 | Is collection alive right now? | `curl -sf /service-status/health` — 200 with `age_minutes` while fresh; 503 once the snapshot is older than three cycles (45 min) or D1 is unreachable |
 | "This data may be stale" banner | Collection has not succeeded in >30 minutes. The collector, not the vendors, is the problem |
 | `Apple` unknown locally but fine in production | A host with no IPv6 egress. Node's fetch tries AAAA first; Apple is the only vendor publishing AAAA records |
-| Deploy fails: "CPU limits are not supported for the Free plan" | The `limits` block is paid-only. It is commented out in `wrangler.jsonc` |
+| Deploy fails: "CPU limits are not supported for the Free plan" | The declared `limits` block is a deliberate tripwire: it means the Workers Paid subscription has lapsed. Restore the plan (or consciously remove the block AND accept 10 ms CPU kills) |
 
 ## Going public
 
-This repository is **private**. Pre-flight completed 2026-08-02 (audit
-follow-up): vendor marks untracked as a build artifact (trademark-clean tree),
-internal project-notes references removed, reference-implementation framing
-added, and the 2026-08-01 security audit fully remediated (PRs #32–#44).
-Remaining steps, in order:
+Public since **2026-08-02**. The record of how it got here, for anyone
+auditing the process:
 
-1. **Deploy first, then flip** — make public only after the pending
-   `wrangler deploy` verifies clean, so the code people read matches what runs.
-   The repo name/URL becomes load-bearing once public (`.gitleaksignore`
-   fingerprints, badge URLs) — no rename after.
-2. Flip visibility, then re-add the **Release** and **OpenSSF Scorecard**
-   badges to the badge row:
-   ```markdown
-   [![Release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard)](https://github.com/bjgreenberg/vendor-dashboard/releases)
-   [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bjgreenberg/vendor-dashboard/badge)](https://securityscorecards.dev/viewer/?uri=github.com/bjgreenberg/vendor-dashboard)
-   ```
-3. The `scorecard` workflow activates on the first push to `main` after the
-   flip; confirm the badge renders after one run.
-4. History hygiene is verified, mechanically: gitleaks runs over the full
-   history as a required check (green; two documented public-identifier
-   fingerprints in `.gitleaksignore`), and `.clasp.json` / `creds.json` were
-   confirmed never committed via `git log --all --follow`.
-5. Branch protection on `main` is already in place: five required status
-   checks (`test`, `lint`, `perf`, `docs-render`, `cff-validate`, `secret-scan`),
-   linear history, no force pushes, **enforced for admins**.
-6. At flip time, in repo settings (mirroring `senior-engineering-partner`):
-   enable **secret scanning + push protection** and **private vulnerability
-   reporting** (both free once public); set **Actions → fork PR workflow
-   approval** to "require approval for all outside collaborators"; and raise
-   required reviews 0 → 1 via a **ruleset with a repo-admin bypass** so
-   outside PRs get a real review while solo self-merge stays unblocked
-   (classic protection with `enforce_admins` cannot express the bypass —
-   this is the one place the ruleset model is required).
-7. Community files are in place: NOTICE (Apache-2.0 + trademark statement),
-   CONTRIBUTING, CODE_OF_CONDUCT, MAINTAINERS, PRIVACY, SECURITY. Topics are
-   set on the repo for discoverability.
+- The 2026-08-01 security audit (`AUDIT:` mode, senior-engineering-partner
+  skill) was fully remediated in PRs #32–#52 before the flip, with finding IDs
+  traceable through every PR.
+- History hygiene is verified mechanically, not asserted: gitleaks runs over
+  the **full history** as a required check (the two fingerprints in
+  `.gitleaksignore` are documented public identifiers, not credentials), and
+  the tree was swept for internal references before publication.
+- Vendor logos were untracked pre-flip (trademark-clean tree; see NOTICE and
+  the Development section) and are regenerated at build time.
+- `main` is protected by the **main-protection ruleset**: squash-only merges,
+  one approving review (repo-admin bypass for solo maintenance), six required
+  status checks (`test`, `lint`, `perf`, `docs-render`, `cff-validate`,
+  `secret-scan`), strict up-to-date, linear history, signed commits, no
+  deletions or force pushes. Tags matching `v*` are protected against
+  deletion and moves.
+- Secret scanning + push protection, private vulnerability reporting, and
+  fork-PR workflow approval (all external contributors) are enabled.
+- Releases are cut by release-please; the Release badge above reflects the
+  latest tagged release.
 
 ## License
 
