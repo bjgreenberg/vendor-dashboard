@@ -1,0 +1,15 @@
+# Historical false positive, scoped to two exact fingerprints.
+#
+# Commit ebec264 accidentally committed LinkedIn's bot-challenge HTML page as
+# assets/icons/linkedin.ico (and its public/ copy). gitleaks flags the Google
+# reCAPTCHA data-sitekey inside it. A reCAPTCHA SITE key is a public
+# identifier, published in the markup of every page that embeds the widget —
+# it has no credential value (the paired SECRET key never appears client-side).
+#
+# The file itself was a real defect (a non-image shipped as an icon) and was
+# removed in the same PR (#32); fetch-logos.mjs now validates magic bytes so a
+# challenge page can never be saved again, and test/worker/logos.test.js gates
+# it. These two lines suppress only the historical blob, which remains
+# reachable in git history and cannot be un-committed without rewriting it.
+ebec264cfea4059bfcfba670a95056bbd4d69e6d:assets/icons/linkedin.ico:generic-api-key:30
+ebec264cfea4059bfcfba670a95056bbd4d69e6d:public/service-status/icons/linkedin.ico:generic-api-key:30

@@ -39,7 +39,7 @@ a future non-Cloudflare deployment possible.
 
 ## Settled decisions — don't re-derive
 
-- **Config is not code.** The vendor list lives in `config/vendors.example.json`.
+- **Config is not code.** The vendor list lives in `config/vendors.json`.
   Never hardcode vendors in source.
 - **Incidents inform context, never severity.** Deriving status from incidents
   caused errors in *both* directions: missed component-only outages, and marked
@@ -69,6 +69,30 @@ a future non-Cloudflare deployment possible.
   available. Bounded by an attempt cap and a run-wide budget.
 - **Retries share a run-wide budget** — the Workers *free* plan caps subrequests
   at 50 per invocation; 34 vendors retrying twice would be 102.
+- **Collection is SHARDED: 15 shards on a `* * * * *` (every-minute) cron**
+  (each vendor still refreshed every 15 min — `shards × cron interval` IS the
+  refresh promise on the page). Two ceilings forced this, in sequence: the free
+  plan's 50-external-subrequest cap (a full 41-vendor run measured **47**, so a
+  few retries killed the run and every vendor after the cutoff read `unknown`
+  while healthy), then the free plan's **10 ms CPU cap** (two multi-megabyte
+  parsers in one shard → `exceededResources`, collection stopped 3.5 h on
+  2026-08-01). One shard now covers ~3 vendors; expensive vendors (AWS, IBM,
+  Oracle, Concur, NetSuite) are pinned to separate shards in config.
+  - `CRON_EVERY_MINUTES` in `src/worker/index.js` **must** match
+    `triggers.crons`. Shard rotation is derived from the clock; a mismatch
+    silently starves some shards forever.
+  - **Never `DELETE FROM snapshot` wholesale** — a sharded run must delete only
+    the vendors it checked, or it wipes the other two thirds of the board.
+  - `run_meta` counts are computed **in SQL from the snapshot table**, not from
+    the run: a shard only knows its own third.
+- **The subrequest budget meters `fetchFn` itself**, not each call site.
+  Metering call sites was the original defect: retries were counted while base
+  attempts, fallbacks and advisory second calls were not, so nothing bounded the
+  run. Wrapping the injected function means a new fetch site cannot escape it.
+- **Budget exhaustion is an operator fault and must read as one.** It presented
+  as 17 simultaneous vendor outages; nothing distinguished "we stopped asking"
+  from "they are down". `run.budgetExhausted` and a leading `collector:` warning
+  now make that explicit.
 - **Never a bare word match on HTML.** Finding H6 was
   `/\boperational\b/.test(html)` against a whole document. Parse structure and
   fail closed.
@@ -77,8 +101,9 @@ a future non-Cloudflare deployment possible.
 
 `.github/workflows/ci.yml` on every PR and push to `main`:
 
-- `test` — `npm ci` + 165 vitest tests + `wrangler deploy --dry-run` build check
-  + `npm audit --audit-level=high`
+- `test` — `npm ci` + the full vitest suite + `wrangler deploy --dry-run` build
+  check + `npm audit --audit-level=high` (don't cite a test count here — it
+  drifts; `npm test` prints the current one)
 - `secret-scan` — gitleaks over full history and working tree
 - `cff-validate` — `CITATION.cff` against the CFF schema
 - `docs-render` — every Mermaid block renders (needs Docker; OrbStack locally)
@@ -86,6 +111,32 @@ a future non-Cloudflare deployment possible.
 Run `npm test` locally before pushing. Every adapter is pinned against a
 recorded payload in `test/fixtures/` — that is the gate that would have caught
 H1, H6 and H7 before they shipped.
+
+## Verifying a deploy — read the RIGHT log stream
+
+`wrangler tail --status=error` shows **exceptions only**. The whole design of
+this collector is to *fail closed without throwing*, so a run where every fetch
+fails produces a clean board of `unknown` rows and an empty error tail. On
+2026-07-31 that exact combination was used to declare the service healthy while
+17 vendors were starving.
+
+To actually verify a collection:
+
+```sh
+# 1. The collector's own verdict, unfiltered — NOT --status=error.
+npx wrangler tail --format=json | grep -E 'collection_(complete|alert)'
+# 2. The board's aggregate state, over more than one cron cycle.
+curl -s https://briangreenberg.net/service-status/api/status \
+  | python3 -c "import sys,json;from collections import Counter;d=json.load(sys.stdin);print(Counter(r['severity'] for r in d['records']))"
+# 3. Freshness, machine-readable: 200 while the snapshot is <45 min old,
+#    503 when collection has stopped or D1 is unreachable. This is what the
+#    external dead-man monitor probes.
+curl -sf https://briangreenberg.net/service-status/health
+```
+
+A single green reading right after a deploy proves nothing: the failure was
+intermittent and cycle-dependent. Watch at least one full 15-minute cycle
+(three shards) before calling it good.
 
 ## Deployment gotchas
 

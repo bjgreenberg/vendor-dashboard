@@ -41,7 +41,23 @@ function severityOf(incident) {
  * @returns {import('../record.js').StatusRecord}
  */
 export function parseConcur(payload, options) {
-  const { vendor, banner, dataCenters, now = () => new Date() } = options ?? {};
+  const { vendor, banner, dataCenters, serviceCatalogue, now = () => new Date() } = options ?? {};
+
+  /**
+   * Every service Concur publishes, from the catalogue endpoint.
+   *
+   * The catalogue is keyed by priority tier (P1, P2) and the same service
+   * appears in more than one tier, so names are deduped. Without this the row
+   * listed services only while something was broken and showed NOTHING when
+   * healthy -- a reader could not see what Concur even covers.
+   */
+  const catalogued = [];
+  for (const tier of Object.values(serviceCatalogue ?? {})) {
+    for (const s of tier?.services ?? []) {
+      const name = String(s?.name ?? '').trim();
+      if (name && !catalogued.includes(name)) catalogued.push(name);
+    }
+  }
   if (!payload || !Array.isArray(payload.incidents)) {
     return unknownRecord(vendor, 'payload had no incidents array', { now, sourceUrl: SOURCE_URL });
   }
@@ -69,8 +85,15 @@ export function parseConcur(payload, options) {
       vendor,
       service: dataCenters?.length ? `Concur (${dataCenters.join(', ')})` : 'Concur',
       severity: SEVERITY.OPERATIONAL,
-      description: 'All systems operational.',
+      description: catalogued.length
+        ? `All ${catalogued.length} services operational.`
+        : 'All systems operational.',
       sourceUrl: SOURCE_URL,
+      components: catalogued.map((name) => ({
+        name,
+        severity: SEVERITY.OPERATIONAL,
+        description: '',
+      })),
       warnings,
       now,
     });

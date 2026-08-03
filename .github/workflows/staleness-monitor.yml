@@ -1,0 +1,52 @@
+name: Dead-man monitor
+
+# The external detector the Worker cannot be (audit finding H3): every alert
+# inside the scheduled handler dies with the invocation that needed it — an
+# exceededResources kill reaches none of them. This probe runs OUTSIDE
+# Cloudflare, on a GitHub cron, and a failed run emails the repo owner: the
+# alert channel that finally reaches a human without new infrastructure.
+#
+# Probes /health (200 fresh / 503 stale-or-never / 500 D1 down — the endpoint
+# reads run_meta for real, PR #40) and then sanity-checks the unknown rate on
+# the board, mirroring the in-handler `unknown_rate_high` threshold.
+#
+# NOTE: GitHub disables scheduled workflows after 60 days without repo
+# activity, and cron ticks can lag minutes under load. Both are acceptable for
+# a 45-minute staleness threshold; neither would have hidden the 3.5-hour
+# 2026-08-01 outage this exists to catch.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: /health — freshness and reachability
+        run: |
+          set -euo pipefail
+          # -f: 503 (stale) and 5xx (D1 down / Worker dead) fail the step and
+          # trigger the notification email. Body printed first for the log.
+          curl -sS --max-time 30 https://briangreenberg.net/service-status/health || true
+          echo
+          curl -sSf --max-time 30 -o /dev/null https://briangreenberg.net/service-status/health
+
+      - name: /api/status — unknown-rate sanity
+        run: |
+          set -euo pipefail
+          curl -sSf --max-time 30 https://briangreenberg.net/service-status/api/status \
+            | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)
+          total = len(d["records"])
+          unknown = sum(1 for r in d["records"] if r["severity"] == "unknown")
+          print(f"{unknown}/{total} unknown")
+          # Same threshold as the in-handler unknown_rate_high alert: half the
+          # board unresolved is infrastructure, not coincidence.
+          sys.exit(1 if total == 0 or unknown / total >= 0.5 else 0)
+          '
