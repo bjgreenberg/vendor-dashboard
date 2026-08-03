@@ -1,6 +1,15 @@
 import { compareRecords } from '../engine/severity.js';
 
 /**
+ * How long history rows live (audit finding L4). ~4,000 rows/day at 46
+ * vendors; unbounded would take years to matter on D1's free tier, but
+ * unbounded-growth-nobody-owns is a liability, not a plan. 90 days keeps a
+ * full quarter of uptime/MTTR raw material — revisit if longer-horizon
+ * analytics ever ship.
+ */
+const HISTORY_RETENTION_DAYS = 90;
+
+/**
  * D1 persistence for the Worker runtime.
  *
  * This is the ONLY module that knows about Cloudflare bindings; the engine
@@ -78,6 +87,17 @@ export async function writeRun(db, run, options = {}) {
         .prepare('INSERT INTO history (vendor, severity, checked_at) VALUES (?, ?, ?)')
         .bind(r.vendor, r.severity, r.checkedAt ?? run.checkedAt),
     ),
+    // Retention rides along in the same transactional batch — no separate job
+    // to forget. The cutoff derives from the RUN's clock, not Date.now(), so
+    // storage stays deterministic; ISO-8601 strings compare lexicographically,
+    // which is what makes the < on TEXT correct.
+    db
+      .prepare('DELETE FROM history WHERE checked_at < ?')
+      .bind(
+        new Date(
+          Date.parse(run.checkedAt) - HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+        ).toISOString(),
+      ),
     // Counts are computed FROM the snapshot table, not from `run`, because a
     // sharded run only knows about its own third of the board. Binding the
     // run's own totals here would make the headline read "14 services" and
@@ -114,6 +134,16 @@ export async function writeRun(db, run, options = {}) {
   ];
 
   await db.batch(statements);
+}
+
+/**
+ * Read only the run metadata — the cheap freshness probe for /health.
+ * @param {D1Database} db
+ * @returns {Promise<any|null>}
+ */
+export async function readMeta(db) {
+  const meta = await db.prepare('SELECT * FROM run_meta WHERE id = 1').first();
+  return meta ?? null;
 }
 
 /**

@@ -230,3 +230,46 @@ describe('pruning vendors removed from config', () => {
     expect(snap().map((r) => r.vendor)).toEqual(['A', 'B']);
   });
 });
+
+describe('history retention (audit L4)', () => {
+  // history was append-only with no cap: ~4,000 rows/day at 46 vendors on a
+  // 1-minute cron. Years from D1's free 5 GB, but "unbounded growth nobody
+  // owns" is how that story always ends. 90 days keeps a full quarter of
+  // uptime/MTTR raw material; revisit if longer-horizon analytics ever ship.
+  const day = 24 * 60 * 60 * 1000;
+  const at = (offsetDays) =>
+    new Date(Date.parse('2026-07-31T23:30:00.000Z') + offsetDays * day).toISOString();
+
+  it('prunes history older than 90 days as part of the write batch', async () => {
+    db.sqlite
+      .prepare('INSERT INTO history (vendor, severity, checked_at) VALUES (?, ?, ?)')
+      .run('Ancient', 'operational', at(-100));
+    db.sqlite
+      .prepare('INSERT INTO history (vendor, severity, checked_at) VALUES (?, ?, ?)')
+      .run('Recent', 'operational', at(-10));
+
+    await writeRun(db, run([rec('Fresh', 'operational')]));
+
+    const vendors = db.sqlite
+      .prepare('SELECT vendor FROM history ORDER BY vendor')
+      .all()
+      .map((r) => r.vendor);
+    expect(vendors).toEqual(['Fresh', 'Recent']);
+  });
+
+  it('the cutoff derives from the run clock, not wall time', async () => {
+    // A backfill or a test with a fixed clock must prune relative to ITS
+    // checkedAt; storage stays deterministic with no Date.now() of its own.
+    db.sqlite
+      .prepare('INSERT INTO history (vendor, severity, checked_at) VALUES (?, ?, ?)')
+      .run('Boundary', 'operational', at(-89));
+
+    await writeRun(db, run([rec('Fresh', 'operational')]));
+
+    const vendors = db.sqlite
+      .prepare('SELECT vendor FROM history ORDER BY vendor')
+      .all()
+      .map((r) => r.vendor);
+    expect(vendors).toContain('Boundary');
+  });
+});

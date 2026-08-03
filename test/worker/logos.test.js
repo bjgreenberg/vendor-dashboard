@@ -1,6 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+// The icon FILES are a build artifact since the repo went public-ready:
+// redistributing 46 trademarked marks in a public repo is a different act
+// from serving them on the dashboard, so they are gitignored and regenerated
+// by scripts/fetch-logos.mjs. A fresh clone therefore has no icons on disk —
+// the disk-reading gates below run wherever the artifact exists (any machine
+// that fetches or deploys logos, which is the only place icons can change)
+// and skip loudly on a bare checkout. The MANIFEST gates always run: the
+// manifest is tracked, because render.js imports it at build time.
+const iconsOnDisk = (dir) => existsSync(dir) && readdirSync(dir).some((f) => !f.startsWith('.'));
 
 // Reported from a phone 2026-08-01: Signal's logo was invisible — white on
 // white. Its favicon ships an OS-theme-adaptive style:
@@ -17,12 +27,12 @@ import { join } from 'node:path';
 // vanishing on someone's phone.
 
 const DIR = 'public/service-status/icons';
-const svgs = readdirSync(DIR).filter((f) => f.endsWith('.svg'));
+const svgs = iconsOnDisk(DIR) ? readdirSync(DIR).filter((f) => f.endsWith('.svg')) : [];
 
 /** CSS with comments removed — a commented-out rule is inert. */
 const activeCss = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 
-describe('self-hosted logos render deterministically on the chip', () => {
+describe.runIf(iconsOnDisk(DIR))('self-hosted logos render deterministically on the chip', () => {
   it('has SVGs to check', () => {
     expect(svgs.length).toBeGreaterThan(0);
   });
@@ -73,12 +83,16 @@ describe('every vendor has a locally-hosted logo', () => {
     expect(manifest[slug(name)]).toBeTruthy();
   });
 
-  it.each(config.vendors.map((v) => v.name))('%s logo file is actually served', (name) => {
-    // A manifest entry pointing at a missing file renders a broken image,
-    // which is worse than no logo at all.
-    const file = manifest[slug(name)];
-    expect(() => readFileSync(join(DIR, file))).not.toThrow();
-  });
+  it.runIf(iconsOnDisk(DIR)).each(config.vendors.map((v) => v.name))(
+    '%s logo file is actually served',
+    (name) => {
+      // A manifest entry pointing at a missing file renders a broken image,
+      // which is worse than no logo at all. Disk-gated: icons are a build
+      // artifact (see header comment), so this runs where they exist.
+      const file = manifest[slug(name)];
+      expect(() => readFileSync(join(DIR, file))).not.toThrow();
+    },
+  );
 
   it('declares a brandDomain for every vendor, so a refetch can find the icon', () => {
     for (const v of config.vendors) {
@@ -112,7 +126,7 @@ describe('every vendor has a locally-hosted logo', () => {
 // SERVED to every visitor, so anything that is not a genuine image is a defect:
 // validate by magic bytes, never by extension or Content-Type — both are under
 // the remote server's control.
-describe('every shipped icon is a genuine image (magic bytes)', () => {
+describe.runIf(iconsOnDisk(DIR))('every shipped icon is a genuine image (magic bytes)', () => {
   const DIRS = ['assets/icons', 'public/service-status/icons'];
   const manifest = JSON.parse(readFileSync('config/logos.json', 'utf8'));
 
@@ -130,7 +144,10 @@ describe('every shipped icon is a genuine image (magic bytes)', () => {
   };
 
   for (const dir of DIRS) {
-    it.each(readdirSync(dir))(`${dir}/%s is a real image, not a saved error/challenge page`, (file) => {
+    // Guarded at collection time too: describe.runIf skips EXECUTION, but the
+    // suite body still runs during collection, where a readdirSync on a
+    // missing directory would throw on a fresh clone.
+    it.each(existsSync(dir) ? readdirSync(dir) : [])(`${dir}/%s is a real image, not a saved error/challenge page`, (file) => {
       const format = sniff(readFileSync(join(dir, file)));
       expect(format, `${dir}/${file} is not a recognisable image`).not.toBeNull();
     });

@@ -12,7 +12,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -39,7 +39,8 @@ jobs:
       # Catch bundling/binding errors without deploying. --dry-run needs no
       # Cloudflare credentials.
       - name: Build check (wrangler dry-run)
-        run: npx wrangler deploy --dry-run --outdir=/tmp/build
+        # --no-install: the lockfile-pinned wrangler, never a fetched-latest one
+        run: npx --no-install wrangler deploy --dry-run --outdir=/tmp/build
 
       - name: Audit dependencies (high+)
         run: npm audit --audit-level=high
@@ -51,7 +52,7 @@ jobs:
   secret-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           fetch-depth: 0   # full history for the git-log scan
 
@@ -67,7 +68,7 @@ jobs:
   cff-validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
 
       - name: Validate CITATION.cff
         run: |
@@ -82,7 +83,34 @@ jobs:
   docs-render:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
 
       - name: Render-check Mermaid diagrams
         run: scripts/render-diagrams.sh
+
+  # Deterministic lint gate (audit M2). Required check once green.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+      - run: npm ci
+      - run: npx --no-install eslint .
+
+  # Per-shard parse-CPU budget (audit H2 interim). Deliberately NOT a required
+  # check yet: the gate is genuinely red today (Oracle 7.5 ms, IBM 7.3 ms vs a
+  # 4 ms warning line under the free plan's 10 ms kill ceiling), and SHARD_COUNT
+  # cannot rise past 15 while the page promises a 15-minute refresh. Promotion
+  # trigger: Workers Paid (30 s CPU budget) or parse costs brought under 4 ms —
+  # then this becomes required alongside lint.
+  perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+      - run: npm ci
+      - run: npm run perf
