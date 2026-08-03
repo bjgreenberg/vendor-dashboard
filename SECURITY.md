@@ -5,8 +5,9 @@
 Please report suspected vulnerabilities **privately** — do not open a public
 issue for a security problem.
 
-- Preferred: open a [GitHub private security advisory](https://github.com/bjgreenberg/vendor-dashboard/security/advisories/new).
-- Or email the maintainer: **bjg@acm.org**.
+Report via a [GitHub private security advisory](https://github.com/bjgreenberg/vendor-dashboard/security/advisories/new)
+— GitHub's private reporting form is the single intake channel for this
+repository.
 
 Please include reproduction steps and the affected file/line where possible. You
 can expect an initial acknowledgement within a few days.

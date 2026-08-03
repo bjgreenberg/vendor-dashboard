@@ -13,7 +13,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 >
 > **Note on history.** Git history was squashed at v2.0.0. The prior 1.x line
 > was a single-file Google Apps Script implementation; its source is preserved
-> outside this repository (in the RHR project that still runs it) and in a
+> outside this repository (in its original internal deployment) and in a
 > verified `git bundle` backup. Entries below start at the rewrite. Everything
 > from here forward is append-only.
 

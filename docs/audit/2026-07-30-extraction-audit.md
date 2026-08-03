@@ -2,7 +2,7 @@
 
 **Extraction audit** — scoped to *what carries forward into the Cloudflare Worker port*, not to repairing the Apps Script in place.
 
-Date: 2026-07-30 · Auditor: Claude (senior-engineering-partner `AUDIT:` mode) · Host: socrates
+Date: 2026-07-30 · Auditor: Claude (senior-engineering-partner `AUDIT:` mode) · Host: local development Mac
 
 ---
 
@@ -75,7 +75,7 @@ KnowBe4 is the red row in your screenshot. Both errors have the **same root caus
 `find` returns no test files; `package.json` `test` is a deliberate no-op; CI gates on `node --check` only. This is *documented as intentional* in `CLAUDE.md:29-31` and is a correct read of Apps Script's constraints — Apps Script logic cannot be unit-tested off-platform.
 
 **Impact:** Every finding above would have been caught by one fixture-based test. H1 (Microsoft) and H2 (`const`) are each a single assertion. For a repo you intend to **open-source**, "no tests by design" is a hard sell to any prospective adopter.
-**Fix:** This resolves itself in the port — a Worker is plain JS on workerd. Record each vendor payload fetched during this audit as a **golden fixture** and pin every adapter's output. That corpus is also what would let a future RHR reimplementation be proven equivalent.
+**Fix:** This resolves itself in the port — a Worker is plain JS on workerd. Record each vendor payload fetched during this audit as a **golden fixture** and pin every adapter's output. That corpus is also what would let a future reimplementation on another platform be proven equivalent.
 
 ### MEDIUM
 
@@ -154,7 +154,7 @@ Not "fix the Apps Script" — sequence for the port.
 **Tier 4 — cleanup**
 8. **L1** delete dead code · **L2** honest UA · **L3** full header compare · **L4** validate config against live payloads.
 
-**Explicitly out of scope / decided elsewhere:** the Paylocity and Freshdesk/Freshservice monitoring gaps (no public endpoints found — recorded in the RHR notes), and the RHR share-vs-reimplement decision.
+**Explicitly out of scope / decided elsewhere:** the Paylocity and Freshdesk/Freshservice monitoring gaps (no public endpoints found — recorded in internal notes), and an internal share-vs-reimplement decision.
 
 ---
 
@@ -256,7 +256,7 @@ first fixture-pinned assertion.
 
 ## Local-development note (not a defect)
 
-`Apple` reports `unknown` during a local collection run on **socrates** while
+`Apple` reports `unknown` during a local collection run on **a host with no IPv6 egress** while
 every other vendor succeeds. This is an environment artefact, not a code or
 vendor problem:
 

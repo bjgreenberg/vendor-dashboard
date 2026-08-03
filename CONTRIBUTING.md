@@ -60,4 +60,4 @@ every adapter testable against fixtures and the engine portable.
 
 Suspected vulnerabilities go through a
 [private security advisory](https://github.com/bjgreenberg/vendor-dashboard/security/advisories/new)
-or <bjg@acm.org> — never a public issue. See [SECURITY.md](SECURITY.md).
+— never a public issue or email. See [SECURITY.md](SECURITY.md).
