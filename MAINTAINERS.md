@@ -8,10 +8,9 @@ This project is maintained by:
 
 - Every change lands via a pull request with the required checks green
   (`test`, `lint`, `docs-render`, `cff-validate`, `secret-scan`) — see
-  [CONTRIBUTING.md](CONTRIBUTING.md). The `perf` job runs on every PR but is
-  not yet required: it is deliberately red while the collector runs against
-  the Workers free plan's 10 ms CPU ceiling (the promotion trigger is
-  documented in `.github/workflows/ci.yml`).
+  [CONTRIBUTING.md](CONTRIBUTING.md), plus the `perf` parse-cost regression
+  gate (required since the 2026-08-02 move to Workers Paid re-based its
+  thresholds on an honest envelope).
 - Merges are **squash-only**. GitHub signs the squash commit, so contributions
   land **Verified** on `main` even from unsigned feature branches — no
   commit-signing setup required to contribute.

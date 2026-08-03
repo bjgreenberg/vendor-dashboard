@@ -45,7 +45,15 @@ function median(fn, runs = 9) {
   return times[Math.floor(times.length / 2)];
 }
 
-const CPU_BUDGET_MS = 10;
+// Workers PAID since 2026-08-02: the plan ceiling is 30 s of CPU per
+// invocation, so the old 10 ms survival math no longer applies. What this
+// gate now guards is REGRESSION: a parser that starts approaching the
+// envelope below is reintroducing the 23.3 MB-feed class of mistake (69 ms
+// of parse for one vendor) long before the plan ceiling could notice.
+// 150 ms is ~5x the worst shard measured on GitHub's runners (which read
+// ~3-4x hotter than Apple-silicon local runs) — real headroom, honest bar.
+const PLAN_CEILING_MS = 30_000;
+const REGRESSION_ENVELOPE_MS = 150;
 let failed = false;
 
 function report(label, ms, budget) {
@@ -55,14 +63,14 @@ function report(label, ms, budget) {
   console.log(`  ${label.padEnd(44)} ${ms.toFixed(2).padStart(7)} ms  (${pct}% of ${budget} ms)  ${verdict}`);
 }
 
-console.log(`\nCPU budget checks — Workers free plan allows ${CPU_BUDGET_MS} ms per Cron Trigger\n`);
+console.log(`\nParse-cost checks — regression envelope ${REGRESSION_ENVELOPE_MS} ms per shard (plan ceiling ${PLAN_CEILING_MS} ms, Workers Paid)\n`);
 
 // 1. The single most expensive parse in the collector.
 const oktaPage =
   'x'.repeat(300_000) +
   '[{"attributes":{"type":"Incident__c"},"Status__c":"Resolved"}]' +
   'y'.repeat(47_000);
-report('Okta — 347 KB page, targeted scan', median(() => parseOkta(oktaPage, { vendor: 'Okta', now })), CPU_BUDGET_MS);
+report('Okta — 347 KB page, targeted scan', median(() => parseOkta(oktaPage, { vendor: 'Okta', now })), REGRESSION_ENVELOPE_MS);
 
 // 2. Scaling: parsing must not be linear in document size.
 const huge = 'x'.repeat(3_000_000) + '[{"attributes":{"type":"Incident__c"},"Status__c":"Resolved"}]';
@@ -121,9 +129,9 @@ console.log(
 // Measured against live payloads, so it reflects what the vendors actually
 // serve today rather than a fixture recorded when they were small.
 // ---------------------------------------------------------------------------
-console.log(`\nPer-shard PARSE CPU (${SHARD_COUNT} shards) — ceiling is ${CPU_BUDGET_MS} ms per invocation\n`);
+console.log(`\nPer-shard PARSE CPU (${SHARD_COUNT} shards) — regression envelope ${REGRESSION_ENVELOPE_MS} ms\n`);
 
-const WARN_AT_MS = 4; // well under the ceiling: act long before it bites
+const WARN_AT_MS = 50; // informational: a shard drifting past this deserves a look
 
 // Measure PARSING ONLY.
 //
@@ -173,16 +181,17 @@ for (let i = 0; i < SHARD_COUNT; i += 1) {
 
 shardCosts.sort((a, b) => b.ms - a.ms);
 for (const s of shardCosts.slice(0, 6)) {
-  const flag = s.ms > CPU_BUDGET_MS ? 'OVER CEILING' : s.ms > WARN_AT_MS ? 'near ceiling' : 'ok';
-  if (s.ms > WARN_AT_MS) failed = true;
+  const flag = s.ms > REGRESSION_ENVELOPE_MS ? 'REGRESSION' : s.ms > WARN_AT_MS ? 'watch' : 'ok';
+  if (s.ms > REGRESSION_ENVELOPE_MS) failed = true;
   console.log(
     `  shard ${String(s.i).padStart(2)}  ${s.ms.toFixed(2).padStart(7)} ms  ${flag.padEnd(13)} ${s.names.join(', ').slice(0, 58)}`,
   );
 }
 console.log(
-  `\nA shard trending past ${WARN_AT_MS} ms is the signal to raise SHARD_COUNT, BEFORE production\n` +
-    `starts failing with exceededResources. On 2026-08-01 it failed for 3.5 hours and the only\n` +
-    `detector was the staleness banner — in-handler alerts cannot fire when the invocation is killed.\n`,
+  `\nA shard past ${REGRESSION_ENVELOPE_MS} ms fails this gate: that is the 23.3 MB-feed class of parse\n` +
+    `cost returning, and it should die on the PR. History: under the free plan's 10 ms ceiling\n` +
+    `this class stopped collection for 3.5 hours on 2026-08-01; Workers Paid (2026-08-02) removed\n` +
+    `the hard kill, and this envelope keeps the lesson enforced anyway.\n`,
 );
 
 process.exit(failed ? 1 : 0);

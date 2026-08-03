@@ -7,7 +7,7 @@
  * or a Worker runtime.
  */
 
-import { collect } from '../engine/collect.js';
+import { collect, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
 import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
 import { writeRun, readSnapshot, readMeta } from './storage.js';
 import { renderDashboard } from './render.js';
@@ -31,12 +31,12 @@ const CRON_EVERY_MINUTES = 1;
 async function scheduled(controller, env) {
   const started = Date.now();
 
-  // Collect one shard per invocation. Two free-plan ceilings forced the split:
-  // 50 external subrequests (a full run measured ~47, so retries killed it
-  // mid-flight and unreached vendors reported `unknown`) and 10 ms of CPU
-  // (two multi-megabyte parsers in one invocation exceeded it). With 15 shards
-  // on an every-minute cron, one invocation covers ~3 vendors and every vendor
-  // is still refreshed once per 15 minutes.
+  // Collect one shard per invocation. Two free-plan ceilings originally
+  // forced the split (50 subrequests, 10 ms CPU — both bit in production).
+  // Workers Paid (2026-08-02) removed the hard limits, but sharding stays:
+  // it keeps each invocation tiny, bounds any one vendor's blast radius, and
+  // is battle-tested. One invocation covers ~3 vendors; every vendor is still
+  // refreshed once per 15 minutes.
   const at = new Date(controller.scheduledTime ?? Date.now());
   const shard = shardDueAt(at, SHARD_COUNT, CRON_EVERY_MINUTES);
   const vendors = selectShard(vendorConfig.vendors, shard, SHARD_COUNT);
@@ -78,7 +78,7 @@ async function scheduled(controller, env) {
       impacted: run.impacted,
       unknown: run.unknown,
       subrequests: run.subrequests,
-      subrequest_ceiling: 50,
+      subrequest_budget: DEFAULT_SUBREQUEST_BUDGET,
       duration_ms: Date.now() - started,
     }),
   );
@@ -110,13 +110,14 @@ async function scheduled(controller, env) {
     });
   }
 
-  // Approaching the ceiling is the leading indicator. It is what a run looked
-  // like the day before it started failing, and it is the only signal that
-  // arrives while there is still time to act.
-  if (run.subrequests >= 40) {
+  // Approaching the collector's own budget is the leading indicator — it is
+  // what a run looks like the day before something starts truncating. The
+  // plan ceiling is 1,000 (Workers Paid); the budget below is our own sanity
+  // bound, so the alert fires with headroom left to act.
+  if (run.subrequests >= DEFAULT_SUBREQUEST_BUDGET * 0.75) {
     alerts.push({
       alert: 'subrequest_headroom_low',
-      detail: `${run.subrequests} of a 50 ceiling; raise SHARD_COUNT before this starts truncating runs`,
+      detail: `${run.subrequests} of the collector's ${DEFAULT_SUBREQUEST_BUDGET} budget; a shard should cost ~5 — look for a retry storm or config mistake`,
     });
   }
 

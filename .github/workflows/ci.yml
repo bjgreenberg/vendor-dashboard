@@ -99,12 +99,11 @@ jobs:
       - run: npm ci
       - run: npx --no-install eslint .
 
-  # Per-shard parse-CPU budget (audit H2 interim). Deliberately NOT a required
-  # check yet: the gate is genuinely red today (Oracle 7.5 ms, IBM 7.3 ms vs a
-  # 4 ms warning line under the free plan's 10 ms kill ceiling), and SHARD_COUNT
-  # cannot rise past 15 while the page promises a 15-minute refresh. Promotion
-  # trigger: Workers Paid (30 s CPU budget) or parse costs brought under 4 ms —
-  # then this becomes required alongside lint.
+  # Per-shard parse-cost REGRESSION gate (audit H2). Required since
+  # 2026-08-02: Workers Paid (30 s CPU) fired the promotion trigger, and the
+  # thresholds were re-based from free-plan survival math (4 ms warn / 10 ms
+  # kill) to an honest 150 ms envelope that catches the 23.3 MB-feed class of
+  # parser mistake on the PR instead of in production.
   perf:
     runs-on: ubuntu-latest
     steps:

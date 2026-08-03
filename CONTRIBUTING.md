@@ -37,9 +37,11 @@ every adapter testable against fixtures and the engine portable.
    `docs/audit/` for how that went).
 3. Add the vendor to `config/vendors.json` (never hardcode vendors in source)
    and declare its `brandDomain` so the logo pipeline can find its mark.
-4. Mind the budget: the collector runs on the Workers free plan — parsing a
-   multi-megabyte payload can blow a 10 ms CPU ceiling. `npm run perf` shows
-   the per-shard cost; expensive vendors get pinned to their own shard.
+4. Mind the parse cost: `npm run perf` measures per-shard parse CPU against
+   a 150 ms regression envelope, and CI enforces it. The plan ceiling is 30 s
+   (Workers Paid), but a parser that needs a fraction of that is doing
+   something wrong — prefer targeted scans over full JSON.parse on
+   multi-megabyte payloads; expensive vendors get pinned to their own shard.
 
 ## Pull requests
 
