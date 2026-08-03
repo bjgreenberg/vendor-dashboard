@@ -1,0 +1,52 @@
+name: Bug report
+description: The dashboard shows something wrong, an adapter misreads a vendor, or the code misbehaves.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the dashboard.
+
+        **For questions, ideas, or general feedback, please use
+        [Discussions](https://github.com/bjgreenberg/vendor-dashboard/discussions)
+        instead** — Issues are for actionable bugs. For anything security-related, see
+        [SECURITY.md](https://github.com/bjgreenberg/vendor-dashboard/blob/main/SECURITY.md)
+        (don't file it here).
+
+        The one rule this project lives by: **an unverifiable status is `unknown`,
+        never `operational`**. A vendor reading green while actually broken is the
+        highest-severity bug this repo can have.
+  - type: textarea
+    id: what
+    attributes:
+      label: What's wrong?
+      description: What does the dashboard show, and what should it show instead?
+    validations:
+      required: true
+  - type: input
+    id: vendor
+    attributes:
+      label: Which vendor / component?
+      description: e.g. `Cloudflare`, `Microsoft · Azure`, or "the board itself".
+    validations:
+      required: false
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: |
+        What the vendor's own status page said at the time, and (if you can)
+        the row's `warnings` from `/service-status/api/status`.
+      placeholder: |
+        Vendor's page said: …
+        The dashboard row said: …
+        /api/status warnings: …
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Timing, screenshots, whether it recovered on the next cycle.
+    validations:
+      required: false
