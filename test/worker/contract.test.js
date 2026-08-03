@@ -132,8 +132,9 @@ describe('the site consumer reads what this actually returns', () => {
 });
 
 // /health used to return a static {ok:true} without touching D1 — a check that
-// could not change when the thing it guards broke (the handoff's own test for
-// decorative checks). It is now the probe target for the external dead-man
+// could not change when the thing it guards broke — the decorative-check
+// test: if the thing you care about were entirely broken, would this check
+// change? If not, it is decorative. It is now the probe target for the external dead-man
 // monitor, so it must answer three questions with real reads: is the Worker
 // up, is D1 reachable, and is the snapshot FRESH. Audit findings H3 + L3.
 describe('/health answers from run_meta, not from hope', () => {

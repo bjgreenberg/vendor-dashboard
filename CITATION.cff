@@ -2,24 +2,25 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata below."
 title: "Vendor Status Dashboard"
 abstract: >-
-  A Google Apps Script tool that monitors the live operational status of a
-  SaaS vendor ecosystem by polling each vendor's public status API and writing
-  a normalized result set to a Google Sheet.
+  A Cloudflare Worker that monitors the live operational status of a
+  configurable SaaS vendor set by polling each vendor's own public status
+  endpoint, normalizing results through a runtime-agnostic engine that fails
+  closed (an unverifiable status is unknown, never operational), and serving
+  a single-pane dashboard from a D1-backed snapshot.
 type: software
 authors:
   - given-names: Brian
     family-names: Greenberg
-    email: bjg@acm.org
     website: "https://briangreenberg.net"
 repository-code: "https://github.com/bjgreenberg/vendor-dashboard"
 url: "https://github.com/bjgreenberg/vendor-dashboard"
 license: Apache-2.0
 keywords:
-  - google-apps-script
+  - cloudflare-workers
   - status-monitoring
   - statuspage
   - vendor-status
-  - google-sheets
+  - d1
   - observability
 version: 2.0.0 # x-release-please-version
 date-released: 2026-07-06 # x-release-please-date

@@ -101,16 +101,21 @@ a future non-Cloudflare deployment possible.
 
 `.github/workflows/ci.yml` on every PR and push to `main`:
 
-- `test` — `npm ci` + the full vitest suite + `wrangler deploy --dry-run` build
-  check + `npm audit --audit-level=high` (don't cite a test count here — it
-  drifts; `npm test` prints the current one)
+- `test` — `npm ci` + the full vitest suite with per-file coverage floors +
+  `wrangler deploy --dry-run` build check + `npm audit --audit-level=high`
+  (don't cite a test count here — it drifts; `npm test` prints the current one)
+- `lint` — `npx eslint .` (required)
 - `secret-scan` — gitleaks over full history and working tree
 - `cff-validate` — `CITATION.cff` against the CFF schema
 - `docs-render` — every Mermaid block renders (needs Docker; OrbStack locally)
+- `perf` — per-shard parse-CPU budget; runs on every PR but is NOT required
+  and is expected red on free-plan CPU limits (promotion trigger documented in
+  ci.yml). CI-runner numbers read ~3–4x hotter than Apple-silicon local runs.
 
 Run `npm test` locally before pushing. Every adapter is pinned against a
 recorded payload in `test/fixtures/` — that is the gate that would have caught
-H1, H6 and H7 before they shipped.
+H1, H6 and H7 before they shipped. Human-facing contribution rules live in
+CONTRIBUTING.md; this file carries the agent-specific operating detail.
 
 ## Verifying a deploy — read the RIGHT log stream
 
@@ -154,14 +159,13 @@ intermittent and cycle-dependent. Watch at least one full 15-minute cycle
 
 ## Local environment note
 
-`Apple` may report `unknown` when collecting from **socrates**: that host has no
-IPv6 egress, Node's fetch tries AAAA first, and Apple is the only configured
-vendor publishing AAAA records. It resolves correctly from Cloudflare's network.
-Do not "fix" the Apple adapter for this.
+`Apple` may report `unknown` when collecting from a host with **no IPv6
+egress**: Node's fetch tries AAAA first, and Apple is the only configured
+vendor publishing AAAA records. It resolves correctly from Cloudflare's
+network. Do not "fix" the Apple adapter for this.
 
-Also: `cp` and `rm` are aliased to interactive. A scripted `cp` overwrite
-silently does nothing and defaults to *no*. Use `command cp` or an explicit
-editor write.
+Machine-specific notes (shell aliases, host names) live in the maintainer's
+gitignored `AGENTS.md`, not here.
 
 ## Releases
 
@@ -172,15 +176,24 @@ and `CITATION.cff` (annotated) — all bumped together by the tooling.
 
 ## Repository status
 
-**Private.** Release and Scorecard badges are intentionally absent (both would
-render errors on a private repo); re-add per README → *Going public*.
+Visibility and the go-public checklist live in README → *Going public* — check
+there rather than assuming; this file does not track visibility.
 
-`main` is **fully protected**: required PR reviews, four required status checks
-(`test`, `docs-render`, `cff-validate`, `secret-scan`), linear history, no force
-pushes, **enforced for admins**. Land work by PR — a direct push or force-push
-is rejected with `protected branch hook declined`.
+`main` is **fully protected**: required PR reviews, five required status checks
+(`test`, `lint`, `docs-render`, `cff-validate`, `secret-scan`), linear history,
+no force pushes, **enforced for admins**. Land work by PR — a direct push or
+force-push is rejected with `protected branch hook declined`.
 
 Note the two different APIs: `repos/{o}/{r}/rules/branches/main` returns `[]`
 here because there are no *rulesets*; the protection is **classic**, at
 `repos/{o}/{r}/branches/main/protection`. Checking only the first will tell you
-the branch is unprotected when it is not.
+the branch is unprotected when it is not. (The go-public checklist includes
+moving reviews 0→1 via a ruleset with admin bypass — re-check this section's
+accuracy after that lands.)
+
+## Contact
+
+Security reports: GitHub private security advisory only (see SECURITY.md).
+Do not add a maintainer email address anywhere in this repository — the
+GitHub advisory/issue system is the sole contact channel by explicit
+maintainer decision (2026-08-02).
