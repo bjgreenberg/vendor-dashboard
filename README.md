@@ -1,11 +1,12 @@
 # Vendor Status Dashboard
 
 [![CI](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/bjgreenberg/vendor-dashboard/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard)](https://github.com/bjgreenberg/vendor-dashboard/releases)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bjgreenberg/vendor-dashboard/badge)](https://securityscorecards.dev/viewer/?uri=github.com/bjgreenberg/vendor-dashboard)
+[![Latest release](https://img.shields.io/github/v/release/bjgreenberg/vendor-dashboard?sort=semver&label=release)](https://github.com/bjgreenberg/vendor-dashboard/releases)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bjgreenberg/vendor-dashboard/badge)](https://scorecard.dev/viewer/?uri=github.com/bjgreenberg/vendor-dashboard)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Last updated: 2026-08-02 10:55 PM CDT
+Last updated: 2026-08-02 11:13 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
