@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { collect } from '../../src/engine/collect.js';
 import { SEVERITY } from '../../src/engine/severity.js';
@@ -196,11 +196,11 @@ describe('collect — run metadata', () => {
 describe('collect — bounded retry for transient failures', () => {
   const GH = readFileSync(new URL('../fixtures/GitHub.json', import.meta.url), 'utf8');
 
-  it('retries a transient 404 and succeeds on the second attempt', async () => {
+  it('retries a transient 500 and succeeds on the second attempt', async () => {
     let calls = 0;
     const fetchFn = async () => {
       calls += 1;
-      if (calls === 1) return { ok: false, status: 404, text: async () => '' };
+      if (calls === 1) return { ok: false, status: 500, text: async () => '' };
       return { ok: true, status: 200, text: async () => GH };
     };
     const res = await collect(cfg([{ name: 'Flaky', type: 'statuspage', url: 'https://f' }]), {
@@ -210,6 +210,28 @@ describe('collect — bounded retry for transient failures', () => {
     });
     expect(calls).toBe(2);
     expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('does NOT retry a 404 — a retired route cannot be waited out', async () => {
+    // This test previously asserted the OPPOSITE. 404 was made retryable
+    // because Microsoft's endpoint measured ~50% availability on 2026-07-31,
+    // which looked like flapping. It was a progressive decommission: by
+    // 2026-08-01 it answered 404 every time, and so did its configured
+    // fallback. Retrying spent up to 3 subrequests per vendor from a budget
+    // capped at 50 to reach the same `unknown` -- and on the free plan that
+    // spend is precisely what starved other vendors.
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      return { ok: false, status: 404, text: async () => '' };
+    };
+    const res = await collect(cfg([{ name: 'Gone', type: 'statuspage', url: 'https://g' }]), {
+      fetchFn,
+      now,
+      retryDelayMs: 0,
+    });
+    expect(calls).toBe(1); // one attempt, no retries
+    expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN); // still fails closed
   });
 
   it('retries a network error', async () => {
@@ -280,6 +302,45 @@ describe('collect — bounded retry for transient failures', () => {
 // on that platform needs an optional secondary fetch to expose its component
 // list — mirroring Concur's optional banner.
 describe('collect — optional secondary fetches', () => {
+  it('deadlines the secondary fetch too — a hung components endpoint cannot stall the shard', async () => {
+    // Audit finding M3: the advisory calls (instatus/google/sorryapp
+    // components, Concur banner + catalogue, concur-status per-DC docs,
+    // BetterStack sections) passed no AbortSignal, so one hung endpoint held
+    // the whole invocation open until the runtime killed it — nothing written,
+    // no alert, the same silent-stall class as the 2026-08-01 CPU outage. The
+    // deadline is enforced inside meteredFetch, so no call site (present or
+    // future) can escape it — the same wrap-the-injected-function shape that
+    // made the subrequest budget inescapable.
+    const advisorySignals = [];
+    const fetchFn = (url, init) => {
+      if (url === 'https://p/summary') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ page: { status: 'UP', url: 'https://p' } }),
+        });
+      }
+      advisorySignals.push(init?.signal);
+      // Never settles on its own; rejects only when the caller's deadline fires.
+      return new Promise((_, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted by deadline')));
+      });
+    };
+
+    const outcome = await Promise.race([
+      collect(
+        cfg([{ name: 'P', type: 'instatus', url: 'https://p/summary', componentsUrl: 'https://p/components' }]),
+        { fetchFn, now, retryDelayMs: 0, timeoutMs: 25 },
+      ),
+      new Promise((resolve) => setTimeout(() => resolve('HUNG'), 1500)),
+    ]);
+
+    expect(outcome, 'collect() never returned — the advisory fetch has no deadline').not.toBe('HUNG');
+    expect(advisorySignals[0], 'advisory fetch received no AbortSignal').toBeDefined();
+    // The page-level verdict still stands; the lost component list is advisory.
+    expect(outcome.records[0].severity).toBe('operational');
+  });
+
   it('merges an instatus components endpoint into the payload', async () => {
     const res = await collect(
       cfg([{ name: 'P', type: 'instatus', url: 'https://p/summary', componentsUrl: 'https://p/components' }]),
@@ -310,5 +371,46 @@ describe('collect — optional secondary fetches', () => {
       },
     );
     expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+  });
+});
+
+// Microsoft publishes the same payload at two addresses whose failures are only
+// partly correlated: measured over six rounds each failed ~half the time, but
+// both failed together only twice.
+describe('collect — fallback URLs', () => {
+  const GH = readFileSync(new URL('../fixtures/GitHub.json', import.meta.url), 'utf8');
+
+  it('falls back to the second URL when the first exhausts its retries', async () => {
+    const seen = [];
+    const fetchFn = async (url) => {
+      seen.push(url);
+      if (url === 'https://primary') return { ok: false, status: 404, text: async () => '' };
+      return { ok: true, status: 200, text: async () => GH };
+    };
+    const res = await collect(
+      cfg([{ name: 'V', type: 'statuspage', url: 'https://primary', fallbackUrls: ['https://backup'] }]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+    expect(seen).toContain('https://backup');
+  });
+
+  it('does not touch the fallback when the primary succeeds', async () => {
+    const seen = [];
+    const fetchFn = async (url) => { seen.push(url); return { ok: true, status: 200, text: async () => GH }; };
+    await collect(
+      cfg([{ name: 'V', type: 'statuspage', url: 'https://primary', fallbackUrls: ['https://backup'] }]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(seen).toEqual(['https://primary']);
+  });
+
+  it('still yields UNKNOWN when every URL fails', async () => {
+    const fetchFn = async () => ({ ok: false, status: 404, text: async () => '' });
+    const res = await collect(
+      cfg([{ name: 'V', type: 'statuspage', url: 'https://a', fallbackUrls: ['https://b'] }]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
   });
 });

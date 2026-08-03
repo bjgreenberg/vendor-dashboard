@@ -519,3 +519,127 @@ describe('renderDashboard — logo legibility on both themes', () => {
     expect(html()).not.toMatch(/\.vs-intro\s*\{[^}]*max-width/);
   });
 });
+
+// The site shares with plain intent links and no third-party SDKs; this page
+// must not undercut that privacy posture.
+describe('renderDashboard — sharing', () => {
+  const rec = { vendor: 'GitHub', service: 'GitHub', severity: 'operational', incidentName: '',
+    description: '', sourceUrl: '', components: [], warnings: [], checkedAt: '2026-07-31T12:00:00.000Z' };
+  const html = (over = {}) => renderDashboard({ records: [rec], meta: null, ...over });
+
+  it('emits og and twitter tags with an ABSOLUTE image url', () => {
+    const h = html();
+    expect(h).toContain('property="og:image" content="https://briangreenberg.net/service-status/card.jpg"');
+    expect(h).toContain('name="twitter:card" content="summary_large_image"');
+    expect(h).toContain('property="og:image:width" content="1200"');
+    expect(h).toContain('og:image:alt');
+  });
+
+  it('describes the LIVE board so a share during an incident does not claim all-clear', () => {
+    const impacted = { ...rec, severity: 'major_outage' };
+    expect(html({ records: [impacted] })).toMatch(/og:description[^>]*1 currently impacted/);
+    expect(html()).toMatch(/og:description[^>]*All operational/);
+  });
+
+  it('shares with plain intent links and no third-party script', () => {
+    const h = html();
+    expect(h).toContain('linkedin.com/sharing/share-offsite');
+    expect(h).toContain('bsky.app/intent/compose');
+    // No SDK loaders.
+    expect(h).not.toMatch(/platform\.twitter\.com|connect\.facebook\.net|platform\.linkedin\.com/);
+  });
+
+  it('gives every row a stable anchor instead of 41 share widgets', () => {
+    const h = html();
+    expect(h).toContain('<article id="github"');
+    expect(h).toContain('href="#github"');
+    // One share bar for the page, not one per service.
+    expect(h.match(/class="share-bar/g)).toHaveLength(1);
+  });
+});
+
+describe('permalink anchor on touch devices', () => {
+  // Reported from a phone 2026-08-01: a stray "#" appeared beside the status
+  // pill whenever a card was touched. Cause: iOS and Android apply :hover to a
+  // TAPPED element and its ancestors ("sticky hover"), so `.vs-card:hover`
+  // fired on touch. The reveal must be gated on a pointer that can actually
+  // hover.
+  const css = () => renderDashboard({ records: [], meta: null });
+
+  it('gates the hover reveal behind a hover-capable pointer', () => {
+    const doc = css();
+    expect(doc).toMatch(/@media \(hover: hover\) and \(pointer: fine\)/);
+    // The bare rule must NOT exist outside the media query, or touch still fires.
+    const outside = doc.replace(/@media \(hover: hover\)[^}]*\{[\s\S]*?\n\}/, '');
+    expect(outside).not.toMatch(/\.vs-card:hover\s+\.vs-anchor/);
+  });
+
+  it('keeps the anchor reachable by keyboard', () => {
+    // Hiding it from touch must not hide it from keyboard users.
+    expect(css()).toMatch(/\.vs-anchor:focus-visible\s*\{[^}]*opacity/);
+  });
+
+  it('uses :focus-visible, not :focus', () => {
+    // A tap can raise :focus on some mobile browsers, which would reintroduce
+    // exactly the flash this fixes.
+    expect(css()).not.toMatch(/\.vs-anchor:focus(?!-visible)/);
+  });
+});
+
+describe('per-component detail', () => {
+  // Reported 2026-08-01: "AWS doesn't seem to be breaking down what the
+  // specific failure is. It just is a general label." The adapters HAD been
+  // filling in per-component descriptions — AWS's event-log excerpt naming the
+  // affected regions and what happened, Oracle's and Azure DevOps' affected
+  // regions, IBM's incident title — and childLi dropped them on the floor. A
+  // reader saw "Multiple services / Degraded" and nothing about the failure.
+  const withChild = (child) =>
+    renderDashboard({
+      records: [
+        record({
+          vendor: 'AWS',
+          severity: 'degraded',
+          components: [child],
+        }),
+      ],
+      meta: { checked_at: '2026-08-01T12:00:00.000Z' },
+      now: () => new Date('2026-08-01T12:01:00.000Z'),
+    });
+
+  // Assert on the ELEMENT, not the class name: the stylesheet in the same
+  // document also mentions `vs-child-detail`, so a document-wide check passes
+  // whether or not anything is actually rendered.
+  const DETAIL_EL = '<p class="vs-child-detail">';
+
+  it('renders the detail of an impacted component', () => {
+    const html = withChild({
+      name: 'Multiple services',
+      severity: 'degraded',
+      description: 'UAE — The Region has suffered damage and is unavailable.',
+    });
+    expect(html).toContain(DETAIL_EL);
+    expect(html).toContain('suffered damage');
+  });
+
+  it('escapes the detail, which is third-party text', () => {
+    const html = withChild({
+      name: 'X',
+      severity: 'degraded',
+      description: '<img src=x onerror=alert(1)>',
+    });
+    expect(html).not.toContain('<img src=x');
+    expect(html).toContain('&lt;img');
+  });
+
+  it('renders NO detail element for a healthy component', () => {
+    // A healthy component's description is empty by construction; emitting the
+    // element anyway would put an empty box under all 268 AWS services.
+    const html = withChild({ name: 'Amazon S3', severity: 'operational', description: '' });
+    expect(html).not.toContain(DETAIL_EL);
+  });
+
+  it('renders no detail element when an impacted component has none', () => {
+    const html = withChild({ name: 'X', severity: 'degraded', description: '' });
+    expect(html).not.toContain(DETAIL_EL);
+  });
+});

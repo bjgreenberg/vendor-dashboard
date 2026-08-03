@@ -5,9 +5,10 @@
 --             transaction, so a reader never sees a half-written board
 --             (audit finding M3: the predecessor cleared the sheet and THEN
 --             wrote, leaving it blank if the write failed).
---   history   append-only. Costs ~10 lines now and enables uptime %, MTTR and
---             incident timelines later; retrofitting storage would be a
---             migration.
+--   history   rolling window. Enables uptime %, MTTR and incident timelines;
+--             writeRun prunes rows older than 90 days in the same batch
+--             (HISTORY_RETENTION_DAYS in src/worker/storage.js), so growth is
+--             bounded without a separate job to forget about.
 
 CREATE TABLE IF NOT EXISTS snapshot (
   vendor        TEXT PRIMARY KEY,

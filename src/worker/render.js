@@ -25,6 +25,9 @@
 
 import LOGOS from '../../config/logos.json';
 
+const SHARE_URL = 'https://briangreenberg.net/service-status';
+const SHARE_TITLE = 'Service Status';
+
 /** Where self-hosted vendor marks are served from (Workers static assets). */
 const ICON_BASE = '/service-status/icons';
 
@@ -194,8 +197,16 @@ export function renderDashboard({
     : '';
 
   const checkedBlock = meta?.checked_at
-    ? `<p class="vs-meta">Last checked <time id="vs-checked" datetime="${esc(meta.checked_at)}">${esc(formatChicago(meta.checked_at))}</time>. Updates every 15 minutes.</p>`
-    : `<p class="vs-meta">No collection has run yet. Updates every 15 minutes.</p>`;
+    ? `<p class="vs-meta">Last collection <time id="vs-checked" datetime="${esc(meta.checked_at)}">${esc(formatChicago(meta.checked_at))}</time>. Each service is re-checked every 15 minutes.</p>`
+    : `<p class="vs-meta">No collection has run yet. Each service is re-checked every 15 minutes.</p>`;
+
+  // Social description reflects the LIVE board, so a share during an incident
+  // says so instead of claiming everything is fine.
+  const ogDescription = empty
+    ? 'Live status for cloud and SaaS services, read from each vendor\u2019s own status page.'
+    : `${records.length} cloud and SaaS services, each re-checked every 15 minutes. ${
+        impacted > 0 ? `${impacted} currently impacted.` : 'All operational.'
+      } Read from each vendor\u2019s own status page.`;
 
   const rows = records.map((r) => renderRow(r)).join('\n');
 
@@ -205,9 +216,27 @@ export function renderDashboard({
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Service Status — live status for ${esc(records.length)} cloud services</title>
-<meta name="description" content="Live operational status for ${esc(records.length)} cloud and SaaS services, refreshed every 15 minutes from each vendor's own public status endpoint.">
+<meta name="description" content="Live operational status for ${esc(records.length)} cloud and SaaS services, each re-checked every 15 minutes from that vendor's own public status endpoint.">
 <meta name="robots" content="${indexable ? 'index, follow' : 'noindex, nofollow'}">
 <link rel="canonical" href="https://briangreenberg.net/service-status">
+
+<!-- Social / GEO. The site's own pages get these from Eleventy; this page is a
+     separate Worker, so they are emitted here. Absolute URLs are required:
+     scrapers do not resolve relative og:image. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Brian Greenberg">
+<meta property="og:url" content="https://briangreenberg.net/service-status">
+<meta property="og:title" content="Service Status">
+<meta property="og:description" content="${esc(ogDescription)}">
+<meta property="og:image" content="https://briangreenberg.net/service-status/card.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Service Status — live status for cloud and SaaS services, from briangreenberg.net">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Service Status">
+<meta name="twitter:description" content="${esc(ogDescription)}">
+<meta name="twitter:image" content="https://briangreenberg.net/service-status/card.jpg">
+<meta name="twitter:image:alt" content="Service Status — live status for cloud and SaaS services, from briangreenberg.net">
 <link rel="icon" href="/assets/img/favicon.png" type="image/png">
 <link rel="stylesheet" href="/assets/site.css">
 <script${nonce ? ` nonce="${esc(nonce)}"` : ''}>
@@ -256,12 +285,39 @@ export function renderDashboard({
     <p>Most of the software I depend on is somebody else&rsquo;s to keep running.
     When something stops working, the first question is always whether it&rsquo;s
     me or them.</p>
-    <p>This page asks ${esc(records.length)} services directly, every 15 minutes,
+    <p>This page asks ${esc(records.length)} services directly, re-checking each one
+    every 15 minutes,
     and reports what each one says about itself. Nothing here is inferred, and
     nothing comes from a third-party aggregator &mdash; each status is read from
     that vendor&rsquo;s own status page, which you can open from any row.</p>
     <p>If a check fails, the service is marked <strong>Unknown</strong> rather
     than green. A check that didn&rsquo;t happen isn&rsquo;t good news.</p>
+  </div>
+
+  <!-- Share bar: plain intent links only, zero third-party JS or SDKs, matching
+       the site's privacy posture (src/_includes/share.njk). Keep the platform
+       list in sync with that include - the two drifted once already.
+
+       Mastodon is a BUTTON, not a link: the fediverse has no universal share
+       endpoint, so the sharer's own instance has to be asked for (and
+       remembered) before a /share URL can be built. Still no third-party JS.
+
+       Instagram, TikTok and Apple Music are deliberately absent - none of them
+       exposes a web share intent at all, so there is no honest link to write.
+       The native Share button reaches them via the OS share sheet; Copy link
+       covers everything else. -->
+
+  <div class="share-bar vs-share" data-url="${esc(SHARE_URL)}" data-title="${esc(SHARE_TITLE)}">
+    <span class="share-label">Share</span>
+    <a class="pill" rel="noopener" target="_blank" href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/linkedin.com.png">LinkedIn</a>
+    <a class="pill" rel="noopener" target="_blank" href="https://bsky.app/intent/compose?text=${encodeURIComponent(SHARE_TITLE + ' ' + SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/bsky.app.png">Bluesky</a>
+    <a class="pill" rel="noopener" target="_blank" href="https://x.com/intent/tweet?url=${encodeURIComponent(SHARE_URL)}&amp;text=${encodeURIComponent(SHARE_TITLE)}"><img class="pillfav" alt="" src="/assets/icons/social/x.com.png">X</a>
+    <a class="pill" rel="noopener" target="_blank" href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/facebook.com.png">Facebook</a>
+    <a class="pill" rel="noopener" target="_blank" href="https://www.threads.net/intent/post?text=${encodeURIComponent(SHARE_TITLE + ' ' + SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/threads.com.png">Threads</a>
+    <button class="pill share-mastodon" type="button"><img class="pillfav" alt="" src="/assets/icons/social/infosec.exchange.png">Mastodon</button>
+    <a class="pill" href="mailto:?subject=${encodeURIComponent(SHARE_TITLE)}&amp;body=${encodeURIComponent(SHARE_URL)}">&#9993; Email</a>
+    <button class="pill share-copy" type="button">&#128279; Copy link</button>
+    <button class="pill share-native" type="button" hidden>&#8599; Share&hellip;</button>
   </div>
 
   <p class="vs-headline ${headlineTone}">${esc(headline)}</p>
@@ -277,7 +333,7 @@ export function renderDashboard({
   </div>
 
   <div id="vs-board" class="vs-board">
-${rows || '<p class="vs-empty">No status has been collected yet. The collector runs every 15 minutes; if this persists, the scheduled job is not running.</p>'}
+${rows || '<p class="vs-empty">No status has been collected yet. The collector runs continuously; if this persists, the scheduled job is not running.</p>'}
   </div>
 
   <p class="vs-note">Select a service name to open its own status page, or expand a
@@ -331,6 +387,48 @@ ${rows || '<p class="vs-empty">No status has been collected yet. The collector r
         : hrs + ' hours ago';
       el.textContent = local + ' (' + ago + ')';
       el.title = 'Chicago time: ' + chicago;
+    }
+  }
+
+  // Share bar: copy-link and the native share sheet. No SDKs - the platform
+  // links above are plain intents.
+  var bar = document.querySelector('.share-bar');
+  if (bar) {
+    var url = bar.getAttribute('data-url');
+    var copy = bar.querySelector('.share-copy');
+    if (copy && navigator.clipboard) {
+      copy.addEventListener('click', function () {
+        navigator.clipboard.writeText(url).then(function () {
+          var old = copy.textContent;
+          copy.textContent = '\u2713 Copied';
+          setTimeout(function () { copy.textContent = old; }, 1600);
+        });
+      });
+    }
+    // Mastodon: no universal endpoint, so ask once for the instance and
+    // remember it. Strip scheme and path so a pasted profile URL still works.
+    var masto = bar.querySelector('.share-mastodon');
+    if (masto) {
+      masto.addEventListener('click', function () {
+        var KEY = 'bgnet-mastodon-instance';
+        var saved = '';
+        try { saved = localStorage.getItem(KEY) || ''; } catch (e) {}
+        var host = window.prompt('Your Mastodon instance (e.g. infosec.exchange)', saved || 'infosec.exchange');
+        if (!host) return;
+        host = host.trim().replace(/^https?:\\/\\//, '').replace(/\\/.*$/, '');
+        if (!/^[a-z0-9.-]+\\.[a-z]{2,}$/i.test(host)) return;
+        try { localStorage.setItem(KEY, host); } catch (e) {}
+        window.open('https://' + host + '/share?text=' +
+          encodeURIComponent(bar.getAttribute('data-title') + ' ' + url), '_blank', 'noopener');
+      });
+    }
+
+    var native = bar.querySelector('.share-native');
+    if (native && navigator.share) {
+      native.hidden = false;
+      native.addEventListener('click', function () {
+        navigator.share({ title: bar.getAttribute('data-title'), url: url }).catch(function () {});
+      });
     }
   }
 
@@ -416,11 +514,18 @@ function renderRow(record) {
     .filter(Boolean);
   const warning = readerWarnings.length ? `<p class="vs-warn">${esc(readerWarnings[0])}</p>` : '';
 
-  return `<article class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}">
+  // A stable id per row. The genuine want behind "share each service" is
+  // "look at THIS row", which a deep link satisfies - 41 share widgets would be
+  // clutter, and nobody shares a vendor's status from an aggregator anyway when
+  // the row already links the vendor's own page.
+  const anchor = logoSlug(record.vendor);
+
+  return `<article id="${esc(anchor)}" class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}">
   <div class="vs-head">
     ${logo || `<span class="vs-dot vs-dot--${esc(p.tone)}" aria-hidden="true">${esc(p.symbol)}</span>`}
     <h2>${nameHtml}</h2>
     <span class="vs-badge vs-badge--${esc(p.tone)}">${esc(p.label)}</span>
+    <a class="vs-anchor" href="#${esc(anchor)}" aria-label="Link to ${esc(record.vendor)}">#</a>
   </div>
   ${record.incidentName ? `<p class="vs-incident">${esc(record.incidentName)}</p>` : ''}
   <p class="vs-desc">${esc(record.description)}</p>
@@ -442,10 +547,26 @@ function hostOf(url) {
 /** @param {{name: string, severity: string}} c */
 function childLi(c) {
   const cp = PRESENTATION[c.severity] ?? PRESENTATION.unknown;
-  return `<li class="vs-child">
+
+  // Per-component DETAIL. Adapters have been filling this in for a while --
+  // AWS's event-log excerpt naming the affected regions and what happened,
+  // Oracle's and Azure DevOps' affected regions, IBM's incident title -- and
+  // the renderer dropped it on the floor, so a reader saw "Multiple services /
+  // Degraded" and nothing about the actual failure. Reported 2026-08-01.
+  //
+  // Shown only for components that are NOT operational: a healthy component's
+  // description is empty by construction, and rendering the element anyway
+  // would put an empty box under all 268 AWS services.
+  const detail =
+    c.severity !== 'operational' && c.description
+      ? `<p class="vs-child-detail">${esc(c.description)}</p>`
+      : '';
+
+  return `<li class="vs-child${detail ? ' vs-child--detailed' : ''}">
     <span class="vs-dot vs-dot--${esc(cp.tone)}" aria-hidden="true">${esc(cp.symbol)}</span>
     <span class="vs-child-name">${esc(c.name)}</span>
     <span class="vs-child-state">${esc(cp.label)}</span>
+    ${detail}
   </li>`;
 }
 
@@ -612,6 +733,39 @@ const STYLES = `
   cursor: pointer; font-size: .85rem; opacity: .75; padding: .4rem 0; min-height: 30px;
 }
 .vs-all > summary:hover { opacity: 1; }
+
+.vs-share { margin: 0 0 1rem; }
+.vs-anchor {
+  opacity: 0; text-decoration: none; font-weight: 600;
+  padding: 0 .25rem; flex: 0 0 auto;
+}
+/* Reveal the permalink only where a real pointer can hover.
+   iOS and Android apply :hover to a TAPPED element and its ancestors
+   ("sticky hover"), so on a phone the vs-card:hover rule fired on touch and a
+   stray # appeared beside the status pill whenever a card was touched.
+   Reported from a phone 2026-08-01. The hover/pointer media query matches a
+   mouse or trackpad and excludes touch, so the anchor stays hidden there.
+   :focus-visible is kept OUTSIDE the query so keyboard users still get it -
+   and it is :focus-visible rather than :focus deliberately, because a tap can
+   raise :focus on some mobile browsers and would reintroduce the same flash.
+   NOTE: no backticks in this comment. They terminate the JS template literal
+   this CSS lives in - the same trap that silently dropped 52 tests once. */
+@media (hover: hover) and (pointer: fine) {
+  .vs-card:hover .vs-anchor { opacity: .55; }
+  .vs-anchor:hover { opacity: 1; }
+}
+.vs-anchor:focus-visible { opacity: 1; }
+/* Deep-linked row gets a moment of emphasis so it is findable on arrival. */
+.vs-card:target { box-shadow: 0 0 0 2px currentColor; }
+
+.vs-child--detailed { flex-wrap: wrap; }
+.vs-child-detail {
+  flex: 1 0 100%;
+  margin: .35rem 0 0;
+  font-size: .85rem;
+  opacity: .8;
+  line-height: 1.45;
+}
 
 .vs-empty { opacity: .75; }
 .skip { position: absolute; left: -9999px; }

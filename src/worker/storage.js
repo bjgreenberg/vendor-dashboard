@@ -1,3 +1,14 @@
+import { compareRecords } from '../engine/severity.js';
+
+/**
+ * How long history rows live (audit finding L4). ~4,000 rows/day at 46
+ * vendors; unbounded would take years to matter on D1's free tier, but
+ * unbounded-growth-nobody-owns is a liability, not a plan. 90 days keeps a
+ * full quarter of uptime/MTTR raw material — revisit if longer-horizon
+ * analytics ever ship.
+ */
+const HISTORY_RETENTION_DAYS = 90;
+
 /**
  * D1 persistence for the Worker runtime.
  *
@@ -16,9 +27,42 @@
  * @param {D1Database} db
  * @param {{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[]}} run
  */
-export async function writeRun(db, run) {
+export async function writeRun(db, run, options = {}) {
+  // Replace ONLY the rows this run actually checked.
+  //
+  // `DELETE FROM snapshot` was correct while every run collected every vendor.
+  // Under sharding it would delete the other two shards' rows and leave the
+  // board showing a third of the services -- the same class of failure as
+  // finding M3, arrived at from the opposite direction.
+  const touched = run.records.map((r) => r.vendor);
+  const placeholders = touched.map(() => '?').join(',');
+
+  // Prune vendors that are no longer configured at all.
+  //
+  // Shard-scoped deletes fixed one bug and created another: `DELETE ... WHERE
+  // vendor IN (checked)` only touches vendors this run checked, so a vendor
+  // REMOVED from config is never checked again and its row is orphaned
+  // forever. It keeps its last severity, freezes its timestamp, and still
+  // counts toward run_meta -- stale data presented as current. Observed live
+  // 2026-08-01: consolidating five Microsoft rows into one left all five on
+  // the board, 45 rows for 41 configured vendors.
+  //
+  // `knownVendors` is the FULL configured list, not the shard, and is optional
+  // so a caller that does not know the full list cannot accidentally wipe the
+  // other shards.
+  const known = Array.isArray(options.knownVendors) ? options.knownVendors : null;
+  const prune =
+    known && known.length > 0
+      ? [
+          db
+            .prepare(`DELETE FROM snapshot WHERE vendor NOT IN (${known.map(() => '?').join(',')})`)
+            .bind(...known),
+        ]
+      : [];
+
   const statements = [
-    db.prepare('DELETE FROM snapshot'),
+    ...prune,
+    db.prepare(`DELETE FROM snapshot WHERE vendor IN (${placeholders})`).bind(...touched),
     ...run.records.map((r) =>
       db
         .prepare(
@@ -43,10 +87,42 @@ export async function writeRun(db, run) {
         .prepare('INSERT INTO history (vendor, severity, checked_at) VALUES (?, ?, ?)')
         .bind(r.vendor, r.severity, r.checkedAt ?? run.checkedAt),
     ),
+    // Retention rides along in the same transactional batch — no separate job
+    // to forget. The cutoff derives from the RUN's clock, not Date.now(), so
+    // storage stays deterministic; ISO-8601 strings compare lexicographically,
+    // which is what makes the < on TEXT correct.
+    db
+      .prepare('DELETE FROM history WHERE checked_at < ?')
+      .bind(
+        new Date(
+          Date.parse(run.checkedAt) - HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+        ).toISOString(),
+      ),
+    // Counts are computed FROM the snapshot table, not from `run`, because a
+    // sharded run only knows about its own third of the board. Binding the
+    // run's own totals here would make the headline read "14 services" and
+    // report the other 27 as neither healthy nor impacted.
+    //
+    // Runs last in the batch, so it sees this run's inserts. D1 executes a
+    // batch sequentially inside one transaction.
+    //
+    // `WHERE true` is REQUIRED, not decorative. SQLite cannot parse
+    // `INSERT ... SELECT ... ON CONFLICT` without a WHERE clause on the SELECT
+    // -- the parser cannot tell the upsert clause from a join constraint, and
+    // fails with `near "DO": syntax error`. Shipped without it on 2026-07-31
+    // and every cron threw for 25 minutes; the unit test missed it because a
+    // mock `batch()` never executes SQL. See test/worker/storage.test.js, which
+    // now asserts against real SQLite.
     db
       .prepare(
         `INSERT INTO run_meta (id, checked_at, total, impacted, unknown, warnings)
-         VALUES (1, ?, ?, ?, ?, ?)
+         SELECT 1, ?,
+                COUNT(*),
+                SUM(CASE WHEN severity NOT IN ('operational', 'unknown') THEN 1 ELSE 0 END),
+                SUM(CASE WHEN severity = 'unknown' THEN 1 ELSE 0 END),
+                ?
+           FROM snapshot
+          WHERE true
          ON CONFLICT(id) DO UPDATE SET
            checked_at = excluded.checked_at,
            total      = excluded.total,
@@ -54,10 +130,20 @@ export async function writeRun(db, run) {
            unknown    = excluded.unknown,
            warnings   = excluded.warnings`,
       )
-      .bind(run.checkedAt, run.total, run.impacted, run.unknown, JSON.stringify(run.warnings ?? [])),
+      .bind(run.checkedAt, JSON.stringify(run.warnings ?? [])),
   ];
 
   await db.batch(statements);
+}
+
+/**
+ * Read only the run metadata — the cheap freshness probe for /health.
+ * @param {D1Database} db
+ * @returns {Promise<any|null>}
+ */
+export async function readMeta(db) {
+  const meta = await db.prepare('SELECT * FROM run_meta WHERE id = 1').first();
+  return meta ?? null;
 }
 
 /**
@@ -71,6 +157,19 @@ export async function readSnapshot(db) {
     db.prepare('SELECT * FROM run_meta WHERE id = 1').first(),
   ]);
 
+  // Sort HERE, not at write time.
+  //
+  // collect() sorts its records and writeRun inserted them in that order, so a
+  // bare `SELECT *` used to come back sorted purely because rowid order matched
+  // — an accident, not a contract. Sharding broke it on 2026-07-31: each shard
+  // deletes its own rows and re-appends them, so the board became ordered by
+  // whichever shard ran most recently and impacted services stopped floating to
+  // the top. Ordering is the reader's job, because the reader is the only place
+  // that sees the whole board.
+  //
+  // Not an `ORDER BY`: severity ordering is a domain rule (`unknown` outranks
+  // `operational`) that lives in the engine. Encoding it as a SQL CASE ladder
+  // would duplicate it, and the two copies would drift.
   const records = (rows?.results ?? []).map((r) => ({
     vendor: r.vendor,
     service: r.service,
@@ -82,6 +181,8 @@ export async function readSnapshot(db) {
     warnings: safeParse(r.warnings, []),
     checkedAt: r.checked_at,
   }));
+
+  records.sort(compareRecords);
 
   return { records, meta: meta ?? null };
 }
