@@ -477,6 +477,35 @@ ${rows || '<p class="vs-empty">No status has been collected yet. The collector r
         var hit = !term || card.getAttribute('data-search').indexOf(term) !== -1;
         card.hidden = !hit;
         if (hit) shown++;
+
+        // Reported 2026-08-03: "google" returned Calendly, Oracle and Seismic
+        // alongside Google, with nothing saying why. Every one was a real
+        // component match (Calendly publishes "Google Analytics", Oracle
+        // "Oracle Database@Google Cloud"), and matching component names is
+        // what lets "gmail" find Google — so the fix is to EXPLAIN the match,
+        // not to narrow it: the vendor whose own name matches sorts first,
+        // and a card matched only on its components says which ones.
+        var why = card.querySelector('.vs-why');
+        if (why) why.remove();
+        card.style.order = '';
+        if (!term || !hit) return;
+
+        var nameMatch = (card.getAttribute('data-vendor') || '').indexOf(term) !== -1;
+        card.style.order = nameMatch ? '-1' : '0';
+        if (nameMatch) return;
+
+        var matched = [];
+        card.querySelectorAll('.vs-child-name').forEach(function (el) {
+          var n = (el.textContent || '').trim();
+          if (n && n.toLowerCase().indexOf(term) !== -1 && matched.indexOf(n) === -1) matched.push(n);
+        });
+        if (!matched.length) return;
+
+        var p = document.createElement('p');
+        p.className = 'vs-why';
+        p.textContent = 'Matches: ' + matched.slice(0, 3).join(', ') +
+          (matched.length > 3 ? ' (+' + (matched.length - 3) + ' more)' : '');
+        card.appendChild(p);
       });
       status.textContent = term
         ? shown + (shown === 1 ? ' service matches' : ' services match')
@@ -560,12 +589,20 @@ function renderRow(record) {
   // the row already links the vendor's own page.
   const anchor = logoSlug(record.vendor);
 
-  return `<article id="${esc(anchor)}" class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}">
+  // data-vendor is the vendor's own NAME text, kept apart from the combined
+  // haystack so the filter can distinguish "you searched for this vendor"
+  // from "this vendor merely mentions your term". Component names are NOT
+  // duplicated into an attribute: they already exist in the card's disclosure
+  // list, so the filter reads them from there. One source of truth, and
+  // healthy component names stay out of the always-visible markup, which is
+  // a presentation contract two tests pin.
+  return `<article id="${esc(anchor)}" class="vs-card vs-card--${esc(p.tone)}" data-search="${esc(haystack)}" data-vendor="${esc(
+    `${record.vendor} ${record.service ?? ''}`.toLowerCase(),
+  )}">
   <div class="vs-head">
     ${logo || `<span class="vs-dot vs-dot--${esc(p.tone)}" aria-hidden="true">${esc(p.symbol)}</span>`}
     <h2>${nameHtml}</h2>
     <span class="vs-badge vs-badge--${esc(p.tone)}">${esc(p.label)}</span>
-    <a class="vs-anchor" href="#${esc(anchor)}" aria-label="Link to ${esc(record.vendor)}">#</a>
   </div>
   ${record.incidentName ? `<p class="vs-incident">${esc(record.incidentName)}</p>` : ''}
   <p class="vs-desc">${esc(record.description)}</p>
@@ -775,26 +812,17 @@ const STYLES = `
 .vs-all > summary:hover { opacity: 1; }
 
 .vs-share { margin: 0 0 1rem; }
-.vs-anchor {
-  opacity: 0; text-decoration: none; font-weight: 600;
-  padding: 0 .25rem; flex: 0 0 auto;
-}
-/* Reveal the permalink only where a real pointer can hover.
-   iOS and Android apply :hover to a TAPPED element and its ancestors
-   ("sticky hover"), so on a phone the vs-card:hover rule fired on touch and a
-   stray # appeared beside the status pill whenever a card was touched.
-   Reported from a phone 2026-08-01. The hover/pointer media query matches a
-   mouse or trackpad and excludes touch, so the anchor stays hidden there.
-   :focus-visible is kept OUTSIDE the query so keyboard users still get it -
-   and it is :focus-visible rather than :focus deliberately, because a tap can
-   raise :focus on some mobile browsers and would reintroduce the same flash.
+/* The per-row permalink glyph is GONE (2026-08-03), and this comment is the
+   reason it should not come back. It was reported twice as a rendering
+   artifact: once from a phone, where sticky hover revealed it on tap, and
+   once from a desktop, where it appeared on hover exactly as designed. An
+   affordance that gets mistaken for a bug on both pointer types is not
+   discoverable, it is noise sitting next to the status pill.
+   Deep linking is unaffected: every card still carries a slug id, so
+   /service-status#cloudflare works, and the :target rule below still
+   emphasises the row on arrival. Nothing was lost except the glyph.
    NOTE: no backticks in this comment. They terminate the JS template literal
    this CSS lives in - the same trap that silently dropped 52 tests once. */
-@media (hover: hover) and (pointer: fine) {
-  .vs-card:hover .vs-anchor { opacity: .55; }
-  .vs-anchor:hover { opacity: 1; }
-}
-.vs-anchor:focus-visible { opacity: 1; }
 /* Deep-linked row gets a moment of emphasis so it is findable on arrival. */
 .vs-card:target { box-shadow: 0 0 0 2px currentColor; }
 
@@ -806,6 +834,11 @@ const STYLES = `
   opacity: .8;
   line-height: 1.45;
 }
+
+/* Why a card is in the filtered results, when the match came from a component
+   name rather than the vendor's own name. Same muted register as .vs-warn so
+   it reads as a note about the search, not as vendor status. */
+.vs-why { margin: .6rem 0 0; font-size: .8rem; opacity: .75; overflow-wrap: anywhere; }
 
 .vs-empty { opacity: .75; }
 .skip { position: absolute; left: -9999px; }

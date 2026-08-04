@@ -6,9 +6,20 @@ name: Dead-man monitor
 # Cloudflare, on a GitHub cron, and a failed run emails the repo owner: the
 # alert channel that finally reaches a human without new infrastructure.
 #
-# Probes /health (200 fresh / 503 stale-or-never / 500 D1 down — the endpoint
-# reads run_meta for real, PR #40) and then sanity-checks the unknown rate on
-# the board, mirroring the in-handler `unknown_rate_high` threshold.
+# WHY IT PROBES workers.dev RATHER THAN THE PUBLIC HOSTNAME
+#
+# The public hostname sits behind Cloudflare bot management, which answers
+# GitHub's runners with a managed challenge ("Just a moment…", HTTP 403).
+# From 2026-08-03 18:07Z this monitor therefore failed EVERY run while the
+# board was healthy — a false alarm every 15 minutes, which is worse than no
+# monitor at all: it trains the operator to ignore the one alert that is
+# supposed to mean something.
+#
+# vendor-dashboard.gsysd.workers.dev is the same Worker with the same D1
+# binding, reached directly, so every condition this exists to catch is still
+# caught: collection stalled, D1 unreachable, Worker dead, unknown rate
+# spiking. What it stops asserting is the zone route, so step 3 checks that
+# separately and treats a challenge as proof the edge is serving.
 #
 # NOTE: GitHub disables scheduled workflows after 60 days without repo
 # activity, and cron ticks can lag minutes under load. Both are acceptable for
@@ -23,6 +34,10 @@ on:
 permissions:
   contents: read
 
+env:
+  ORIGIN: https://vendor-dashboard.gsysd.workers.dev
+  PUBLIC: https://briangreenberg.net/service-status
+
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -32,14 +47,14 @@ jobs:
           set -euo pipefail
           # -f: 503 (stale) and 5xx (D1 down / Worker dead) fail the step and
           # trigger the notification email. Body printed first for the log.
-          curl -sS --max-time 30 https://briangreenberg.net/service-status/health || true
+          curl -sS --max-time 30 "$ORIGIN/health" || true
           echo
-          curl -sSf --max-time 30 -o /dev/null https://briangreenberg.net/service-status/health
+          curl -sSf --max-time 30 -o /dev/null "$ORIGIN/health"
 
       - name: /api/status — unknown-rate sanity
         run: |
           set -euo pipefail
-          curl -sSf --max-time 30 https://briangreenberg.net/service-status/api/status \
+          curl -sSf --max-time 30 "$ORIGIN/api/status" \
             | python3 -c '
           import json, sys
           d = json.load(sys.stdin)
@@ -50,3 +65,19 @@ jobs:
           # board unresolved is infrastructure, not coincidence.
           sys.exit(1 if total == 0 or unknown / total >= 0.5 else 0)
           '
+
+      - name: public route — edge reachability
+        run: |
+          set -euo pipefail
+          # A bot challenge (403) is the EXPECTED answer for a CI runner and
+          # proves the edge is serving. What must fail here is the edge being
+          # down: a 5xx, or no response at all (DNS, connect, timeout).
+          if ! code=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' "$PUBLIC/health"); then
+            echo "public route unreachable (curl failed)" >&2
+            exit 1
+          fi
+          echo "public route HTTP $code"
+          case "$code" in
+            2*|403) echo "edge is serving (403 = bot challenge, expected from CI)" ;;
+            *) echo "unexpected status from the public route" >&2; exit 1 ;;
+          esac
