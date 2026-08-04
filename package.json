@@ -42,5 +42,16 @@
     "jsdom": "^30.0.1",
     "vitest": "^4.1.10",
     "wrangler": "4.118.0"
+  },
+  "overrides": {
+    "jsdom": {
+      "undici": "^8.10.0"
+    },
+    "wrangler": {
+      "undici": "^7.29.0"
+    },
+    "miniflare": {
+      "undici": "^7.29.0"
+    }
   }
 }

@@ -551,38 +551,41 @@ describe('renderDashboard — sharing', () => {
 
   it('gives every row a stable anchor instead of 41 share widgets', () => {
     const h = html();
+    // The id is the deep-link surface. The visible "#" glyph that used to
+    // advertise it was removed 2026-08-03 (read as an artifact on both touch
+    // and desktop); /service-status#github still works.
     expect(h).toContain('<article id="github"');
-    expect(h).toContain('href="#github"');
     // One share bar for the page, not one per service.
     expect(h.match(/class="share-bar/g)).toHaveLength(1);
   });
 });
 
-describe('permalink anchor on touch devices', () => {
-  // Reported from a phone 2026-08-01: a stray "#" appeared beside the status
-  // pill whenever a card was touched. Cause: iOS and Android apply :hover to a
-  // TAPPED element and its ancestors ("sticky hover"), so `.vs-card:hover`
-  // fired on touch. The reveal must be gated on a pointer that can actually
-  // hover.
-  const css = () => renderDashboard({ records: [], meta: null });
-
-  it('gates the hover reveal behind a hover-capable pointer', () => {
-    const doc = css();
-    expect(doc).toMatch(/@media \(hover: hover\) and \(pointer: fine\)/);
-    // The bare rule must NOT exist outside the media query, or touch still fires.
-    const outside = doc.replace(/@media \(hover: hover\)[^}]*\{[\s\S]*?\n\}/, '');
-    expect(outside).not.toMatch(/\.vs-card:hover\s+\.vs-anchor/);
+describe('rows are deep-linkable without a visible permalink glyph', () => {
+  // Two reports about the same "#": a phone showed it on tap (sticky hover,
+  // 2026-08-01) and a desktop showed it on hover (by design, 2026-08-03).
+  // Twice-misread means the affordance failed: it reads as a rendering
+  // artifact next to the status pill, and its only job was advertising a
+  // deep link the card id already provides. The glyph is gone; the
+  // capability is not.
+  const doc = () => renderDashboard({
+    records: [{ vendor: '1Password', service: '1Password', severity: 'operational',
+                incidentName: '', description: 'All good', sourceUrl: 'https://status.1password.com',
+                components: [], warnings: [], checkedAt: '2026-08-03T14:00:00.000Z' }],
+    meta: null,
   });
 
-  it('keeps the anchor reachable by keyboard', () => {
-    // Hiding it from touch must not hide it from keyboard users.
-    expect(css()).toMatch(/\.vs-anchor:focus-visible\s*\{[^}]*opacity/);
+  it('emits no permalink glyph anywhere', () => {
+    expect(doc()).not.toContain('vs-anchor');
+    // Nor the bare character in card markup, which is what a reader saw.
+    expect(doc()).not.toMatch(/aria-label="Link to /);
   });
 
-  it('uses :focus-visible, not :focus', () => {
-    // A tap can raise :focus on some mobile browsers, which would reintroduce
-    // exactly the flash this fixes.
-    expect(css()).not.toMatch(/\.vs-anchor:focus(?!-visible)/);
+  it('still gives every card a stable id, so existing deep links keep working', () => {
+    expect(doc()).toContain('id="1password"');
+  });
+
+  it('still emphasises a deep-linked row on arrival', () => {
+    expect(doc()).toMatch(/\.vs-card:target\s*\{[^}]*box-shadow/);
   });
 });
 
