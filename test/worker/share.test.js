@@ -67,7 +67,17 @@ describe('share bar', () => {
     // legitimately absolute and loads nothing, so a blanket href rule would
     // fail on it. Only script/img `src` and a stylesheet/preload/icon `href`
     // cause a request.
-    expect(doc.match(/<(?:script|img)[^>]+src="(?:https?:)?\/\//g), 'no remote src').toBeNull();
+    // Remote scripts are allowed ONLY for the site's two analytics origins,
+    // added 2026-08-04 so this page reports alongside the rest of
+    // briangreenberg.net; analytics.test.js pins exactly which they are and
+    // that Google is never loaded outside the consent gate. Everything else
+    // must stay same-origin: a remote src both leaks a visitor's IP to a
+    // third party and is blocked by the page's CSP at runtime.
+    const ALLOWED_REMOTE = ['https://static.cloudflareinsights.com'];
+    const remote = (doc.match(/<(?:script|img)[^>]+src="(?:https?:)?\/\/[^"]+"/g) ?? []).filter(
+      (tag) => !ALLOWED_REMOTE.some((origin) => tag.includes(origin)),
+    );
+    expect(remote, 'no unexpected remote src').toEqual([]);
     expect(
       doc.match(/<link[^>]+rel="(?:stylesheet|preload|[^"]*icon)"[^>]+href="(?:https?:)?\/\//g),
       'no remote subresource href',

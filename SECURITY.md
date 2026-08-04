@@ -27,7 +27,10 @@ dashboard** at `briangreenberg.net/service-status` plus a JSON API and a
    — no exceptions), vendor URLs pass an http/https allowlist (`safeUrl()`),
    no vendor HTML is ever rendered, and a per-response nonce-gated CSP
    (`default-src 'none'`, `frame-ancestors 'none'`) is the second line of
-   defence. The CSP and headers are pinned by tests
+   defence. The only remote origins the policy permits are the site's two
+   analytics endpoints (Cloudflare Web Analytics, and Google Tag Manager
+   which loads only after consent); tests pin that list so it cannot widen
+   unnoticed. The CSP and headers are pinned by tests
    (`test/worker/scheduled.test.js`).
 2. **The inbound surface is read-only and unauthenticated by design.** GET
    endpoints only: the dashboard, `/api/status`, `/health`. No user input is

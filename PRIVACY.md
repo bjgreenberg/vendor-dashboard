@@ -1,23 +1,34 @@
 # Privacy — vendor-dashboard
 
-Last updated: 2026-08-02 10:00 PM CDT
+Last updated: 2026-08-04 03:49 PM CDT
 
 This covers both the **code in this repository** and the **live dashboard** it
 serves at <https://briangreenberg.net/service-status>.
 
-## What the dashboard collects from visitors: nothing
+## What the dashboard collects from visitors
 
-- **No cookies, no analytics, no tracking** in this Worker. The page sets no
-  identifiers and phones nothing home.
-- **localStorage** is used only for explicit visitor preferences, stored on
-  the visitor's own device and never transmitted: the site-wide appearance
-  choice (`bgnet-theme`, written only when a visitor picks a theme) and, if a
-  visitor uses the Mastodon share button, their chosen instance hostname
-  (`bgnet-mastodon-instance`).
+This page is part of briangreenberg.net and uses the **same two analytics
+systems as the rest of the site, under the same rules**. It runs no third
+party beyond those, and no social SDKs.
+
+- **Cloudflare Web Analytics** runs on every page view. It is **cookieless**,
+  stores nothing on your device, and does not fingerprint you, which is why it
+  is not gated behind consent. (The site makes the same call and says so at
+  <https://briangreenberg.net/privacy/>.)
+- **Google Analytics 4** is **not loaded unless you accept it.** Nothing is
+  requested from Google, and no analytics cookie is set, until consent is
+  granted through the banner or the controls on the site's privacy page. The
+  decision is stored on your device (`analytics-consent`) and shared with the
+  rest of briangreenberg.net, so choosing once covers the whole site including
+  this page. Declining leaves the page fully functional.
+- **localStorage** is otherwise used only for explicit preferences, stored on
+  your device and never transmitted: the site-wide appearance choice
+  (`bgnet-theme`), your Mastodon instance if you use that share button
+  (`bgnet-mastodon-instance`), and your typed filter for the length of the
+  visit (`vs-filter`, session only).
 - **Vendor logos are self-hosted deliberately.** Hot-linking icons would leak
-  every visitor's IP address to ~46 third-party companies on every page view;
-  serving them from this Worker means a page view contacts no one but the
-  page itself.
+  your IP address to ~46 third-party companies on every page view; serving
+  them from this Worker means a page view contacts no vendor at all.
 - The share bar uses **plain intent links** — no third-party SDKs or embeds.
   Nothing loads from a social network unless you click through to it.
 
