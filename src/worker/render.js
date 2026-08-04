@@ -28,6 +28,32 @@ import LOGOS from '../../config/logos.json';
 const SHARE_URL = 'https://briangreenberg.net/service-status';
 const SHARE_TITLE = 'Service Status';
 
+/**
+ * ANALYTICS — the same two systems the rest of briangreenberg.net uses, with
+ * the same rules, so this page reports alongside the site instead of being a
+ * blind spot in it.
+ *
+ * Both identifiers are PUBLIC by design (they render into every page of the
+ * site already, and are committed in that repo's _data/analytics.js). They are
+ * not credentials and there is nothing to leak here.
+ *
+ *   Cloudflare Web Analytics — UNGATED. Cookieless, stores nothing on the
+ *     device, no fingerprinting, so it sits outside consent requirements.
+ *     The site makes the same call and states it on /privacy/.
+ *
+ *   Google Analytics 4 — CONSENT-GATED, and deliberately not loaded here.
+ *     This page emits only the id, on <html data-ga4-id>, and loads the
+ *     site's own /assets/js/consent.js. That module shows the banner, honours
+ *     `analytics-consent` in localStorage, and injects the Google tag ONLY
+ *     after consent is granted. Same origin as the site, so a visitor who
+ *     already decided there is not asked again here.
+ *
+ * Never add a googletagmanager <script src> to this markup: it would load
+ * Google before consent and quietly break that guarantee (a test pins it).
+ */
+const GA4_ID = 'G-6XYP02XLFE';
+const CF_BEACON_TOKEN = '525f27dcb953478db9d0e947f477281a';
+
 /** Where self-hosted vendor marks are served from (Workers static assets). */
 const ICON_BASE = '/service-status/icons';
 
@@ -211,7 +237,7 @@ export function renderDashboard({
   const rows = records.map((r) => renderRow(r)).join('\n');
 
   return `<!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" data-ga4-id="${esc(GA4_ID)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -258,6 +284,11 @@ export function renderDashboard({
 })();
 </script>
 <script src="/assets/js/theme.js"></script>
+<!-- Analytics, mirroring the site exactly (see ANALYTICS above).
+     Cloudflare Web Analytics is cookieless and ungated; Google Analytics is
+     loaded ONLY by the site's own consent gate, never from here. -->
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "${esc(CF_BEACON_TOKEN)}"}'></script>
+<script src="/assets/js/consent.js" defer></script>
 <style>${STYLES}</style>
 </head>
 <body>

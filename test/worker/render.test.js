@@ -439,7 +439,10 @@ describe('renderDashboard — dark by default', () => {
   const html = () => renderDashboard({ records: [], meta: null, nonce: 'n1' });
 
   it('renders the document dark before any script runs', () => {
-    expect(html()).toContain('<html lang="en" data-theme="dark">');
+    // Attribute, not the whole tag: other attributes legitimately live here
+    // too (data-ga4-id for the site's consent gate), and a theme assertion
+    // should not fail because one was added.
+    expect(html()).toMatch(/<html[^>]+data-theme="dark"/);
   });
 
   it('seeds dark only when the visitor has no stored preference', () => {

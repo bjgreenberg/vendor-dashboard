@@ -198,11 +198,27 @@ async function handleFetch(request, env) {
         // (audit finding M4). The renderer escapes on output; CSP is the
         // second line of defence.
         'Content-Security-Policy':
-          // 'self' is required for the site's own /assets/site.css and
-          // /assets/js/theme.js, which this page reuses so it matches the site
-          // and shares its appearance preference. Everything else stays denied,
-          // and the inline script is nonce-gated rather than 'unsafe-inline'.
-          `default-src 'none'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+          // 'self' is required for the site's own /assets/site.css,
+          // /assets/js/theme.js and /assets/js/consent.js, which this page
+          // reuses so it matches the site, shares its appearance preference,
+          // and honours the same analytics consent decision.
+          //
+          // The two remote origins are the site's analytics, added 2026-08-04
+          // so this page reports alongside the rest of briangreenberg.net
+          // (render.js ANALYTICS):
+          //   static.cloudflareinsights.com  the cookieless beacon script
+          //   www.googletagmanager.com       the Google tag, which the consent
+          //                                  gate injects only after consent
+          // connect-src opens for exactly those two to report back, and
+          // nothing else. Everything not named here stays denied, and the
+          // inline script remains nonce-gated rather than 'unsafe-inline'.
+          `default-src 'none'; ` +
+          `script-src 'self' 'nonce-${nonce}' https://static.cloudflareinsights.com https://www.googletagmanager.com; ` +
+          `style-src 'self' 'unsafe-inline'; ` +
+          `img-src 'self' data: https://www.google-analytics.com; ` +
+          `font-src 'self'; ` +
+          `connect-src https://cloudflareinsights.com https://static.cloudflareinsights.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; ` +
+          `base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
         'X-Content-Type-Options': 'nosniff',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
       },
