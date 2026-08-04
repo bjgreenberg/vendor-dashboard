@@ -17,6 +17,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > verified `git bundle` backup. Entries below start at the rewrite. Everything
 > from here forward is append-only.
 
+## [2.1.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.0.0...v2.1.0) (2026-08-04)
+
+
+### Features
+
+* **aws:** US vantage point — foreign-region events inform the card, not the row ([#62](https://github.com/bjgreenberg/vendor-dashboard/issues/62)) ([41ff8a0](https://github.com/bjgreenberg/vendor-dashboard/commit/41ff8a03adbb75bb3f0662f5955fe64f3bb8953a))
+* **ui:** tab-return refresh — never stale when you look, never yanked while you read ([#56](https://github.com/bjgreenberg/vendor-dashboard/issues/56)) ([7cdf671](https://github.com/bjgreenberg/vendor-dashboard/commit/7cdf671d9cea244b333401bce0b9832f9dbc4169))
+* US vantage point — scoped regions vote on severity, the rest informs (operator decision) ([#61](https://github.com/bjgreenberg/vendor-dashboard/issues/61)) ([ce6dcfc](https://github.com/bjgreenberg/vendor-dashboard/commit/ce6dcfc9e8f05b5b188c360bf56ed6adb37439d0))
+
+
+### Bug Fixes
+
+* monitor probes the Worker directly; pin patched undici (two GitHub failures) ([#67](https://github.com/bjgreenberg/vendor-dashboard/issues/67)) ([9f5da81](https://github.com/bjgreenberg/vendor-dashboard/commit/9f5da81fa84ab7cc7adef0cc077d532dd137b453))
+* **statuspage:** group-mode components name the regions driving their status ([#59](https://github.com/bjgreenberg/vendor-dashboard/issues/59)) ([5d4df8b](https://github.com/bjgreenberg/vendor-dashboard/commit/5d4df8ba5694670bbfeef94d0ae5a7a5016e124b))
+* **ui:** remove the per-row permalink glyph — twice-misread is a failed affordance ([#65](https://github.com/bjgreenberg/vendor-dashboard/issues/65)) ([40896ad](https://github.com/bjgreenberg/vendor-dashboard/commit/40896adb1bc20321935eae0d0dd35132bb0843a1))
+* **ui:** the filter explains its matches instead of looking broken ([#66](https://github.com/bjgreenberg/vendor-dashboard/issues/66)) ([fa2bb48](https://github.com/bjgreenberg/vendor-dashboard/commit/fa2bb483b0ac4b582109ff7e1cd1ab7746adde22))
+
 ## [2.0.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v1.1.0...v2.0.0) (2026-08-03)
 
 
