@@ -53,7 +53,12 @@ a future non-Cloudflare deployment possible.
   COMPOSES with `componentLevel: 'group'` (groups display, scoped leaves
   vote; non-US trouble rides as card detail). AWS uses the same policy via
   `scope.regionPrefixes` on region codes parsed from event service keys —
-  global/unparseable events keep their vote. The page intro states this.
+  global/unparseable events keep their vote. Discord uses
+  `scope.regionGroups` — a vendor mixing global services with a group of PoPs
+  (its Voice group) applies the lens to the geographies only, so API/Gateway
+  still vote while Tokyo does not; the page indicator is excluded there for
+  the same reason it is in scoped mode (it carries worldwide state). The page
+  intro states this.
   An empty scoped selection fails closed to `unknown` — never operational.
 - **Cloudflare is scoped to services only** (decision D1) — PoP groups excluded.
 - **Microsoft is labelled "Microsoft (Consumer Services)".** That endpoint has no

@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-08-03 10:44 AM CDT
+Last updated: 2026-08-04 03:18 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -183,6 +183,7 @@ codebase serve different deployments with different configs.
 | `type` | Which adapter parses the feed (see the file's own `$comment`) |
 | `url` | The status endpoint |
 | `scope` | Optional. Restrict which components count, by `groups` or exact `components` names |
+| `scope.regionGroups` | Optional. `{ "GroupName": ["US East", …] }` — for a group whose leaves are geographies, only the listed ones vote on severity. The rest display (prefixed with the group name) but do not vote, per the US vantage point |
 | `dataCenters` | Concur only — restrict to named data centres |
 | `bannerUrl` | Concur only — its secondary "something is wrong" signal |
 

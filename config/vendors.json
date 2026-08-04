@@ -461,7 +461,19 @@
       "name": "Discord",
       "type": "statuspage",
       "url": "https://discordstatus.com/api/v2/summary.json",
-      "brandDomain": "discord.com"
+      "brandDomain": "discord.com",
+      "$comment": "The Voice group's leaves are PoPs, not services (Tokyo, Singapore, Sao Paulo\u2026), while API/Gateway/Payments sit ungrouped as global services \u2014 so group mode would hide the services that matter. regionGroups applies the US lens to the geographies only: non-US PoPs display but do not vote (US-focus decision 2026-08-03).",
+      "scope": {
+        "regionGroups": {
+          "Voice": [
+            "Atlanta",
+            "US Central",
+            "US East",
+            "US South",
+            "US West"
+          ]
+        }
+      }
     },
     {
       "$comment": "Services live at GROUP level; leaves are per-datacentre instances. MIGRATION WATCH: Docusign is moving to health.docusign.com (a Next.js app whose embedded state carries only locale strings - status is fetched client-side, so it is not parseable yet). status.docusign.com still returns 200 as of 2026-07-31. When the old endpoint is retired this row fails closed to unknown with a visible warning - it cannot rot to green the way findings H6 and H7 did - so switch it when health.docusign.com exposes a machine-readable feed.",
