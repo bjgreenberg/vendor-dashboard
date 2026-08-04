@@ -208,11 +208,64 @@ export function parseStatuspage(payload, options) {
   const leafSelection = selectComponents(payload, scope);
   warnings.push(...leafSelection.warnings);
 
+  // REGION GROUPS (US vantage point, 2026-08-04). Some vendors mix global
+  // services with a group whose leaves are geographies: Discord publishes 8
+  // ungrouped services (API, Gateway, Payments…) alongside a "Voice" group of
+  // 15 PoPs. Group mode is the wrong tool — it would surface the three groups
+  // and DROP the ungrouped services, hiding a real API outage. So config
+  // names the geography groups and the leaves that VOTE; the rest of the
+  // vendor keeps voting normally, and non-voting regions still render (they
+  // inform, they do not vote).
+  const regionGroups = scope?.regionGroups;
+  const regionGroupIds = new Map(); // group id -> voting leaf names
+  if (regionGroups && typeof regionGroups === 'object') {
+    for (const g of groups) {
+      if (Object.hasOwn(regionGroups, g.name)) {
+        const votingNames = Array.isArray(regionGroups[g.name]) ? regionGroups[g.name] : [];
+        regionGroupIds.set(g.id, new Set(votingNames));
+        const live = new Set(
+          (payload?.components ?? []).filter((c) => c.group_id === g.id).map((c) => c.name),
+        );
+        for (const n of votingNames) {
+          if (!live.has(n)) {
+            warnings.push(`configured voting region "${n}" matched no component in group "${g.name}"`);
+          }
+        }
+      }
+    }
+  }
+
+  /** Does this leaf get a vote, under the configured region-group lens? */
+  const votes = (c) => {
+    const allowed = regionGroupIds.get(c.group_id);
+    return allowed ? allowed.has(c.name) : true;
+  };
+
+  /** Display name: region leaves carry their group, so a city reads as one. */
+  const displayName = (c) => {
+    if (!regionGroupIds.has(c.group_id)) return stripRegionSuffix(c.name);
+    const group = groups.find((g) => g.id === c.group_id);
+    return `${group ? `${group.name} · ` : ''}${stripRegionSuffix(c.name)}`;
+  };
+
   const selected = useGroups ? groups : leafSelection.selected;
   const scoped = leafSelection.scoped;
 
+  // Regional filtering applies to the VOTING set only; `selected` still
+  // carries every component for display.
+  const voting = regionGroupIds.size > 0 ? selected.filter(votes) : selected;
+
   let severity;
-  if (scoped) {
+  if (regionGroupIds.size > 0 && !scoped && !useGroups) {
+    // The page indicator is deliberately EXCLUDED here, for the same reason
+    // it is excluded from scoped mode: it reflects the vendor's worldwide
+    // state, so letting it vote would readmit the non-US regions this lens
+    // exists to keep out — a Tokyo voice outage would redden the row through
+    // the indicator instead of through the component. Every non-region
+    // component still votes, which is what catches a real global failure
+    // (Discord's API, Gateway, Payments…).
+    severity = worst(voting.map((c) => normalizeSeverity(c.status)));
+  } else if (scoped) {
     // The operator declared what matters; judge only on that. An EMPTY
     // scoped selection is not health — it means the configured names matched
     // nothing live (vendor renamed things, payload reshaped), so nothing was
@@ -297,7 +350,7 @@ export function parseStatuspage(payload, options) {
       ? []
       : dedupeByName(
           selected.map((c) => ({
-            name: stripRegionSuffix(c.name),
+            name: displayName(c),
             severity: normalizeSeverity(c.status),
             ...(useGroups ? { description: regionDetail(c) } : {}),
           })),
