@@ -118,7 +118,18 @@ export function parseBetterStackSections(html) {
   while ((m = BLOCK.exec(text)) !== null) {
     const block = m[1];
     const icon = /status_pages\/([a-z_]+)_small/.exec(block);
-    const raw = block.replace(/<[^>]+>/g, '').trim();
+    // Strip tags to a fixpoint, then drop any orphaned angle brackets that
+    // malformed markup like "<<b>span>" leaves behind (CodeQL #8). This
+    // produces a plain-text display label — angle brackets are never part of
+    // a legitimate component name, and esc() at render time remains the XSS
+    // boundary either way.
+    let raw = block;
+    let before;
+    do {
+      before = raw;
+      raw = raw.replace(/<[^>]*>?/g, '');
+    } while (raw !== before);
+    raw = raw.replace(/[<>]/g, '').trim();
     if (!raw) continue;
 
     let name = raw;
