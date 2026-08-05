@@ -17,6 +17,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > verified `git bundle` backup. Entries below start at the rewrite. Everything
 > from here forward is append-only.
 
+## [2.2.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.1.0...v2.2.0) (2026-08-05)
+
+
+### Features
+
+* **analytics:** report alongside the site — CF beacon + the site's consent gate ([#70](https://github.com/bjgreenberg/vendor-dashboard/issues/70)) ([f12ff60](https://github.com/bjgreenberg/vendor-dashboard/commit/f12ff604c25977bf3988bcfd00337be41ce3afed))
+* **discord:** geographies inform, US regions vote (scope.regionGroups) ([#68](https://github.com/bjgreenberg/vendor-dashboard/issues/68)) ([ac15971](https://github.com/bjgreenberg/vendor-dashboard/commit/ac15971f485e8850ce5a947300c3dab0e48c98e6))
+
+
+### Bug Fixes
+
+* **config:** fetch OutSystems from the canonical statuspage.io host — the vanity domain 418s Cloudflare Workers ([#73](https://github.com/bjgreenberg/vendor-dashboard/issues/73)) ([0394e6b](https://github.com/bjgreenberg/vendor-dashboard/commit/0394e6b15ff747684de278a5e0448dff8753f503))
+* harden the two CodeQL findings — full regex escape for region tokens, fixpoint tag stripping for BetterStack labels ([#74](https://github.com/bjgreenberg/vendor-dashboard/issues/74)) ([000efe9](https://github.com/bjgreenberg/vendor-dashboard/commit/000efe93f52b493ffc9012bf63b4de618dc16ed3))
+* HSTS on every /service-status response, bounded caching for static assets ([#71](https://github.com/bjgreenberg/vendor-dashboard/issues/71)) ([46e9bf0](https://github.com/bjgreenberg/vendor-dashboard/commit/46e9bf01862cda3418b0acee4ce06762f44454c2))
+* **ui:** move the how-to note above the service board — it explained the rows only after you'd scrolled past all of them ([#72](https://github.com/bjgreenberg/vendor-dashboard/issues/72)) ([a655840](https://github.com/bjgreenberg/vendor-dashboard/commit/a655840ada8b5bc824db7ea18bab4191be4da845))
+
 ## [2.1.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.0.0...v2.1.0) (2026-08-04)
 
 
