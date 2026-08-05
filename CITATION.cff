@@ -22,5 +22,5 @@ keywords:
   - vendor-status
   - d1
   - observability
-version: 2.2.0 # x-release-please-version
+version: 2.3.0 # x-release-please-version
 date-released: 2026-08-05 # x-release-please-date

@@ -17,6 +17,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > verified `git bundle` backup. Entries below start at the rewrite. Everything
 > from here forward is append-only.
 
+## [2.3.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.2.0...v2.3.0) (2026-08-05)
+
+
+### Features
+
+* declare the site's icon surface on the board; intrinsic dimensions on every img ([#76](https://github.com/bjgreenberg/vendor-dashboard/issues/76)) ([96c0ba9](https://github.com/bjgreenberg/vendor-dashboard/commit/96c0ba9ec501013b8e13f485fdba148849d7f633))
+* theme-color meta on the board — matches the site's brand accent ([#78](https://github.com/bjgreenberg/vendor-dashboard/issues/78)) ([be44e40](https://github.com/bjgreenberg/vendor-dashboard/commit/be44e40849522f363c748c446a898cc443cdc454))
+
 ## [2.2.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.1.0...v2.2.0) (2026-08-05)
 
 
