@@ -360,6 +360,10 @@ export function renderDashboard({
   ${staleBanner}
   ${checkedBlock}
 
+  <p class="vs-note">Select a service name to open its own status page, or expand a
+  card to see every component. Some vendors publish only an overall state or a
+  list of current incidents, so those rows have nothing further to expand.</p>
+
   <div class="vs-search">
     <label for="vs-q">Filter services</label>
     <input id="vs-q" type="search" autocomplete="off" placeholder="Type to filter&hellip;"
@@ -372,9 +376,6 @@ export function renderDashboard({
 ${rows || '<p class="vs-empty">No status has been collected yet. The collector runs continuously; if this persists, the scheduled job is not running.</p>'}
   </div>
 
-  <p class="vs-note">Select a service name to open its own status page, or expand a
-  card to see every component. Some vendors publish only an overall state or a
-  list of current incidents, so those rows have nothing further to expand.</p>
 </main>
 
 <footer class="site">
