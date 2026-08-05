@@ -1,0 +1,11 @@
+# Headers for STATIC ASSETS only (Workers assets serve these before the
+# Worker runs; Worker responses set their own headers in src/worker/index.js).
+#
+# Icons/cards are re-fetched by scripts/fetch-logos.mjs and not content-hashed,
+# so a bounded 7-day cache balances freshness against the ~41 requests per
+# cold page view (site-auditor weight.caching finding, 2026-08-04). HSTS
+# mirrors the Worker's posture so every /service-status response carries it.
+/service-status/*
+  Cache-Control: public, max-age=604800
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
