@@ -264,6 +264,9 @@ export function renderDashboard({
 <meta name="twitter:image" content="https://briangreenberg.net/service-status/card.jpg">
 <meta name="twitter:image:alt" content="Service Status — live status for cloud and SaaS services, from briangreenberg.net">
 <link rel="icon" href="/assets/img/favicon.png" type="image/png">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/assets/site.css">
 <script${nonce ? ` nonce="${esc(nonce)}"` : ''}>
 /* This page defaults to DARK, unlike the rest of the site which follows the
@@ -345,12 +348,12 @@ export function renderDashboard({
 
   <div class="share-bar vs-share" data-url="${esc(SHARE_URL)}" data-title="${esc(SHARE_TITLE)}">
     <span class="share-label">Share</span>
-    <a class="pill" rel="noopener" target="_blank" href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/linkedin.com.png">LinkedIn</a>
-    <a class="pill" rel="noopener" target="_blank" href="https://bsky.app/intent/compose?text=${encodeURIComponent(SHARE_TITLE + ' ' + SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/bsky.app.png">Bluesky</a>
-    <a class="pill" rel="noopener" target="_blank" href="https://x.com/intent/tweet?url=${encodeURIComponent(SHARE_URL)}&amp;text=${encodeURIComponent(SHARE_TITLE)}"><img class="pillfav" alt="" src="/assets/icons/social/x.com.png">X</a>
-    <a class="pill" rel="noopener" target="_blank" href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/facebook.com.png">Facebook</a>
-    <a class="pill" rel="noopener" target="_blank" href="https://www.threads.net/intent/post?text=${encodeURIComponent(SHARE_TITLE + ' ' + SHARE_URL)}"><img class="pillfav" alt="" src="/assets/icons/social/threads.com.png">Threads</a>
-    <button class="pill share-mastodon" type="button"><img class="pillfav" alt="" src="/assets/icons/social/infosec.exchange.png">Mastodon</button>
+    <a class="pill" rel="noopener" target="_blank" href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(SHARE_URL)}"><img class="pillfav" alt="" width="16" height="16" src="/assets/icons/social/linkedin.com.png">LinkedIn</a>
+    <a class="pill" rel="noopener" target="_blank" href="https://bsky.app/intent/compose?text=${encodeURIComponent(SHARE_TITLE + ' ' + SHARE_URL)}"><img class="pillfav" alt="" width="16" height="16" src="/assets/icons/social/bsky.app.png">Bluesky</a>
+    <a class="pill" rel="noopener" target="_blank" href="https://x.com/intent/tweet?url=${encodeURIComponent(SHARE_URL)}&amp;text=${encodeURIComponent(SHARE_TITLE)}"><img class="pillfav" alt="" width="16" height="16" src="/assets/icons/social/x.com.png">X</a>
+    <a class="pill" rel="noopener" target="_blank" href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SHARE_URL)}"><img class="pillfav" alt="" width="16" height="16" src="/assets/icons/social/facebook.com.png">Facebook</a>
+    <a class="pill" rel="noopener" target="_blank" href="https://www.threads.net/intent/post?text=${encodeURIComponent(SHARE_TITLE + ' ' + SHARE_URL)}"><img class="pillfav" alt="" width="16" height="16" src="/assets/icons/social/threads.com.png">Threads</a>
+    <button class="pill share-mastodon" type="button"><img class="pillfav" alt="" width="16" height="16" src="/assets/icons/social/infosec.exchange.png">Mastodon</button>
     <a class="pill" href="mailto:?subject=${encodeURIComponent(SHARE_TITLE)}&amp;body=${encodeURIComponent(SHARE_URL)}">&#9993; Email</a>
     <button class="pill share-copy" type="button">&#128279; Copy link</button>
     <button class="pill share-native" type="button" hidden>&#8599; Share&hellip;</button>
