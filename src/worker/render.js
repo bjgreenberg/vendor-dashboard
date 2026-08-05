@@ -267,6 +267,7 @@ export function renderDashboard({
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#B4633A">
 <link rel="stylesheet" href="/assets/site.css">
 <script${nonce ? ` nonce="${esc(nonce)}"` : ''}>
 /* This page defaults to DARK, unlike the rest of the site which follows the
