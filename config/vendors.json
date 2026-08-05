@@ -667,10 +667,10 @@
       "shard": 14
     },
     {
-      "$comment": "componentLevel 'group' because the leaves are REGIONS. scope picks the US leaves that VOTE on severity (US-focus decision 2026-08-03); the groups still display, carrying non-US trouble as card detail that informs without voting.",
+      "$comment": "Fetched from the CANONICAL statuspage.io host: the vanity domain status.outsystems.com sits behind OutSystems' own WAF, which returns HTTP 418 to Cloudflare Workers egress (verified 2026-08-04 — same UA gets 200 from residential IPs). That block hid a real 'Partial System Outage' behind an Unknown row. componentLevel 'group' because the leaves are REGIONS. scope picks the US leaves that VOTE on severity (US-focus decision 2026-08-03); the groups still display, carrying non-US trouble as card detail that informs without voting.",
       "name": "OutSystems",
       "type": "statuspage",
-      "url": "https://status.outsystems.com/api/v2/summary.json",
+      "url": "https://outsystems.statuspage.io/api/v2/summary.json",
       "brandDomain": "outsystems.com",
       "componentLevel": "group",
       "scope": {
