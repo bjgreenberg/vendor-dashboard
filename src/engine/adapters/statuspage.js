@@ -34,7 +34,9 @@ const REGION_SUFFIXES = [
 // own availability, not a region of the commercial one. Collapsing it would hide
 // a real distinction.
 
-const REGION_ALT = REGION_SUFFIXES.map((r) => r.replace(/\//g, '\\/')).join('|');
+// Full regex escape, not just '/': today's tokens are metachar-free, but a
+// future "US (East)" must not silently corrupt the alternation (CodeQL #7).
+const REGION_ALT = REGION_SUFFIXES.map((r) => r.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('|');
 
 /** " - APAC" / " – EMEA" at the end of a name. */
 const REGION_DASH_RE = new RegExp(`\\s[-\u2013]\\s(?:${REGION_ALT})\\s*$`, 'i');
