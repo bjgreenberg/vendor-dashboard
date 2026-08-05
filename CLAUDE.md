@@ -194,17 +194,23 @@ and `CITATION.cff` (annotated) — all bumped together by the tooling.
 Visibility and the go-public checklist live in README → *Going public* — check
 there rather than assuming; this file does not track visibility.
 
-`main` is **fully protected**: required PR reviews, six required status checks
-(`test`, `lint`, `docs-render`, `cff-validate`, `secret-scan`), linear history,
-no force pushes, **enforced for admins**. Land work by PR — a direct push or
-force-push is rejected with `protected branch hook declined`.
+`main` is protected by a **ruleset** (`main-protection`): PR-only, squash-only,
+linear history, **required signatures**, no force pushes or deletion, and six
+required status checks (`test`, `lint`, `perf`, `docs-render`, `cff-validate`,
+`secret-scan`). **Required approvals are 0** (fleet solo-maintainer standard,
+2026-08-04): an author cannot approve their own PR, so a 1-approval rule in a
+one-human repo is only ever satisfiable by admin bypass — the checks are the
+merge gate. Repo admins hold an always-bypass grant for break-glass. Re-raise
+approvals to 1 when a second contributor exists (go-public checklist).
 
-Note the two different APIs: `repos/{o}/{r}/rules/branches/main` returns `[]`
-here because there are no *rulesets*; the protection is **classic**, at
-`repos/{o}/{r}/branches/main/protection`. Checking only the first will tell you
-the branch is unprotected when it is not. (The go-public checklist includes
-moving reviews 0→1 via a ruleset with admin bypass — re-check this section's
-accuracy after that lands.)
+Note the two different APIs: protection here is a RULESET —
+`repos/{o}/{r}/rulesets` — and the classic
+`repos/{o}/{r}/branches/main/protection` endpoint returns 404 "Branch not
+protected". Checking only the classic API will tell you the branch is
+unprotected when it is not (this bit OpenSSF Scorecard too; see the dismissed
+Branch-Protection alert). CodeQL code scanning and OpenSSF Scorecard both
+upload to the Security tab; triage alerts to zero — fix or dismiss with a
+written reason, never ignore.
 
 ## Contact
 
