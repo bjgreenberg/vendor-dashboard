@@ -26,9 +26,14 @@ keywords = ["key", "api", "token", "secret", "client", "passwd", "password", "au
     - ONE rule (generic-api-key), not a blanket suppression
     - ONE directory (test/fixtures), which contains only responses captured from
       public vendor status endpoints
+    - ONE literal value (regexes): the Cloudflare Web Analytics beacon token,
+      which is public BY DESIGN - it ships in the HTML of every page of
+      briangreenberg.net (and this dashboard, analytics parity PR #70) and
+      authenticates nothing; possessing it grants no access to anything
   Every other rule still applies to these files, and every rule still applies
   everywhere else. This project holds no runtime secrets: the Worker
   authenticates to nothing, and .clasp.json / creds.json are gitignored and were
   verified never committed.
   """
   paths = ['''^test/fixtures/.*''']
+  regexes = ['''525f27dcb953478db9d0e947f477281a''']
