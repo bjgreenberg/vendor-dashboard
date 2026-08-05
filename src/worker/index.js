@@ -221,18 +221,31 @@ async function handleFetch(request, env) {
           `base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
         'X-Content-Type-Options': 'nosniff',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
+        'Strict-Transport-Security': HSTS,
       },
     });
   }
 
-  return new Response('Not found', { status: 404 });
+  return new Response('Not found', {
+    status: 404,
+    headers: { 'Strict-Transport-Security': HSTS },
+  });
 }
+
+// Every response this Worker serves upholds the zone's transport posture —
+// the route intercepts /service-status*, so the site's own headers never
+// apply here (site-auditor headers.hsts finding, 2026-08-04).
+const HSTS = 'max-age=31536000; includeSubDomains';
 
 /** @param {any} body @param {Record<string,string>} [headers] @param {number} [status] */
 function json(body, headers = {}, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers },
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Strict-Transport-Security': HSTS,
+      ...headers,
+    },
   });
 }
 
