@@ -44,7 +44,12 @@ a future non-Cloudflare deployment possible.
 - **Incidents inform context, never severity.** Deriving status from incidents
   caused errors in *both* directions: missed component-only outages, and marked
   KnowBe4 degraded over an incident about their online store while the vendor's
-  own indicator read `none`.
+  own indicator read `none`. On a *scoped* vendor, incident context is further
+  filtered to incidents touching the in-scope components — a vendor riding a
+  shared status page (SendGrid lives on Twilio's since status.sendgrid.com was
+  decommissioned, 2026-08-12) must not display the host page's unrelated
+  incidents. An incident naming no components is kept: context informs, never
+  votes, and unattributable context could be real.
 - **A configured scope overrides the vendor's page indicator.** The operator has
   declared what matters. This is what lets Cloudflare read operational while 26
   edge PoPs re-route.
