@@ -18,7 +18,11 @@
     "",
     "scope (optional): restrict which components count, by group or exact name.",
     "  Without it, the vendor's own page-level indicator is trusted.",
-    "  With it, only the listed components decide the status.",
+    "  With it, only the listed components decide the status, and page-wide",
+    "  incident context is filtered to incidents touching the scoped components",
+    "  (an incident naming no components is kept). This is what makes a SHARED",
+    "  status page honest: SendGrid rides Twilio's page, and a Twilio SMS",
+    "  incident must not surface on the SendGrid card.",
     "",
     "NOT INCLUDED and why: Freshdesk, Freshservice and Paylocity publish no public",
     "machine-readable status endpoint (verified 2026-07-30 - Freshworks' Statuspage",
@@ -755,10 +759,24 @@
       }
     },
     {
+      "$comment": "SendGrid decommissioned status.sendgrid.com (verified 2026-08-12: the stale CNAME to Statuspage serves a *.statuspage.io certificate, and the Statuspage origin 302-redirects to statuspage.io). SendGrid status now lives as a slice of Twilio's page, which carries 191 components. Scoped to the SendGrid-branded groups and leaves ONLY: TWILIO EMAIL and the rest are Twilio's own products, and Twilio trouble must not redden the SendGrid row. The scope also filters page-wide incident context to in-scope components.",
       "name": "SendGrid",
       "type": "statuspage",
-      "url": "https://status.sendgrid.com/api/v2/summary.json",
-      "brandDomain": "sendgrid.com"
+      "url": "https://status.twilio.com/api/v2/summary.json",
+      "brandDomain": "sendgrid.com",
+      "scope": {
+        "groups": ["SendGrid Mail Sending", "SendGrid Webhooks"],
+        "components": [
+          "SendGrid API",
+          "SendGrid Marketing Campaigns",
+          "SendGrid Legacy Marketing Campaigns",
+          "SendGrid Website",
+          "SendGrid Statistics",
+          "SendGrid Email Activity",
+          "SendGrid Partners",
+          "SendGrid Billing"
+        ]
+      }
     },
     {
       "$comment": "status.signal.org is a ~650-byte static page whose entire content is one sentence. The adapter matches that sentence and fails closed on anything else.",
