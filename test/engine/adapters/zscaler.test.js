@@ -111,6 +111,16 @@ describe('parseZscaler — fails closed on anything it cannot verify', () => {
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
   });
 
+  it('a cloud whose categories hold no services at all was not verified', () => {
+    // A reshaped payload could keep the legend and category envelope while
+    // emptying the service list — zero services checked must not read green.
+    const c = zpa();
+    c.data.data.category = [{ title: 'all', subCategory: [] }];
+    const r = parseZscaler([c], opts());
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.warnings.join(' ')).toMatch(/no readable status/);
+  });
+
   it('returns UNKNOWN for null, empty and garbage input, and never throws', () => {
     expect(parseZscaler(null, opts()).severity).toBe(SEVERITY.UNKNOWN);
     expect(parseZscaler([], opts()).severity).toBe(SEVERITY.UNKNOWN);

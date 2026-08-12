@@ -118,9 +118,11 @@ export function parseZscaler(cloudDocs, options) {
 
     const cloudVotes = [];
     const detail = [];
+    let servicesSeen = 0;
 
     for (const cat of categories) {
       const subs = Array.isArray(cat?.subCategory) ? cat.subCategory : [];
+      servicesSeen += subs.length;
       for (const sub of subs) {
         const events = Array.isArray(sub?.category_status) ? sub.category_status : [];
         for (const ev of events) {
@@ -165,6 +167,14 @@ export function parseZscaler(cloudDocs, options) {
           if (!firstIncident) firstIncident = title;
         }
       }
+    }
+
+    // A category envelope with no services under it verified nothing — a
+    // reshaped payload must not read green just because it parsed.
+    if (servicesSeen === 0) {
+      components.push({ name: label, severity: SEVERITY.UNKNOWN });
+      warnings.push(`cloud "${label}" returned no readable status`);
+      continue;
     }
 
     const cloudSeverity = cloudVotes.length > 0 ? worst(cloudVotes) : SEVERITY.OPERATIONAL;
