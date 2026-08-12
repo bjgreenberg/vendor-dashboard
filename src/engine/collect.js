@@ -33,6 +33,7 @@ import { parseIbmCloud } from './adapters/ibm.js';
 import { parseOracle } from './adapters/oracle.js';
 import { parseMetaStatus } from './adapters/metastatus.js';
 import { parseSignal } from './adapters/signal.js';
+import { parseZscaler } from './adapters/zscaler.js';
 
 /** Default per-vendor deadline. A hung status page must not stall the run. */
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -95,6 +96,7 @@ const JSON_ADAPTERS = {
   aws: parseAws,
   oracle: parseOracle,
   metastatus: parseMetaStatus,
+  zscaler: parseZscaler,
 };
 
 /**
@@ -458,6 +460,32 @@ async function collectOne(vendor, ctx) {
           docs.push(JSON.parse(await res.text()));
         } catch {
           /* a missing data centre must not sink the others */
+        }
+      }
+      payload = docs;
+    }
+
+    // Zscaler publishes one document PER CLOUD, and the document does not name
+    // its own cloud, so config pairs each URL with a display label. The first
+    // configured cloud IS vendor.url — its document (already fetched, with
+    // retries) is reused rather than fetched twice. The remaining clouds are
+    // fetched once each; a missing cloud must not sink the others, so a
+    // failure is recorded as a null document for the parser to report as
+    // unknown-with-warning.
+    if (vendor.type === 'zscaler' && Array.isArray(vendor.clouds)) {
+      const docs = [];
+      for (const cloud of vendor.clouds) {
+        if (cloud?.url === vendor.url) {
+          docs.push({ label: cloud?.label, data: payload });
+          continue;
+        }
+        try {
+          const res = await fetchFn(cloud?.url, {
+            headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+          });
+          docs.push({ label: cloud?.label, data: JSON.parse(await res.text()) });
+        } catch {
+          docs.push({ label: cloud?.label, data: null });
         }
       }
       payload = docs;

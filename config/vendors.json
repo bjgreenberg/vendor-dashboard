@@ -15,6 +15,7 @@
     "  concur      open.concur.com JSON API",
     "  sorryapp    SorryApp status.json",
     "  betterstack Better Stack HTML status page",
+    "  zscaler     Zscaler Trust portal per-cloud cloud-status API",
     "",
     "scope (optional): restrict which components count, by group or exact name.",
     "  Without it, the vendor's own page-level indicator is trusted.",
@@ -804,6 +805,25 @@
       "url": "https://status.zoom.us/api/v2/summary.json",
       "componentLevel": "group",
       "brandDomain": "zoom.us"
+    },
+    {
+      "$comment": "Zscaler Trust portal (trust.zscaler.com), NOT a Statuspage; the per-cloud endpoint was found by reading the portal's network log. TRAP, verified 2026-08-12: each subCategory carries a boolean `status` field that stayed `true` DURING an active Service Degradation - deriving health from it is a false green, so the adapter never reads it. The honest signal is the active-event list (category_status), judged by the payload's own severity legend: visible=1 severities (Service Disruption, Service Degradation) vote; visible=0 (Under Investigation, Informational, Security Advisory) inform only. Sampling dateOffset 0-20 returned identical event sets, so the endpoint lists only ACTIVE events - the parameter windows the maintenance calendar, not incidents. requestType=datacenter is the per-PoP view and is deliberately never fetched (services, not PoPs - the Cloudflare D1 principle). Cloud selection is US-vantage, production only: the five global ZIA clouds, both production ZPA clouds, and ZDX. Excluded: betas (zpabeta.net, ztb-us-m3), regional non-US clouds (eu.zpccloud.net, app.eu.zsdpc.net, app.eu.avalor.io, app.aps.avalor.io, ztb-euc-m1, ztb-in-m1), and niche product portals (Risk360, Business Insights, Posture Control, DSPM, Avalor, Zero Trust Browser meshes, zslogin, zsdkone). Customers sit on exactly ONE cloud, so the card lists every monitored cloud and the row goes worst-of - broken anywhere the reader might be is broken. The cloud documents do not name their own cloud; config pairs each URL with its label, and the FIRST cloud doubles as vendor.url so its document is fetched once, with retries. PINNED to shard 5: eight subrequests per cycle - fetch-heavy, kept apart from the other multi-fetch vendors (Concur 2, AWS 10, IBM 11, Oracle 14).",
+      "name": "Zscaler",
+      "type": "zscaler",
+      "url": "https://trust.zscaler.com/api/cloud-status?cloud=zsn&requestType=core_cloud_services&dateOffset=0",
+      "pageUrl": "https://trust.zscaler.com/zscaler.net/cloud-status",
+      "brandDomain": "zscaler.com",
+      "shard": 5,
+      "clouds": [
+        { "label": "ZIA · zscaler.net", "url": "https://trust.zscaler.com/api/cloud-status?cloud=zsn&requestType=core_cloud_services&dateOffset=0" },
+        { "label": "ZIA · zscalerone.net", "url": "https://trust.zscaler.com/api/cloud-status?cloud=zs1&requestType=core_cloud_services&dateOffset=0" },
+        { "label": "ZIA · zscalertwo.net", "url": "https://trust.zscaler.com/api/cloud-status?cloud=zs2&requestType=core_cloud_services&dateOffset=0" },
+        { "label": "ZIA · zscalerthree.net", "url": "https://trust.zscaler.com/api/cloud-status?cloud=zs3&requestType=core_cloud_services&dateOffset=0" },
+        { "label": "ZIA · zscloud.net", "url": "https://trust.zscaler.com/api/cloud-status?cloud=zsc&requestType=core_cloud_services&dateOffset=0" },
+        { "label": "ZPA · private.zscaler.com", "url": "https://trust.zscaler.com/api/cloud-status?cloud=zpa&requestType=core_cloud_services&dateOffset=0" },
+        { "label": "ZPA · zpatwo.net", "url": "https://trust.zscaler.com/api/cloud-status?cloud=zpatwo&requestType=core_cloud_services&dateOffset=0" },
+        { "label": "ZDX · zdxcloud.net", "url": "https://trust.zscaler.com/api/cloud-status?cloud=zdx&requestType=core_cloud_services&dateOffset=0" }
+      ]
     }
   ]
 }
