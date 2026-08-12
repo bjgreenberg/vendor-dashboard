@@ -24,22 +24,21 @@
  *   calendar, not incidents. No resolved-event filtering is needed (the AWS
  *   currentevents lesson does not recur here).
  *
- * Fails closed: a missing cloud document, an empty category list, an event
- * whose severity tid is absent from the legend, or an impacting severity
- * whose name is unrecognised all yield UNKNOWN, never OPERATIONAL.
+ * Fails closed, at two levels. Per cloud: a missing document, an empty or
+ * serviceless category list, an event whose severity tid is absent from the
+ * legend, or an impacting severity whose name is unrecognised marks THAT
+ * cloud unknown (with a warning); verified clouds still vote, mirroring how
+ * scoped Statuspage vendors judge on matched components while warning about
+ * missing ones. Per vendor: the row itself is UNKNOWN when no cloud could be
+ * verified at all — and never OPERATIONAL in any failure mode.
  */
 
 import { SEVERITY, worst } from '../severity.js';
+import { toPlainText } from '../record.js';
 
 /**
  * @typedef {import('./statuspage.js').StatusRecord} StatusRecord
  */
-
-/** Strip HTML tags and collapse whitespace for a plain-text summary. */
-function toPlainText(text) {
-  if (typeof text !== 'string') return '';
-  return text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-}
 
 /**
  * Map an impacting legend entry to a board severity, by NAME — the tids are
