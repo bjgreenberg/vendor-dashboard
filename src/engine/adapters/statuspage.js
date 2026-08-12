@@ -289,6 +289,22 @@ export function parseStatuspage(payload, options) {
   }
 
   // Incidents supply context only, never severity.
+  //
+  // SHARED STATUS PAGES (2026-08-12): SendGrid's status lives as a slice of
+  // Twilio's page after status.sendgrid.com was decommissioned, so a page-wide
+  // incident is misleading context — a Twilio SMS incident must not surface on
+  // the SendGrid card. When the operator scoped the vendor, an incident that
+  // names its affected components is shown only if it touches the scoped
+  // selection. An incident naming NO components is kept: incidents inform,
+  // never vote, and dropping unattributable context could hide something real.
+  const scopedIds = scoped ? new Set(leafSelection.selected.map((c) => c.id)) : null;
+  const touchesScope = (i) => {
+    if (!scopedIds) return true;
+    const affected = Array.isArray(i?.components) ? i.components : [];
+    if (affected.length === 0) return true;
+    return affected.some((c) => scopedIds.has(c?.id));
+  };
+
   const incidents = Array.isArray(payload?.incidents) ? payload.incidents : [];
   const openIncidents = incidents.filter((i) => {
     const isResolved = i?.status === 'resolved' || i?.status === 'postmortem';
@@ -297,7 +313,7 @@ export function parseStatuspage(payload, options) {
     // from the predecessor, which got this detail right.
     const isMetadata =
       typeof i?.name === 'string' && i.name.startsWith('_');
-    return !isResolved && !isMetadata;
+    return !isResolved && !isMetadata && touchesScope(i);
   });
 
   const primary = openIncidents[0];
