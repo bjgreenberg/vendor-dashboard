@@ -141,10 +141,14 @@ describe('parseStatuspage — shared status page (SendGrid on Twilio)', () => {
   );
   const entry = vendorsConfig.vendors.find((v) => v.name === 'SendGrid');
   const twilio = fixture('Twilio-sendgrid');
+  // entry?.scope, not entry.scope: if the SendGrid entry is ever renamed or
+  // removed, the suite must fail on the assertions below, not on a TypeError
+  // while building options (Copilot review, PR #84).
   const sgOpts = () =>
-    opts({ vendor: 'SendGrid', scope: entry.scope, service: 'SendGrid' });
+    opts({ vendor: 'SendGrid', scope: entry?.scope, service: 'SendGrid' });
 
   it('config points SendGrid at Twilio\'s page — status.sendgrid.com is decommissioned', () => {
+    expect(entry, 'SendGrid entry missing from config/vendors.json').toBeDefined();
     expect(entry.url).toBe('https://status.twilio.com/api/v2/summary.json');
     expect(entry.scope, 'a shared page without a scope would report Twilio, not SendGrid').toBeTruthy();
   });
