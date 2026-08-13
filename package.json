@@ -38,7 +38,7 @@
     "axe-core": "^4.12.1",
     "eslint": "^10.8.0",
     "fast-check": "^4.9.0",
-    "globals": "^17.8.0",
+    "globals": "^17.9.0",
     "jsdom": "^30.0.1",
     "vitest": "^4.1.10",
     "wrangler": "4.118.0"
