@@ -1,0 +1,118 @@
+name: Endpoint-rot watchdog
+
+# Per-vendor sibling of the dead-man monitor (staleness-monitor.yml): that one
+# watches whole-board freshness; this one watches a single vendor stuck at
+# `unknown` past a threshold — the SendGrid-2026-08-12 class of rot, where the
+# board correctly failed closed and then sat there until a human diagnosed a
+# decommissioned status page by hand.
+#
+# Probes the workers.dev origin, NOT the public hostname: Cloudflare bot
+# management answers GitHub's runners with a managed challenge (HTTP 403) on
+# briangreenberg.net — the same reason the dead-man monitor moved origins on
+# 2026-08-03.
+#
+# What it does per run: select vendors whose `unknownSince` (streak start,
+# tracked by the Worker in D1) is older than THRESHOLD_HOURS; for each with no
+# open `endpoint-rot` issue, run the deterministic diagnosis
+# (scripts/watchdog/diagnose-endpoint.mjs) and file one; comment-and-close any
+# open issue whose vendor has recovered. When the WATCHDOG_WEBHOOK_URL secret
+# is set, mirror opens/closes to it (Slack-compatible {"text": ...}); forks
+# without the secret skip that silently and need zero configuration.
+#
+# Design: docs/superpowers/specs/2026-08-12-endpoint-rot-watchdog-design.md
+
+on:
+  schedule:
+    - cron: '17 */2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  API: https://vendor-dashboard.gsysd.workers.dev/service-status/api/status
+  THRESHOLD_HOURS: 6
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Ensure the endpoint-rot label exists
+        run: gh label create endpoint-rot --repo "$GITHUB_REPOSITORY" --description "A vendor status endpoint has rotted" --color B60205 --force
+
+      - name: File issues for rotted vendors
+        env:
+          WEBHOOK: ${{ secrets.WATCHDOG_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          curl -sf --max-time 30 "$API" -o status.json
+          now=$(date -u +%s)
+          # unknownSince carries milliseconds; jq's fromdate rejects them.
+          rotted=$(jq -r --argjson now "$now" --argjson hrs "$THRESHOLD_HOURS" '
+            .records[] | select(.unknownSince != null)
+            | select(($now - (.unknownSince | sub("\\.[0-9]+Z$"; "Z") | fromdate)) > ($hrs * 3600))
+            | .vendor' status.json)
+          if [ -z "$rotted" ]; then
+            echo "no vendor past the ${THRESHOLD_HOURS}h threshold"
+            exit 0
+          fi
+          while IFS= read -r vendor; do
+            open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label endpoint-rot --state open \
+                     --search "\"endpoint-rot: $vendor\" in:title" --json number --jq length)
+            if [ "$open" != "0" ]; then
+              echo "issue already open for $vendor"
+              continue
+            fi
+            url=$(jq -r --arg v "$vendor" '.vendors[] | select(.name == $v) | .url' config/vendors.json)
+            since=$(jq -r --arg v "$vendor" '.records[] | select(.vendor == $v) | .unknownSince' status.json)
+            {
+              echo "The board has reported **$vendor** as \`unknown\` continuously since \`$since\` (threshold: ${THRESHOLD_HOURS}h)."
+              echo
+              node scripts/watchdog/diagnose-endpoint.mjs "$url"
+              echo
+              echo "_Filed automatically by the endpoint-rot watchdog. It will comment and close this issue if the vendor recovers._"
+            } > body.md
+            issue_url=$(gh issue create --repo "$GITHUB_REPOSITORY" --label endpoint-rot \
+              --title "endpoint-rot: $vendor" --body-file body.md)
+            echo "filed $issue_url"
+            if [ -n "${WEBHOOK:-}" ]; then
+              jq -n --arg v "$vendor" --arg u "$issue_url" \
+                '{text: "vendor-dashboard watchdog: \($v) status endpoint has rotted — \($u)"}' |
+                curl -sf --max-time 15 -X POST -H 'Content-type: application/json' \
+                  --data @- "$WEBHOOK" >/dev/null || echo "webhook post failed (non-fatal)"
+            fi
+          done <<< "$rotted"
+
+      - name: Close recovered issues
+        env:
+          WEBHOOK: ${{ secrets.WATCHDOG_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          curl -sf --max-time 30 "$API" -o status.json
+          gh issue list --repo "$GITHUB_REPOSITORY" --label endpoint-rot --state open \
+            --json number,title --jq '.[] | "\(.number)\t\(.title)"' |
+          while IFS=$'\t' read -r number title; do
+            vendor=${title#endpoint-rot: }
+            state=$(jq -r --arg v "$vendor" \
+              '[.records[] | select(.vendor == $v)] | first | .severity // "gone"' status.json)
+            still=$(jq -r --arg v "$vendor" \
+              '[.records[] | select(.vendor == $v)] | first | .unknownSince // empty' status.json)
+            if [ "$state" != "unknown" ] || [ -z "$still" ]; then
+              gh issue comment "$number" --repo "$GITHUB_REPOSITORY" \
+                --body "Recovered: the board now reports \`$state\` for $vendor. Closing."
+              gh issue close "$number" --repo "$GITHUB_REPOSITORY"
+              if [ -n "${WEBHOOK:-}" ]; then
+                jq -n --arg v "$vendor" \
+                  '{text: "vendor-dashboard watchdog: \($v) recovered — issue closed."}' |
+                  curl -sf --max-time 15 -X POST -H 'Content-type: application/json' \
+                    --data @- "$WEBHOOK" >/dev/null || echo "webhook post failed (non-fatal)"
+              fi
+            fi
+          done
