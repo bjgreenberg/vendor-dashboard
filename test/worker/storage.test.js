@@ -326,6 +326,17 @@ describe('vendor_health — endpoint-rot streak tracking', () => {
     expect(health()).toEqual([]);
   });
 
+  it('readSnapshot carries unknownSince only for vendors with an active streak', async () => {
+    await writeRun(db, run([rec('SendGrid', 'unknown'), rec('Zoom', 'operational')]));
+    const { records } = await readSnapshot(db);
+    const sg = records.find((r) => r.vendor === 'SendGrid');
+    const zoom = records.find((r) => r.vendor === 'Zoom');
+    expect(sg.unknownSince).toBe('2026-07-31T23:30:00.000Z');
+    // ABSENT, not null: the field's absence is the healthy case, so old
+    // clients and the renderer see an unchanged record shape.
+    expect('unknownSince' in zoom).toBe(false);
+  });
+
   it('a shard only touches its own vendors’ streaks', async () => {
     await writeRun(db, run([rec('SendGrid', 'unknown')]));
     await writeRun(db, run([rec('Zoom', 'operational', at('2026-07-31T23:45:00.000Z'))]));

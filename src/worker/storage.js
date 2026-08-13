@@ -178,10 +178,18 @@ export async function readMeta(db) {
  * @returns {Promise<{records: any[], meta: any|null}>}
  */
 export async function readSnapshot(db) {
-  const [rows, meta] = await Promise.all([
+  const [rows, meta, health] = await Promise.all([
     db.prepare('SELECT * FROM snapshot').all(),
     db.prepare('SELECT * FROM run_meta WHERE id = 1').first(),
+    db.prepare('SELECT vendor, failing_since FROM vendor_health').all(),
   ]);
+
+  // Streak start per currently-failing vendor (endpoint-rot watchdog). The
+  // field is ABSENT for healthy vendors rather than null, so the record shape
+  // is unchanged for every existing reader.
+  const failingSince = new Map(
+    (health?.results ?? []).map((h) => [h.vendor, h.failing_since]),
+  );
 
   // Sort HERE, not at write time.
   //
@@ -206,6 +214,7 @@ export async function readSnapshot(db) {
     components: safeParse(r.components, []),
     warnings: safeParse(r.warnings, []),
     checkedAt: r.checked_at,
+    ...(failingSince.has(r.vendor) ? { unknownSince: failingSince.get(r.vendor) } : {}),
   }));
 
   records.sort(compareRecords);
