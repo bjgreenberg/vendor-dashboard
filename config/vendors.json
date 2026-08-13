@@ -96,9 +96,10 @@
       "brandDomain": "alteryx.com"
     },
     {
+      "$comment": "Repointed 2026-08-12: status.anthropic.com 302-redirects to status.claude.com (rebrand) — found by the endpoint-rot watchdog's first live smoke test (classification: moved-but-redirecting). The old host still redirects and the board worked through it, but a redirect a vendor can retire is not a data source. Row stays named Anthropic; the page now calls itself Claude.",
       "name": "Anthropic",
       "type": "statuspage",
-      "url": "https://status.anthropic.com/api/v2/summary.json",
+      "url": "https://status.claude.com/api/v2/summary.json",
       "brandDomain": "anthropic.com"
     },
     {
