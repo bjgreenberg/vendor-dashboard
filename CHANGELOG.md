@@ -17,6 +17,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > verified `git bundle` backup. Entries below start at the rewrite. Everything
 > from here forward is append-only.
 
+## [2.3.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.2.0...v2.3.0) (2026-08-13)
+
+
+### Features
+
+* add Zscaler via a Trust-portal adapter — eight production clouds, US vantage, services not PoPs ([#86](https://github.com/bjgreenberg/vendor-dashboard/issues/86)) ([ab5d331](https://github.com/bjgreenberg/vendor-dashboard/commit/ab5d33162d953bf422bec1cd057321790cd51222))
+* AI fix-proposal job for endpoint-rot issues, gated on ANTHROPIC_API_KEY ([#89](https://github.com/bjgreenberg/vendor-dashboard/issues/89)) ([7a757c8](https://github.com/bjgreenberg/vendor-dashboard/commit/7a757c8a47cabba3aad6f6ad2e1f925fe9ae9132))
+* declare the site's icon surface on the board; intrinsic dimensions on every img ([#76](https://github.com/bjgreenberg/vendor-dashboard/issues/76)) ([96c0ba9](https://github.com/bjgreenberg/vendor-dashboard/commit/96c0ba9ec501013b8e13f485fdba148849d7f633))
+* endpoint-rot watchdog — streak tracking, deterministic diagnosis, self-filing issues ([#87](https://github.com/bjgreenberg/vendor-dashboard/issues/87)) ([048a7ea](https://github.com/bjgreenberg/vendor-dashboard/commit/048a7eacf0f2d41c7cfc4de04bccba91fb369e3d))
+* theme-color meta on the board — matches the site's brand accent ([#78](https://github.com/bjgreenberg/vendor-dashboard/issues/78)) ([be44e40](https://github.com/bjgreenberg/vendor-dashboard/commit/be44e40849522f363c748c446a898cc443cdc454))
+
+
+### Bug Fixes
+
+* **deps:** bump nanoid past GHSA-2v37-7h3g-55p8 ([#85](https://github.com/bjgreenberg/vendor-dashboard/issues/85)) ([ad3d1e0](https://github.com/bjgreenberg/vendor-dashboard/commit/ad3d1e09d725a2b28fee851d71969c5f1107a753))
+* grant id-token to the fix-proposal workflow — OIDC exchange requires it ([#91](https://github.com/bjgreenberg/vendor-dashboard/issues/91)) ([de24369](https://github.com/bjgreenberg/vendor-dashboard/commit/de24369656ffa30066403727043ca5656c881f35))
+* repoint Anthropic to status.claude.com ([#88](https://github.com/bjgreenberg/vendor-dashboard/issues/88)) ([853b5bf](https://github.com/bjgreenberg/vendor-dashboard/commit/853b5bf724607a85a6a22f14b5f94115ce29e6c6))
+* repoint SendGrid to Twilio's status page, scoped to the SendGrid components ([#84](https://github.com/bjgreenberg/vendor-dashboard/issues/84)) ([8364dd1](https://github.com/bjgreenberg/vendor-dashboard/commit/8364dd17519a290691297284af8c58c5651c2a0e))
+
 ## [2.2.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.1.0...v2.2.0) (2026-08-05)
 
 
