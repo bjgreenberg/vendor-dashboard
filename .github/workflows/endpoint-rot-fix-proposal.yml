@@ -107,4 +107,11 @@ jobs:
 
             Never merge anything. Never mark the PR ready for review. The human
             maintainer decides.
-          claude_args: '--model claude-fable-5'
+          # The allowlist is what makes the prompt executable: rehearsal 2
+          # (issue #93) ran green with permission_denials_count: 23 and zero
+          # visible output — the action's defaults deny Bash, network probes
+          # and gh, so Claude could neither verify, comment, nor open the PR.
+          # Least agency: only the commands the prompt's four rules need.
+          claude_args: |
+            --model claude-fable-5
+            --allowedTools "Edit,Read,Write,Glob,Grep,WebFetch,WebSearch,Bash(git:*),Bash(gh issue comment:*),Bash(gh pr create:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(curl:*),Bash(dig:*),Bash(jq:*)"
