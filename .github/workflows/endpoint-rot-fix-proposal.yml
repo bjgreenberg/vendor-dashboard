@@ -33,6 +33,10 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  # claude-code-action exchanges a GitHub OIDC token for its app token even
+  # in api-key mode; without this it fails with "Could not fetch an OIDC
+  # token" — found by the first live rehearsal (issue #90).
+  id-token: write
 
 jobs:
   gate:
