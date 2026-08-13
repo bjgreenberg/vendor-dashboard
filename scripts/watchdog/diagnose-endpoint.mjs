@@ -45,8 +45,15 @@ async function probeDns() {
 function probeTls() {
   return new Promise((resolve) => {
     const sock = tlsConnect(
-      // rejectUnauthorized false ON PURPOSE: the point is to LOOK at the
-      // certificate a broken endpoint serves, not to refuse the handshake.
+      // rejectUnauthorized: false is the point of this probe, not a shortcut
+      // (CodeQL js/disabling-certificate-validation, dismissed with reason).
+      // This is a DIAGNOSTIC: it inspects whatever certificate a broken
+      // endpoint serves — a strict handshake would refuse exactly the
+      // mismatched certs this tool exists to report (SendGrid 2026-08-12
+      // served *.statuspage.io for status.sendgrid.com). No application data
+      // crosses the socket: handshake, read the peer certificate, close. The
+      // verification RESULT (checkServerIdentity below) is the probe's
+      // output, not a trust decision.
       { host, port: 443, servername: host, rejectUnauthorized: false, timeout: 10_000 },
       () => {
         const cert = sock.getPeerCertificate();
