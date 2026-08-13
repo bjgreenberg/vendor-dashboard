@@ -29,19 +29,16 @@ on:
   issues:
     types: [labeled]
 
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  # claude-code-action exchanges a GitHub OIDC token for its app token even
-  # in api-key mode; without this it fails with "Could not fetch an OIDC
-  # token" — found by the first live rehearsal (issue #90).
-  id-token: write
+# Top-level: nothing. Write grants live on the one job that needs them
+# (Scorecard TokenPermissions; alert #12) — the gate job runs with zero
+# permissions.
+permissions: {}
 
 jobs:
   gate:
     if: github.event.label.name == 'endpoint-rot'
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       enabled: ${{ steps.check.outputs.enabled }}
     steps:
@@ -58,6 +55,14 @@ jobs:
     needs: gate
     if: needs.gate.outputs.enabled == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the fix branch
+      pull-requests: write # open the draft PR
+      issues: write # comment findings on the rot issue
+      # claude-code-action exchanges a GitHub OIDC token for its app token
+      # even in api-key mode; without this it fails with "Could not fetch an
+      # OIDC token" — found by the first live rehearsal (issue #90).
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
