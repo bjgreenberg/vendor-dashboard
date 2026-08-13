@@ -273,3 +273,62 @@ describe('history retention (audit L4)', () => {
     expect(vendors).toContain('Boundary');
   });
 });
+
+// ENDPOINT-ROT WATCHDOG (spec: docs/superpowers/specs/2026-08-12-endpoint-rot-
+// watchdog-design.md). Streaks ride writeRun's transactional batch; a row in
+// vendor_health means "currently failing since failing_since". The SendGrid
+// rot of 2026-08-12 sat at `unknown` for hours with nothing counting.
+describe('vendor_health — endpoint-rot streak tracking', () => {
+  const health = () =>
+    db.sqlite.prepare('SELECT * FROM vendor_health ORDER BY vendor').all();
+  const at = (ts) => ({ checkedAt: ts });
+
+  it('an unknown collection starts a streak at that run time', async () => {
+    await writeRun(db, run([rec('SendGrid', 'unknown')]));
+    expect(health()).toEqual([
+      { vendor: 'SendGrid', failing_since: '2026-07-31T23:30:00.000Z', failures: 1 },
+    ]);
+  });
+
+  it('a repeat unknown increments failures but keeps failing_since', async () => {
+    await writeRun(db, run([rec('SendGrid', 'unknown')]));
+    await writeRun(db, run([rec('SendGrid', 'unknown', at('2026-07-31T23:45:00.000Z'))]));
+    expect(health()).toEqual([
+      { vendor: 'SendGrid', failing_since: '2026-07-31T23:30:00.000Z', failures: 2 },
+    ]);
+  });
+
+  it('recovery clears the streak', async () => {
+    await writeRun(db, run([rec('SendGrid', 'unknown')]));
+    await writeRun(db, run([rec('SendGrid', 'degraded', at('2026-07-31T23:45:00.000Z'))]));
+    expect(health()).toEqual([]);
+  });
+
+  it('a budget-exhausted run neither starts nor clears streaks', async () => {
+    await writeRun(db, run([rec('SendGrid', 'unknown')]));
+    // Exhausted run: SendGrid "recovers" and Zoom "fails" — neither may count.
+    // 17 unknowns from a spent budget are an operator fault, not vendor rot.
+    await writeRun(db, run(
+      [rec('SendGrid', 'operational', at('2026-07-31T23:45:00.000Z')),
+       rec('Zoom', 'unknown', at('2026-07-31T23:45:00.000Z'))],
+      { budgetExhausted: true },
+    ));
+    expect(health()).toEqual([
+      { vendor: 'SendGrid', failing_since: '2026-07-31T23:30:00.000Z', failures: 1 },
+    ]);
+  });
+
+  it('a vendor removed from config loses its streak row (no orphaned alarms)', async () => {
+    await writeRun(db, run([rec('Ghost', 'unknown')]));
+    await writeRun(db, run([rec('Zoom', 'operational', at('2026-07-31T23:45:00.000Z'))]), {
+      knownVendors: ['Zoom'],
+    });
+    expect(health()).toEqual([]);
+  });
+
+  it('a shard only touches its own vendors’ streaks', async () => {
+    await writeRun(db, run([rec('SendGrid', 'unknown')]));
+    await writeRun(db, run([rec('Zoom', 'operational', at('2026-07-31T23:45:00.000Z'))]));
+    expect(health().map((r) => r.vendor)).toEqual(['SendGrid']);
+  });
+});

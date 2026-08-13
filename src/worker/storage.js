@@ -57,6 +57,13 @@ export async function writeRun(db, run, options = {}) {
           db
             .prepare(`DELETE FROM snapshot WHERE vendor NOT IN (${known.map(() => '?').join(',')})`)
             .bind(...known),
+          // A vendor removed from config must lose its streak row too, or the
+          // watchdog alarms forever on a row nothing will ever clear.
+          db
+            .prepare(
+              `DELETE FROM vendor_health WHERE vendor NOT IN (${known.map(() => '?').join(',')})`,
+            )
+            .bind(...known),
         ]
       : [];
 
@@ -87,6 +94,25 @@ export async function writeRun(db, run, options = {}) {
         .prepare('INSERT INTO history (vendor, severity, checked_at) VALUES (?, ?, ?)')
         .bind(r.vendor, r.severity, r.checkedAt ?? run.checkedAt),
     ),
+    // ENDPOINT-ROT WATCHDOG. Streaks ride the same transactional batch as the
+    // snapshot so board and streaks can never disagree. ON CONFLICT
+    // deliberately leaves failing_since alone — it marks the FIRST unknown of
+    // the streak. Skipped wholesale on budget-exhausted runs: those unknowns
+    // are an operator fault (see collection_alert), not vendor rot, and must
+    // neither start nor clear a streak.
+    ...(run.budgetExhausted
+      ? []
+      : run.records.map((r) =>
+          r.severity === 'unknown'
+            ? db
+                .prepare(
+                  `INSERT INTO vendor_health (vendor, failing_since, failures)
+                   VALUES (?, ?, 1)
+                   ON CONFLICT(vendor) DO UPDATE SET failures = failures + 1`,
+                )
+                .bind(r.vendor, r.checkedAt ?? run.checkedAt)
+            : db.prepare('DELETE FROM vendor_health WHERE vendor = ?').bind(r.vendor),
+        )),
     // Retention rides along in the same transactional batch — no separate job
     // to forget. The cutoff derives from the RUN's clock, not Date.now(), so
     // storage stays deterministic; ISO-8601 strings compare lexicographically,
