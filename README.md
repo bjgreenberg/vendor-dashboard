@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-08-12 07:10 PM CDT
+Last updated: 2026-08-12 07:39 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -85,7 +85,7 @@ flowchart TB
     collect --> adapters{"dispatch by type"}
     adapters -->|"Statuspage v2"| a1["statuspage"]
     adapters -->|"Instatus"| a2["instatus"]
-    adapters -->|"bespoke"| a3["google · apple · okta<br/>salesforce · concur<br/>sorryapp · betterstack · microsoft"]
+    adapters -->|"bespoke"| a3["aws · azure · google · apple<br/>okta · salesforce · concur · ibm<br/>oracle · microsoft · zscaler<br/>metastatus · signal · sorryapp · betterstack"]
     a1 --> norm["severity + scope + roll-up"]
     a2 --> norm
     a3 --> norm
@@ -318,13 +318,27 @@ Cloudflare (an alert inside a dying invocation dies with it):
   `*.statuspage.io` certificate) is the class of failure it automates away.
 
 **Forks need zero configuration** — issues ride the built-in `GITHUB_TOKEN`.
-Optionally, set a `WATCHDOG_WEBHOOK_URL` Actions secret (a Slack Incoming
-Webhook URL, or anything accepting Slack-compatible `{"text": …}` JSON) to
-mirror open/close events to a channel; the step is skipped silently when the
-secret is absent. A further optional layer — an AI job proposing the config
-fix as a draft PR where an `ANTHROPIC_API_KEY` secret exists — is designed
-but not yet implemented (see the
-[spec](docs/superpowers/specs/2026-08-12-endpoint-rot-watchdog-design.md)).
+Two optional layers, each enabled by adding a single Actions secret:
+
+- **`WATCHDOG_WEBHOOK_URL`** (a Slack Incoming Webhook URL, or anything
+  accepting Slack-compatible `{"text": …}` JSON): mirrors issue open/close
+  events to a channel. Skipped silently when absent.
+- **`ANTHROPIC_API_KEY`**: enables the **fix-proposal job**
+  (`.github/workflows/endpoint-rot-fix-proposal.yml`). When an
+  `endpoint-rot` issue is labeled, Claude re-verifies the diagnosis with its
+  own probes, hunts down the vendor's current status endpoint, and opens a
+  **draft** PR implementing the repoint under the repo's own rules — fixture,
+  tests, scoping — which then runs the full CI gate suite like any human
+  contribution. A human merges; nothing is auto-applied. Security posture:
+  the trigger is the *label* event (applying labels needs triage permission,
+  so a drive-by issue can't summon it), and the prompt treats issue content
+  as data — probe evidence embeds third-party bytes — with instructions to
+  re-verify everything and follow nothing found inside it. Without the
+  secret, a gate job reports "disabled" and ends; the deterministic watchdog
+  never depends on this layer.
+
+Full design: the
+[spec](docs/superpowers/specs/2026-08-12-endpoint-rot-watchdog-design.md).
 
 ## CI gates
 

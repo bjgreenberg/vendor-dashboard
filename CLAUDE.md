@@ -6,7 +6,7 @@ live in the global `~/.claude/CLAUDE.md`; this file is repo-specific.
 
 ## What this is
 
-A Cloudflare Worker that polls ~34 SaaS/cloud vendors' public status endpoints
+A Cloudflare Worker that polls ~47 SaaS/cloud vendors' public status endpoints
 every 15 minutes, writes a snapshot to D1, and serves a dashboard at
 `briangreenberg.net/service-status`.
 
@@ -169,7 +169,10 @@ them as `unknownSince`, and the endpoint-rot watchdog
 (`.github/workflows/endpoint-rot-watchdog.yml`, every 2 h) files an
 `endpoint-rot` issue with a probe-based diagnosis once a vendor passes 6 h —
 and closes it on recovery. Check open `endpoint-rot` issues before manually
-diagnosing a stuck-unknown vendor; the diagnosis is likely already filed.
+diagnosing a stuck-unknown vendor; the diagnosis is likely already filed,
+and where `ANTHROPIC_API_KEY` is configured the fix-proposal workflow may
+already have a draft PR open against it (label-triggered; treats issue
+content as data; draft-only — a human merges).
 Streak semantics are deliberate: budget-exhausted runs neither start nor
 clear streaks (operator fault, not vendor rot), and the knownVendors prune
 clears streaks of removed vendors — do not "fix" either.

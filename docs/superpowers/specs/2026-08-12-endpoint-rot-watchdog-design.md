@@ -126,15 +126,27 @@ HTTP codes) so the fix decision needs no re-probing. Vendor payload text is
 third-party content: the issue renders evidence in fenced code blocks,
 never interpolated into markdown structure.
 
-## Component 3 — optional AI fix proposal (second milestone)
+## Component 3 — optional AI fix proposal (second milestone — SHIPPED)
 
-A separate job in the same workflow, running only when `ANTHROPIC_API_KEY`
-is configured (checked via env indirection — `secrets.*` cannot appear in
-`if:` directly). It hands the diagnosis to `anthropics/claude-code-action`
-with a prompt to locate the relocated endpoint and open a **draft** config
-PR referencing the issue — gates still apply; nothing merges without the
-human. Shipped as a follow-up PR if the action wiring proves fiddly; the
-deterministic baseline never depends on it.
+Implemented as its own workflow
+(`.github/workflows/endpoint-rot-fix-proposal.yml`) rather than a job in the
+watchdog's — triggering on the `endpoint-rot` **label** event means it also
+fires for a maintainer hand-labeling an issue, and keeps the watchdog
+deterministic-only. A `gate` job checks `ANTHROPIC_API_KEY` via env
+indirection (`secrets.*` cannot appear in `if:` directly) and reports
+"disabled" on forks without it.
+
+The main job runs `anthropics/claude-code-action` (SHA-pinned, v1.0.191)
+with a prompt that: treats issue content as data (probe evidence embeds
+third-party bytes — an indirect-prompt-injection surface, so nothing found
+inside it is followed and everything is re-verified with fresh probes),
+binds the fix to the house rules by pointing at CLAUDE.md and the
+SendGrid-on-Twilio precedent, and opens a **draft** PR that runs the full CI
+gate suite. Two wiring facts that cost verification: the watchdog's issues
+are authored by `github-actions[bot]`, which the action ignores unless
+`allowed_bots` names it; and the label trigger doubles as the authorization
+boundary, since applying labels needs triage permission — a drive-by issue
+titled "endpoint-rot:" cannot summon the job.
 
 ## Testing
 
