@@ -17,6 +17,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > verified `git bundle` backup. Entries below start at the rewrite. Everything
 > from here forward is append-only.
 
+## [2.3.1](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.3.0...v2.3.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* grant the fix-proposal job the tools its prompt requires ([#94](https://github.com/bjgreenberg/vendor-dashboard/issues/94)) ([bcce5c5](https://github.com/bjgreenberg/vendor-dashboard/commit/bcce5c578934012339014c8d14bc5bf301f24b39))
+
 ## [2.3.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.2.0...v2.3.0) (2026-08-13)
 
 
