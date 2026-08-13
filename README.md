@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-08-04 03:18 PM CDT
+Last updated: 2026-08-12 07:10 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -36,6 +36,7 @@ Live at **<https://briangreenberg.net/service-status>**.
 - [Project structure](#project-structure)
 - [Development](#development)
 - [Deployment](#deployment)
+- [Monitoring](#monitoring)
 - [CI gates](#ci-gates)
 - [Design decisions](#design-decisions)
 - [Known limitations](#known-limitations)
@@ -88,9 +89,13 @@ flowchart TB
     a1 --> norm["severity + scope + roll-up"]
     a2 --> norm
     a3 --> norm
-    norm --> d1[("D1<br/>snapshot + history")]
+    norm --> d1[("D1<br/>snapshot + history<br/>+ vendor_health streaks")]
     d1 --> render["render()<br/>escape on output"]
     render --> page["/service-status"]
+    d1 --> api["/api/status<br/>unknownSince per failing vendor"]
+    api --> wd["endpoint-rot watchdog<br/>GitHub Action · every 2 h"]
+    wd --> issue["endpoint-rot issue<br/>diagnosis + fix playbook"]
+    issue -.->|"secret set"| slack["webhook (Slack-compatible)"]
 ```
 
 **Severity** is an ordered enum, not a boolean:
@@ -154,14 +159,23 @@ erDiagram
         INTEGER unknown
         TEXT warnings "JSON array"
     }
+    vendor_health {
+        TEXT vendor PK "row exists only while failing"
+        TEXT failing_since "first unknown of the active streak"
+        INTEGER failures "consecutive unknown collections"
+    }
     snapshot ||--o{ history : "appends one row per collection"
+    snapshot ||--o| vendor_health : "unknown starts/extends a streak"
 ```
 
 `snapshot` is the current board, replaced per-shard inside one transaction so a
 reader never sees a half-written board. `history` is a 90-day rolling window
 (pruned in the same write batch) for uptime/MTTR analysis. `run_meta` is the
 single-row freshness record that `/health`, the stale banner, and the external
-dead-man monitor all read.
+dead-man monitor all read. `vendor_health` tracks consecutive-`unknown`
+streaks per vendor for the [endpoint-rot watchdog](#monitoring) — written in
+the same transactional batch, skipped on budget-exhausted runs (operator
+fault, not vendor rot), surfaced as `unknownSince` on `/api/status`.
 
 ## Configuring vendors
 
@@ -280,6 +294,37 @@ untouched.
 ⚠️ **Deploys take 20–30 seconds to propagate.** Testing sooner produces
 convincing false failures — 404s on paths that are configured correctly.
 Cache-busting does not help, because it is not caching.
+
+## Monitoring
+
+Two independent monitors, both GitHub-cron based so they run *outside*
+Cloudflare (an alert inside a dying invocation dies with it):
+
+- **Dead-man monitor** (`.github/workflows/staleness-monitor.yml`, every
+  15 min) watches **whole-board freshness**: `/health` answers 503 when the
+  newest snapshot is stale or D1 is unreachable, and a failed run emails the
+  repo owner. It probes the `workers.dev` origin because Cloudflare bot
+  management challenges GitHub's runners on the public hostname.
+- **Endpoint-rot watchdog** (`.github/workflows/endpoint-rot-watchdog.yml`,
+  every 2 h) watches **individual vendors**: when one has been `unknown`
+  continuously for 6+ hours (`unknownSince` on `/api/status`, streak-tracked
+  in D1), it probes the endpoint (DNS chain, TLS certificate identity,
+  redirect walk, body sniff), classifies the failure — certificate mismatch,
+  decommissioned page, moved-but-redirecting, 4xx/5xx, payload reshape, or
+  "endpoint fine, our adapter drifted" — and files an issue labeled
+  `endpoint-rot` with the evidence and a per-class fix playbook. When the
+  vendor recovers, the watchdog comments and closes the issue. The SendGrid
+  rot of 2026-08-12 (a decommissioned custom domain serving a
+  `*.statuspage.io` certificate) is the class of failure it automates away.
+
+**Forks need zero configuration** — issues ride the built-in `GITHUB_TOKEN`.
+Optionally, set a `WATCHDOG_WEBHOOK_URL` Actions secret (a Slack Incoming
+Webhook URL, or anything accepting Slack-compatible `{"text": …}` JSON) to
+mirror open/close events to a channel; the step is skipped silently when the
+secret is absent. A further optional layer — an AI job proposing the config
+fix as a draft PR where an `ANTHROPIC_API_KEY` secret exists — is designed
+but not yet implemented (see the
+[spec](docs/superpowers/specs/2026-08-12-endpoint-rot-watchdog-design.md)).
 
 ## CI gates
 

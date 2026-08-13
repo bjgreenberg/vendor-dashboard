@@ -163,6 +163,17 @@ A single green reading right after a deploy proves nothing: the failure was
 intermittent and cycle-dependent. Watch at least one full 15-minute cycle
 (three shards) before calling it good.
 
+Persistent unknowns are also machine-watched: the Worker tracks
+consecutive-unknown streaks in D1 (`vendor_health`), `/api/status` exposes
+them as `unknownSince`, and the endpoint-rot watchdog
+(`.github/workflows/endpoint-rot-watchdog.yml`, every 2 h) files an
+`endpoint-rot` issue with a probe-based diagnosis once a vendor passes 6 h —
+and closes it on recovery. Check open `endpoint-rot` issues before manually
+diagnosing a stuck-unknown vendor; the diagnosis is likely already filed.
+Streak semantics are deliberate: budget-exhausted runs neither start nor
+clear streaks (operator fault, not vendor rot), and the knownVendors prune
+clears streaks of removed vendors — do not "fix" either.
+
 ## Deployment gotchas
 
 - ⚠️ **Deploys take 20–30 s to propagate.** Testing sooner yields convincing
