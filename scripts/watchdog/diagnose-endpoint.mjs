@@ -74,6 +74,36 @@ function probeTls() {
   });
 }
 
+/**
+ * Read at most MAX_BODY_BYTES of a response.
+ *
+ * A rotted endpoint can serve an arbitrarily large HTML/JS page, and this
+ * probe only needs a JSON-or-not signal — an unbounded res.text() is an OOM
+ * waiting for the worst payload (Copilot review, PR #87). Real JSON status
+ * feeds run up to ~2.5 MB (IBM), so 5 MB is generous for every genuine feed.
+ */
+const MAX_BODY_BYTES = 5 * 1024 * 1024;
+
+async function readCapped(res) {
+  const reader = res.body?.getReader?.();
+  if (!reader) return { text: await res.text(), truncated: false };
+  const chunks = [];
+  let size = 0;
+  let truncated = false;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    size += value.byteLength;
+    if (size > MAX_BODY_BYTES) {
+      truncated = true;
+      await reader.cancel();
+      break;
+    }
+  }
+  return { text: Buffer.concat(chunks).toString('utf8'), truncated };
+}
+
 async function probeHttp() {
   const redirects = [];
   let cur = url.href;
@@ -94,15 +124,28 @@ async function probeHttp() {
         cur = new URL(loc, cur).href;
         continue;
       }
-      const body = await res.text();
+      const { text: body, truncated } = await readCapped(res);
       let bodyIsJson = false;
-      try {
-        JSON.parse(body);
-        bodyIsJson = true;
-      } catch {
-        /* not JSON — that IS the finding */
+      if (truncated) {
+        // Cannot parse a truncated document; a leading { or [ is the honest
+        // remaining signal, and the truncation itself is reported as evidence.
+        bodyIsJson = /^[\s]*[{[]/.test(body);
+      } else {
+        try {
+          JSON.parse(body);
+          bodyIsJson = true;
+        } catch {
+          /* not JSON — that IS the finding */
+        }
       }
-      return { ok: true, status: res.status, redirects, finalHost: new URL(cur).hostname, bodyIsJson };
+      return {
+        ok: true,
+        status: res.status,
+        redirects,
+        finalHost: new URL(cur).hostname,
+        bodyIsJson,
+        ...(truncated ? { bodyTruncatedAtBytes: MAX_BODY_BYTES } : {}),
+      };
     }
     // Five redirects without a terminal response: report the loop as-is.
     return { ok: true, status: 310, redirects, finalHost: new URL(cur).hostname, bodyIsJson: false };

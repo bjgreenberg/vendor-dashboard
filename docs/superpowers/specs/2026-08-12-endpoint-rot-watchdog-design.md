@@ -108,8 +108,12 @@ Flow per run:
   sniff (content-type, JSON-parseability, first bytes).
 - *Classifier* (pure function over the probe results — unit-testable with
   zero network): `dns-failure`, `tls-cert-mismatch`,
-  `decommissioned` (redirect chain leaves the configured host, the SendGrid
-  signature), `http-4xx` / `http-5xx`, `body-not-json`, and
+  `moved-but-redirecting` (off-host redirect that still serves the JSON feed
+  — a working rebrand/migration; added red-first from the first live smoke,
+  which found status.anthropic.com 302ing to status.claude.com),
+  `decommissioned` (redirect chain leaves the configured host and the feed is
+  gone, the SendGrid signature), `http-client-error` / `http-server-error`,
+  `body-not-json`, and
   `endpoint-ok-likely-adapter-drift` (200 + parseable JSON — the endpoint is
   fine, the adapter or scope no longer matches it; points at config/vendor
   drift rather than relocation).
@@ -139,7 +143,8 @@ deterministic baseline never depends on it.
   `unknownSince` iff a row exists (and omits it otherwise).
 - **Diagnosis**: classifier tests over recorded probe-result fixtures — the
   SendGrid case (CNAME to `stspg-customer.com`, `*.statuspage.io` cert,
-  302 off-host) must classify `decommissioned`; plus one fixture per class.
+  302 off-host) must classify `tls-cert-mismatch` (the certificate layer
+  outranks the redirect it precedes); plus one fixture per class.
   Red-first per house TDD.
 - **Workflow**: `actionlint` + `zizmor` already gate workflows; the
   jq/gh plumbing stays thin enough to read. `workflow_dispatch` allows a

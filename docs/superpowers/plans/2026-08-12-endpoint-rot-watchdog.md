@@ -236,7 +236,7 @@ and in the record mapper add:
 - Test: `test/scripts/classify.test.js` (new directory; vitest picks up `test/**` automatically — verify with the run)
 
 **Interfaces:**
-- Produces: `classify(probe) -> {classification: string, headline: string, suggestedFix: string}` where `probe = {host, dns: {ok, chain, error?}, tls: {ok, matchesHost, subject?, error?}, http: {ok, status?, redirects: [{status, location}], finalHost?, bodyIsJson?, error?}}`. Classifications: `dns-failure | tls-cert-mismatch | decommissioned | http-client-error | http-server-error | body-not-json | endpoint-ok-likely-adapter-drift`.
+- Produces: `classify(probe) -> {classification: string, headline: string, suggestedFix: string}` where `probe = {host, dns: {ok, chain, error?}, tls: {ok, matchesHost, subject?, error?}, http: {ok, status?, redirects: [{status, location}], finalHost?, bodyIsJson?, error?}}`. Classifications: `dns-failure | tls-cert-mismatch | moved-but-redirecting | decommissioned | http-client-error | http-server-error | body-not-json | endpoint-ok-likely-adapter-drift` (`moved-but-redirecting` added red-first during execution, from the first live smoke: status.anthropic.com 302s to status.claude.com yet still serves the feed).
 - CLI contract for Task 4: `node scripts/watchdog/diagnose-endpoint.mjs <url>` exits 0 and prints markdown with a `Classification: <value>` line plus fenced evidence.
 
 - [ ] **Step 1: Write the failing classifier tests**
