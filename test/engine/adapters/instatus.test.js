@@ -45,3 +45,20 @@ describe('instatus (perplexity)', () => {
     expect(parseInstatus({}, { vendor: 'V', now }).severity).toBe(SEVERITY.UNKNOWN);
   });
 });
+
+describe('instatus (coalition control)', () => {
+  // status.coalitioninc.com monitors ONLY the Coalition Control platform (API
+  // + Web). Coalition's incident-response / MDR / SOC services publish no
+  // health endpoint anywhere, so the row is labelled "Coalition (Control)" —
+  // the Microsoft (Consumer Services) precedent: name what is verified, not
+  // the whole company.
+  it('reports operational from a real all-clear payload', () => {
+    const r = parseInstatus(fixture('Coalition-instatus'), { vendor: 'Coalition (Control)', now });
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('exposes both Control components for roll-up', () => {
+    const r = parseInstatus(fixture('Coalition-instatus'), { vendor: 'Coalition (Control)', now });
+    expect(r.components.map((c) => c.name)).toEqual(['Control API', 'Control Web']);
+  });
+});
