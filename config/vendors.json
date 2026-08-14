@@ -440,6 +440,14 @@
       "brandDomain": "cloudflare.com"
     },
     {
+      "$comment": "status.coalitioninc.com (Instatus) monitors ONLY the Coalition Control platform - Control API and Control Web. Coalition's incident-response / MDR / SOC / SIEM services publish no health endpoint anywhere (verified 2026-08-14: status.coalition.com and trust.coalitioninc.com do not resolve, and no other status surface exists), so the row is named 'Coalition (Control)' - the Microsoft (Consumer Services) precedent: label what the endpoint actually verifies, never the whole company. Same two-endpoint split as Perplexity: summary.json carries only page.status; componentsUrl is advisory - if it fails the page status still decides severity.",
+      "name": "Coalition (Control)",
+      "type": "instatus",
+      "url": "https://status.coalitioninc.com/summary.json",
+      "componentsUrl": "https://status.coalitioninc.com/api/v2/components.json",
+      "brandDomain": "coalitioninc.com"
+    },
+    {
       "$comment": "status_history, NOT the incidents feed. That feed is 23.3 MB - the complete incident history back to 2013 - re-downloaded and re-parsed every cycle to find the few that are open, and no filter exists (open, status, limit and days all return the identical 23,354,922 bytes). Parsing it measured 69 ms CPU against a 10 ms ceiling and was the largest single contributor to the 2026-08-01 outage. status_history is keyed by SERVICE with a Current Status for each, at 35-300 KB per data centre. All four are read and merged worst-wins: reading only us2 would report Concur healthy while EU customers were down. PINNED to shard 2.",
       "name": "Concur",
       "type": "concur-status",

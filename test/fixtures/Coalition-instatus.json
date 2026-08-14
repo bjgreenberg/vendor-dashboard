@@ -1,0 +1,27 @@
+{
+  "page": {
+    "name": "Coalition",
+    "url": "https://status.coalitioninc.com",
+    "status": "UP"
+  },
+  "components": [
+    {
+      "id": "cldxfkwzm36884htmxryqnw7q3",
+      "name": "Control API",
+      "description": "https://api.control.coalitioninc.com/",
+      "status": "OPERATIONAL",
+      "order": 5,
+      "isParent": false,
+      "children": []
+    },
+    {
+      "id": "cldxfw70339626hbmxqbtopknd",
+      "name": "Control Web",
+      "description": "https://control.coalitioninc.com",
+      "status": "OPERATIONAL",
+      "order": 6,
+      "isParent": false,
+      "children": []
+    }
+  ]
+}
