@@ -20,6 +20,9 @@ const now = () => new Date('2026-08-14T19:10:00Z');
 const config = JSON.parse(readFileSync('config/vendors.json', 'utf8'));
 const usgov = config.vendors.find((v) => v.name === 'US Government');
 
+// Keyed by exact hostname — matched with URL parsing, never a substring test
+// (js/incomplete-url-substring-sanitization; exact matching is also simply the
+// truthful routing).
 const ROUTES = {
   'status.login.gov': fixture('LoginGov-statuspage'),
   'status.ssa.gov': fixture('SSA-statuspage'),
@@ -27,9 +30,9 @@ const ROUTES = {
 };
 
 const fetchFn = async (url) => {
-  const hit = Object.entries(ROUTES).find(([host]) => url.includes(host));
-  if (!hit) throw new Error(`unrouted ${url}`);
-  return { ok: true, status: 200, text: async () => JSON.stringify(hit[1]) };
+  const body = ROUTES[new URL(url).hostname];
+  if (!body) throw new Error(`unrouted ${url}`);
+  return { ok: true, status: 200, text: async () => JSON.stringify(body) };
 };
 
 const run = async () => {
@@ -66,7 +69,7 @@ describe('US Government composite vendor (real config + recorded payloads)', () 
     // depends on; an AWS re-route must not paint the US Government row red.
     const r = await run();
     const names = r.components.map((c) => c.name);
-    expect(names.filter((n) => n.startsWith('cloud.gov'))).toHaveLength(23);
+    expect(names.filter((n) => n.split(' · ')[0] === 'cloud.gov')).toHaveLength(23);
     expect(names.some((n) => n.includes('AWS'))).toBe(false);
     expect(names.some((n) => n.includes('GSA Corporate Email'))).toBe(false);
   });
@@ -78,7 +81,7 @@ describe('US Government composite vendor (real config + recorded payloads)', () 
     degraded.components[0].status = 'major_outage';
     const res = await collect({ vendors: [usgov] }, {
       fetchFn: async (url) =>
-        url.includes('status.ssa.gov')
+        new URL(url).hostname === 'status.ssa.gov'
           ? { ok: true, status: 200, text: async () => JSON.stringify(degraded) }
           : fetchFn(url),
       now,
