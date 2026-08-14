@@ -1,0 +1,102 @@
+{
+  "page": {
+    "id": "kqyk38hv4rc6",
+    "name": "SSA Web Services",
+    "url": "https://status.ssa.gov",
+    "time_zone": "America/New_York",
+    "updated_at": "2026-08-14T15:04:46.303-04:00"
+  },
+  "components": [
+    {
+      "id": "g5xvg4zs0xv8",
+      "name": "SSA.gov System Health",
+      "status": "operational",
+      "created_at": "2025-04-28T17:01:32.364-04:00",
+      "updated_at": "2026-03-18T14:26:33.727-04:00",
+      "position": 1,
+      "description": null,
+      "showcase": true,
+      "start_date": "2024-04-30",
+      "group_id": null,
+      "page_id": "kqyk38hv4rc6",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "3m9yh66j3yh1",
+      "name": "my Social Security Webapp Health",
+      "status": "operational",
+      "created_at": "2025-04-28T16:53:14.881-04:00",
+      "updated_at": "2026-07-20T01:00:07.199-04:00",
+      "position": 2,
+      "description": null,
+      "showcase": true,
+      "start_date": "2024-04-29",
+      "group_id": null,
+      "page_id": "kqyk38hv4rc6",
+      "group": false,
+      "only_show_if_degraded": false
+    }
+  ],
+  "incidents": [],
+  "scheduled_maintenances": [
+    {
+      "id": "sq3cx1xyl5c9",
+      "name": "Scheduled Maintenance for my Social Security Webapp",
+      "status": "scheduled",
+      "created_at": "2026-08-12T09:34:35.656-04:00",
+      "updated_at": "2026-08-12T09:34:35.713-04:00",
+      "monitoring_at": null,
+      "resolved_at": null,
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/lxy5cctsmhzl",
+      "started_at": "2026-08-12T09:34:35.649-04:00",
+      "page_id": "kqyk38hv4rc6",
+      "incident_updates": [
+        {
+          "id": "n469gyhrjg36",
+          "status": "scheduled",
+          "body": "The My Social Security Webapp will be unavailable due to scheduled maintenance starting on Saturday, August 15, 2026, at 11:55 PM (ET) through Sunday, August 16, 2026, at 2:00 AM (ET).  We apologize for the inconvenience caused by this scheduled maintenance period.",
+          "incident_id": "sq3cx1xyl5c9",
+          "created_at": "2026-08-12T09:34:35.710-04:00",
+          "updated_at": "2026-08-12T09:34:35.710-04:00",
+          "display_at": "2026-08-12T09:34:35.710-04:00",
+          "affected_components": [
+            {
+              "code": "3m9yh66j3yh1",
+              "name": "my Social Security Webapp Health",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "3m9yh66j3yh1",
+          "name": "my Social Security Webapp Health",
+          "status": "operational",
+          "created_at": "2025-04-28T16:53:14.881-04:00",
+          "updated_at": "2026-07-20T01:00:07.199-04:00",
+          "position": 2,
+          "description": null,
+          "showcase": true,
+          "start_date": "2024-04-29",
+          "group_id": null,
+          "page_id": "kqyk38hv4rc6",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2026-08-15T23:55:00.000-04:00",
+      "scheduled_until": "2026-08-16T02:00:00.000-04:00"
+    }
+  ],
+  "status": {
+    "indicator": "none",
+    "description": "All Systems Operational"
+  }
+}
