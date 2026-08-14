@@ -820,6 +820,39 @@
       "brandDomain": "tailscale.com"
     },
     {
+      "$comment": "ONE row for the US federal services that publish a public machine-readable status feed - and ONLY those. Verified 2026-08-14 by probing 40+ status.<agency>.gov hosts: exactly three exist - Login.gov (GSA), SSA Web Services, and cloud.gov (GSA; page hosted at cloudgov.statuspage.io - status.cloud.gov does not resolve). status.usajobs.gov and status.healthcare.gov exist but 403 our honest User-Agent (forging a browser UA would contradict audit finding L2). The general information websites (usa.gov, grants.gov, regulations.gov, benefits.gov, ...) publish NO status endpoint at all, and the governing rule forbids rendering an unverifiable status as operational, so they are absent rather than fake-green. cloud.gov is scoped to its five service groups; its 'Services ... depends on' groups list the AWS GovCloud primitives and GSA email it rides on - infrastructure, not services (the Cloudflare D1 principle), so an AWS GovCloud re-route does not paint the row red. No pageUrl: there is no aggregate federal status page, and pointing the row at any single agency's page would misattribute the other two - the name renders unlinked, which safeUrl handles. Icon: iconUrl overrides favicon discovery with Twemoji's US flag (CC BY 4.0, (c) Twitter/X - attribution required and given here and in the script header); brandDomain stays declared as the row's identity domain and the fallback if the override ever 404s.",
+      "name": "US Government",
+      "type": "composite",
+      "brandDomain": "usa.gov",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f1fa-1f1f8.svg",
+      "sources": [
+        {
+          "type": "statuspage",
+          "url": "https://status.login.gov/api/v2/summary.json",
+          "group": "Login.gov"
+        },
+        {
+          "type": "statuspage",
+          "url": "https://status.ssa.gov/api/v2/summary.json",
+          "group": "Social Security"
+        },
+        {
+          "type": "statuspage",
+          "url": "https://cloudgov.statuspage.io/api/v2/summary.json",
+          "group": "cloud.gov",
+          "scope": {
+            "groups": [
+              "Cloud.gov customer applications",
+              "Cloud.gov customer access",
+              "Cloud.gov Logs",
+              "Cloud.gov Pages",
+              "Cloud.gov Workshop"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "Zapier",
       "type": "statuspage",
       "url": "https://status.zapier.com/api/v2/summary.json",

@@ -187,8 +187,16 @@ for (const vendor of config.vendors) {
     continue;
   }
 
-  const iconUrl = await discoverIconUrl(brand);
-  const got = iconUrl ? await download(iconUrl) : null;
+  // A vendor may declare `iconUrl` to bypass favicon discovery — for rows with
+  // no single brand favicon (US Government uses Twemoji's US flag, CC BY 4.0,
+  // © Twitter/X — that licence requires this attribution). A declared URL that
+  // stops resolving falls back to brandDomain discovery, and its bytes go
+  // through the same magic-byte sniff as anything else fetched.
+  let got = vendor.iconUrl ? await download(vendor.iconUrl) : null;
+  if (!got) {
+    const iconUrl = await discoverIconUrl(brand);
+    got = iconUrl ? await download(iconUrl) : null;
+  }
   if (!got) {
     results.missing.push(`${vendor.name} (${brand})`);
     continue;

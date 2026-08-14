@@ -36,7 +36,9 @@ every adapter testable against fixtures and the engine portable.
    vocabulary, non-200s. Never a bare word-match against HTML (see
    `docs/audit/` for how that went).
 3. Add the vendor to `config/vendors.json` (never hardcode vendors in source)
-   and declare its `brandDomain` so the logo pipeline can find its mark.
+   and declare its `brandDomain` so the logo pipeline can find its mark
+   (or an explicit `iconUrl` when favicon discovery can't produce the right
+   one — mind the image's licence; attribution belongs in the config comment).
 4. Mind the parse cost: `npm run perf` measures per-shard parse CPU against
    a 150 ms regression envelope, and CI enforces it. The plan ceiling is 30 s
    (Workers Paid), but a parser that needs a fraction of that is doing

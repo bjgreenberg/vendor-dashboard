@@ -344,7 +344,7 @@ async function collectComposite(vendor, ctx) {
     incidentName: affected.length ? 'Service issue' : '',
     description: affected.length
       ? `Affected: ${[...new Set(affected)].join(', ')}.`
-      : `All ${components.length} monitored Microsoft services report healthy.`,
+      : `All ${components.length} monitored ${name} services report healthy.`,
     sourceUrl: vendor?.pageUrl ?? '',
     components,
     warnings,

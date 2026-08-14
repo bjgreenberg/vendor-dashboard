@@ -143,6 +143,26 @@ describe('composite vendor', () => {
     expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
   });
 
+  it('describes a healthy row by the VENDOR\'S OWN name, not Microsoft\'s', async () => {
+    // The healthy description hardcoded "Microsoft" from the first composite
+    // vendor; a second composite (US Government) would have read "All N
+    // monitored Microsoft services report healthy."
+    const res = await collect(
+      {
+        vendors: [
+          {
+            name: 'US Government',
+            type: 'composite',
+            sources: [{ type: 'azure-post', url: 'https://x/azure', group: 'Login.gov' }],
+          },
+        ],
+      },
+      { fetchFn: async () => json(AZURE('Available')), now, retryDelayMs: 0 },
+    );
+    expect(res.records[0].description).toMatch(/US Government/);
+    expect(res.records[0].description).not.toMatch(/Microsoft/);
+  });
+
   it('costs exactly one subrequest per source', async () => {
     // Consolidating rows must not change what the run costs -- the free-plan
     // ceiling is what started all of this.

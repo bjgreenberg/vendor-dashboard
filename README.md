@@ -273,7 +273,8 @@ deploy` — migrations and vendor logos included. (The button works once this
 repository is public.) Then make it yours:
 
 1. Replace [`config/vendors.json`](config/vendors.json) with your vendor set
-   (each entry's `brandDomain` is what the logo fetcher uses).
+   (each entry's `brandDomain` is what the logo fetcher uses; an entry may
+   declare `iconUrl` to override favicon discovery with an explicit image).
 2. **Delete or repoint the `routes` block in `wrangler.jsonc`** — it binds to
    briangreenberg.net, which is not your zone. Your deployment serves on your
    `*.workers.dev` subdomain immediately (`BASE_PATH` handles both mounts).
