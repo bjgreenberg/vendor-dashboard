@@ -820,7 +820,7 @@
       "brandDomain": "tailscale.com"
     },
     {
-      "$comment": "ONE row for the US federal services that publish a public machine-readable status feed - and ONLY those. Verified 2026-08-14 by probing 40+ status.<agency>.gov hosts: exactly three exist - Login.gov (GSA), SSA Web Services, and cloud.gov (GSA; page hosted at cloudgov.statuspage.io - status.cloud.gov does not resolve). status.usajobs.gov and status.healthcare.gov exist but 403 our honest User-Agent (forging a browser UA would contradict audit finding L2). The general information websites (usa.gov, grants.gov, regulations.gov, benefits.gov, ...) publish NO status endpoint at all, and the governing rule forbids rendering an unverifiable status as operational, so they are absent rather than fake-green. cloud.gov is scoped to its five service groups; its 'Services ... depends on' groups list the AWS GovCloud primitives and GSA email it rides on - infrastructure, not services (the Cloudflare D1 principle), so an AWS GovCloud re-route does not paint the row red. No pageUrl: there is no aggregate federal status page, and pointing the row at any single agency's page would misattribute the other two - the name renders unlinked, which safeUrl handles. Icon: iconUrl overrides favicon discovery with Twemoji's US flag (CC BY 4.0, (c) Twitter/X - attribution required and given here and in the script header); brandDomain stays declared as the row's identity domain and the fallback if the override ever 404s.",
+      "$comment": "ONE row for the US federal services that publish a public machine-readable status feed - and ONLY those. Verified 2026-08-14/15 by probing ~70 hosts (status.<agency>.gov and *.statuspage.io slugs): exactly four exist - Login.gov (GSA), SSA Web Services, cloud.gov (GSA; page hosted at cloudgov.statuspage.io - status.cloud.gov does not resolve), and VA APIs (valighthouse.statuspage.io, the VA Lighthouse platform). VA displays at GROUP level - all 47 of its leaves are named 'Production Environment' or 'Sandbox Environment', so only the 24 API groups mean anything to a reader (the NetSuite pattern) - and scope lets ONLY the production leaves vote, which works because every one shares the exact name 'Production Environment': sandbox trouble informs the card, never the row. Rejected in the sweeps: gsa.statuspage.io is a live but PLACEHOLDER page (components literally named 'API (example)'); datagov.statuspage.io answers 401 (private); status.usajobs.gov and status.healthcare.gov 403 our honest User-Agent (forging a browser UA would contradict audit finding L2); nasstatus.faa.gov is real but reports airspace operations (ground stops, delays), not web-service health - a different semantic deliberately kept off this board. The general information websites (usa.gov, grants.gov, regulations.gov, benefits.gov, ...) publish NO status endpoint at all, and the governing rule forbids rendering an unverifiable status as operational, so they are absent rather than fake-green. cloud.gov is scoped to its five service groups; its 'Services ... depends on' groups list the AWS GovCloud primitives and GSA email it rides on - infrastructure, not services (the Cloudflare D1 principle), so an AWS GovCloud re-route does not paint the row red. No pageUrl: there is no aggregate federal status page, and pointing the row at any single agency's page would misattribute the other two - the name renders unlinked, which safeUrl handles. Icon: iconUrl overrides favicon discovery with Twemoji's US flag (CC BY 4.0, (c) Twitter/X - attribution required and given here and in the script header); brandDomain stays declared as the row's identity domain and the fallback if the override ever 404s.",
       "name": "US Government",
       "type": "composite",
       "brandDomain": "usa.gov",
@@ -847,6 +847,17 @@
               "Cloud.gov Logs",
               "Cloud.gov Pages",
               "Cloud.gov Workshop"
+            ]
+          }
+        },
+        {
+          "type": "statuspage",
+          "url": "https://valighthouse.statuspage.io/api/v2/summary.json",
+          "group": "VA APIs",
+          "componentLevel": "group",
+          "scope": {
+            "components": [
+              "Production Environment"
             ]
           }
         }
