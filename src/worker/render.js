@@ -241,8 +241,8 @@ export function renderDashboard({
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Service Status — live status for ${esc(records.length)} cloud services</title>
-<meta name="description" content="Live operational status for ${esc(records.length)} cloud and SaaS services, each re-checked every 15 minutes from that vendor's own public status endpoint.">
+<title>Is It Down? Live Status for ${esc(records.length)} Cloud &amp; SaaS Services</title>
+<meta name="description" content="Check whether a cloud or SaaS service is down. ${esc(records.length)} vendors re-checked every 15 minutes, each read from that vendor's own status page, never an aggregator.">
 <meta name="robots" content="${indexable ? 'index, follow' : 'noindex, nofollow'}">
 <link rel="canonical" href="https://briangreenberg.net/service-status">
 
