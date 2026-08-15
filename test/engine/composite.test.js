@@ -163,6 +163,41 @@ describe('composite vendor', () => {
     expect(res.records[0].description).not.toMatch(/Microsoft/);
   });
 
+  it("a source's own verdict votes even when its DISPLAYED components read healthy", async () => {
+    // A statuspage source can display at group level while scoped leaves vote
+    // (VA APIs). The groups' rolled-up statuses come from the payload and can
+    // read operational while the source's verified severity is an outage —
+    // the row must take the record's verdict, not just the display list.
+    const page = {
+      status: { indicator: 'none' },
+      components: [
+        { id: 'g1', name: 'Some API', status: 'operational', group: true },
+        { id: 'c1', name: 'Production Environment', status: 'major_outage', group: false, group_id: 'g1' },
+      ],
+    };
+    const res = await collect(
+      {
+        vendors: [
+          {
+            name: 'V',
+            type: 'composite',
+            sources: [
+              {
+                type: 'statuspage',
+                url: 'https://x/sp',
+                group: 'G',
+                componentLevel: 'group',
+                scope: { components: ['Production Environment'] },
+              },
+            ],
+          },
+        ],
+      },
+      { fetchFn: async () => json(page), now, retryDelayMs: 0 },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.MAJOR_OUTAGE);
+  });
+
   it('costs exactly one subrequest per source', async () => {
     // Consolidating rows must not change what the run costs -- the free-plan
     // ceiling is what started all of this.

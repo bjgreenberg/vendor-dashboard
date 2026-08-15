@@ -27,6 +27,7 @@ const ROUTES = {
   'status.login.gov': fixture('LoginGov-statuspage'),
   'status.ssa.gov': fixture('SSA-statuspage'),
   'cloudgov.statuspage.io': fixture('CloudGov-statuspage'),
+  'valighthouse.statuspage.io': fixture('VAAPIs-statuspage'),
 };
 
 const fetchFn = async (url) => {
@@ -41,17 +42,22 @@ const run = async () => {
 };
 
 describe('US Government composite vendor (real config + recorded payloads)', () => {
-  it('is declared in config as a composite of the three verified federal feeds', () => {
+  it('is declared in config as a composite of the four verified federal feeds', () => {
     expect(usgov).toBeTruthy();
     expect(usgov.type).toBe('composite');
-    expect(usgov.sources.map((s) => s.group)).toEqual(['Login.gov', 'Social Security', 'cloud.gov']);
+    expect(usgov.sources.map((s) => s.group)).toEqual([
+      'Login.gov',
+      'Social Security',
+      'cloud.gov',
+      'VA APIs',
+    ]);
     expect(usgov.sources.every((s) => s.type === 'statuspage')).toBe(true);
   });
 
   it('reports operational from the recorded all-clear payloads', async () => {
     const r = await run();
     expect(r.severity).toBe(SEVERITY.OPERATIONAL);
-    expect(r.description).toBe('All 29 monitored US Government services report healthy.');
+    expect(r.description).toBe('All 53 monitored US Government services report healthy.');
   });
 
   it('groups every component by its source service', async () => {
@@ -72,6 +78,49 @@ describe('US Government composite vendor (real config + recorded payloads)', () 
     expect(names.filter((n) => n.split(' · ')[0] === 'cloud.gov')).toHaveLength(23);
     expect(names.some((n) => n.includes('AWS'))).toBe(false);
     expect(names.some((n) => n.includes('GSA Corporate Email'))).toBe(false);
+  });
+
+  it('displays VA APIs at GROUP level — the leaves are unreadable environment rows', async () => {
+    // Every VA leaf is named "Production Environment" or "Sandbox Environment";
+    // only the 24 API groups mean anything to a reader (the NetSuite pattern).
+    const r = await run();
+    const va = r.components.filter((c) => c.name.split(' · ')[0] === 'VA APIs');
+    expect(va).toHaveLength(24);
+    expect(va.map((c) => c.name)).toContain('VA APIs · Benefits Claims API - v2');
+    expect(va.some((c) => c.name.includes('Environment'))).toBe(false);
+  });
+
+  it('lets only VA PRODUCTION leaves vote, so a sandbox blip cannot color the row', async () => {
+    // Scope + group mode compose (operator decision 2026-08-03): scoped leaves
+    // vote, groups display. Sandbox trouble informs the card, never the row.
+    const sandboxDown = structuredClone(ROUTES['valighthouse.statuspage.io']);
+    for (const c of sandboxDown.components) {
+      if (!c.group && c.name === 'Sandbox Environment') c.status = 'major_outage';
+    }
+    const res = await collect({ vendors: [usgov] }, {
+      fetchFn: async (url) =>
+        new URL(url).hostname === 'valighthouse.statuspage.io'
+          ? { ok: true, status: 200, text: async () => JSON.stringify(sandboxDown) }
+          : fetchFn(url),
+      now,
+      retryDelayMs: 0,
+    });
+    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('a broken VA production API breaks the row', async () => {
+    const prodDown = structuredClone(ROUTES['valighthouse.statuspage.io']);
+    const prod = prodDown.components.find((c) => !c.group && c.name === 'Production Environment');
+    prod.status = 'major_outage';
+    const res = await collect({ vendors: [usgov] }, {
+      fetchFn: async (url) =>
+        new URL(url).hostname === 'valighthouse.statuspage.io'
+          ? { ok: true, status: 200, text: async () => JSON.stringify(prodDown) }
+          : fetchFn(url),
+      now,
+      retryDelayMs: 0,
+    });
+    expect(res.records[0].severity).toBe(SEVERITY.MAJOR_OUTAGE);
   });
 
   it('a broken federal service breaks the row', async () => {

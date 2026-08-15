@@ -335,7 +335,15 @@ async function collectComposite(vendor, ctx) {
     if (rank(record.severity) > rank(SEVERITY.OPERATIONAL)) affected.push(group);
   }
 
-  const severity = worstOf(components.map((c) => c.severity));
+  // Worst of every source's OWN verdict and every displayed component. Usually
+  // the same list, but they diverge when a source displays at group level
+  // while scoped leaves vote (VA APIs): the groups' rolled-up payload statuses
+  // can read healthy while the source's verified severity is an outage. The
+  // record severity is the verdict; the display list must never dilute it.
+  const severity = worstOf([
+    ...parts.map(({ record }) => record.severity),
+    ...components.map((c) => c.severity),
+  ]);
 
   return makeRecord({
     vendor: name,
