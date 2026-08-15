@@ -58,6 +58,18 @@ export function parseMicrosoft(payload, options) {
     severity: s?.IsUp === false ? SEVERITY.PARTIAL_OUTAGE : SEVERITY.OPERATIONAL,
     description: toPlainText(s?.Messages?.[0]?.Message ?? s?.Messages?.[0] ?? ''),
   }));
+
+  // An EMPTY catalogue means nothing was verified. IsAllUp is attestation with
+  // no services behind it, and trusting this endpoint's optimism unexamined is
+  // exactly the defect (H1) this adapter exists to correct.
+  if (components.length === 0) {
+    return unknownRecord(vendor, 'payload carried an empty Services list', {
+      now,
+      sourceUrl: SOURCE_URL,
+      service: SERVICE_LABEL,
+    });
+  }
+
   const down = components.filter((c) => c.severity !== SEVERITY.OPERATIONAL);
 
   if (down.length === 0 && payload.IsAllUp !== false) {

@@ -427,3 +427,16 @@ describe('betterstack /sections resources (stormboard)', () => {
     );
   });
 });
+
+describe('empty catalogues fail closed (the worst([])-is-operational trap)', () => {
+  it('microsoft: an EMPTY Services list yields UNKNOWN, never "everything is up"', () => {
+    // Services: [] means the catalogue vanished — zero things were verified.
+    // The legacy defect (H1) was precisely trusting this endpoint's optimism;
+    // IsAllUp is attestation with no catalogue behind it, and a MISSING
+    // IsAllUp must not read as up either.
+    expect(parseMicrosoft({ Services: [] }, { vendor: 'M', now }).severity).toBe(SEVERITY.UNKNOWN);
+    expect(parseMicrosoft({ Services: [], IsAllUp: true }, { vendor: 'M', now }).severity).toBe(
+      SEVERITY.UNKNOWN,
+    );
+  });
+});

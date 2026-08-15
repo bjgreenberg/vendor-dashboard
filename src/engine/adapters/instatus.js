@@ -45,9 +45,13 @@ export function parseInstatus(payload, options) {
 
   // Same rule as the Statuspage adapter: a configured scope means the operator
   // has declared what matters, so the page-level signal is not allowed to
-  // override it.
+  // override it. And the same guard: an EMPTY scoped selection means the
+  // configured names matched nothing live — worst([]) would read operational,
+  // so fail closed instead.
   const severity = scoped
-    ? worst(componentSeverities)
+    ? selected.length > 0
+      ? worst(componentSeverities)
+      : SEVERITY.UNKNOWN
     : worst([pageSeverity, ...componentSeverities]);
 
   const components = selected.map((c) => ({

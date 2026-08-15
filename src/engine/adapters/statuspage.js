@@ -265,8 +265,13 @@ export function parseStatuspage(payload, options) {
     // exists to keep out — a Tokyo voice outage would redden the row through
     // the indicator instead of through the component. Every non-region
     // component still votes, which is what catches a real global failure
-    // (Discord's API, Gateway, Payments…).
-    severity = worst(voting.map((c) => normalizeSeverity(c.status)));
+    // (Discord's API, Gateway, Payments…). An EMPTY voting set means the
+    // component list vanished — with the indicator excluded, nothing at all
+    // was verified, and worst([]) would read operational; fail closed.
+    severity =
+      voting.length > 0
+        ? worst(voting.map((c) => normalizeSeverity(c.status)))
+        : SEVERITY.UNKNOWN;
   } else if (scoped) {
     // The operator declared what matters; judge only on that. An EMPTY
     // scoped selection is not health — it means the configured names matched
