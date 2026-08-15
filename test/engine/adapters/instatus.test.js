@@ -44,6 +44,23 @@ describe('instatus (perplexity)', () => {
     expect(parseInstatus(null, { vendor: 'V', now }).severity).toBe(SEVERITY.UNKNOWN);
     expect(parseInstatus({}, { vendor: 'V', now }).severity).toBe(SEVERITY.UNKNOWN);
   });
+
+  it('an EMPTY scoped selection fails closed to unknown, never operational', () => {
+    // worst([]) is operational, so an unguarded scoped vote reads a scope that
+    // matches nothing live — vendor renamed things, componentsUrl failed — as
+    // health. Same guard the Statuspage adapter carries.
+    const payload = {
+      page: { status: 'UP' },
+      components: [{ name: 'API', status: 'OPERATIONAL', isParent: false }],
+    };
+    const r = parseInstatus(payload, {
+      vendor: 'V',
+      scope: { components: ['Renamed Away'] },
+      now,
+    });
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.warnings.length).toBeGreaterThan(0);
+  });
 });
 
 describe('instatus (coalition control)', () => {

@@ -84,4 +84,21 @@ describe('region groups: geographies inform, US ones vote', () => {
     const r = parseStatuspage(healthy, { vendor: 'Discord', now });
     expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
   });
+
+  it('an EMPTY voting set fails closed to unknown, never operational', () => {
+    // The page indicator is deliberately excluded from this branch, so when
+    // the vendor reshapes to ONLY region leaves and renames every configured
+    // voting city, nothing at all votes — worst([]) would read operational
+    // while zero things were verified. (A fully EMPTY component list is a
+    // different case: the region lens dissolves with its groups and the page
+    // indicator votes again, which is a real verified signal.)
+    const reshaped = JSON.parse(JSON.stringify(payload));
+    const voice = reshaped.components.find((c) => c.group && c.name === 'Voice');
+    reshaped.components = [
+      voice,
+      { id: 'x1', name: 'Tokyo', status: 'operational', group: false, group_id: voice.id },
+    ];
+    const r = parseStatuspage(reshaped, { vendor: 'Discord', ...US_VOICE, now });
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+  });
 });
