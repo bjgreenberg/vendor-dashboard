@@ -17,6 +17,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > verified `git bundle` backup. Entries below start at the rewrite. Everything
 > from here forward is append-only.
 
+## [2.4.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.3.1...v2.4.0) (2026-08-26)
+
+
+### Features
+
+* add Coalition (Control) vendor via the Instatus adapter ([#98](https://github.com/bjgreenberg/vendor-dashboard/issues/98)) ([284974e](https://github.com/bjgreenberg/vendor-dashboard/commit/284974ed48d179cd5f2240b68d107b572c8ab786))
+* add US Government composite vendor (Login.gov, SSA, cloud.gov) ([#100](https://github.com/bjgreenberg/vendor-dashboard/issues/100)) ([54041cc](https://github.com/bjgreenberg/vendor-dashboard/commit/54041cc63497a3cf7f4c546e6b5d72e3957f0efc))
+* add VA APIs to the US Government composite ([#101](https://github.com/bjgreenberg/vendor-dashboard/issues/101)) ([9f445fa](https://github.com/bjgreenberg/vendor-dashboard/commit/9f445fac4459ef4656c252e150c1bc34f1694f4e))
+
+
+### Bug Fixes
+
+* fail closed on empty vote sets in three adapters ([#102](https://github.com/bjgreenberg/vendor-dashboard/issues/102)) ([97e93a8](https://github.com/bjgreenberg/vendor-dashboard/commit/97e93a80dfeed6426e943a73804aa35369bf4905))
+* **seo:** status page title and description match outage-intent queries ([#103](https://github.com/bjgreenberg/vendor-dashboard/issues/103)) ([c37e556](https://github.com/bjgreenberg/vendor-dashboard/commit/c37e556fb31dded11124bd726c7584b4526358fe))
+
 ## [2.3.1](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.3.0...v2.3.1) (2026-08-13)
 
 

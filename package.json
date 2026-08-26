@@ -1,6 +1,6 @@
 {
   "name": "vendor-dashboard",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "Monitors the live status of a configurable SaaS vendor set by polling each vendor's public status endpoint. Cloudflare Worker + runtime-agnostic engine.",
   "scripts": {
     "test": "vitest run",
@@ -36,7 +36,7 @@
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@vitest/coverage-v8": "^4.1.10",
     "axe-core": "^4.13.0",
-    "eslint": "^10.9.0",
+    "eslint": "^10.8.0",
     "fast-check": "^4.9.0",
     "globals": "^17.11.0",
     "jsdom": "^30.0.1",
