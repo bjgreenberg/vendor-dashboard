@@ -19,6 +19,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [2.4.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.3.1...v2.4.0) (2026-08-26)
 
+Two new watch surfaces — Coalition (Control) via the Instatus adapter, and a US Government composite spanning Login.gov, SSA, cloud.gov, and the VA APIs — plus a resilience fix (three adapters now fail closed on empty vote sets instead of reporting green) and status-page SEO matched to outage-intent queries.
+
 
 ### Features
 
