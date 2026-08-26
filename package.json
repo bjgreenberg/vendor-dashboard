@@ -32,7 +32,7 @@
   "type": "module",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@vitest/coverage-v8": "^4.1.10",
     "axe-core": "^4.13.0",
