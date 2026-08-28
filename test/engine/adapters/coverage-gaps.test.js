@@ -28,6 +28,37 @@ describe('google — incident severity mapping', () => {
     expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
   });
 
+  // 2026-08-28: Google Chat ran an open SERVICE_INFORMATION incident (new
+  // messages not appearing until refresh) while the card said "all healthy".
+  // Across the whole live feed every RESOLVED incident — informational ones
+  // included — carries AVAILABLE as its last status; SERVICE_INFORMATION as
+  // the live status therefore means "ongoing, informational", not "cleared".
+  it('an open SERVICE_INFORMATION incident is degraded, and marks its product', () => {
+    const open = {
+      service_name: 'Google Chat',
+      status_impact: 'SERVICE_INFORMATION',
+      most_recent_update: { status: 'SERVICE_INFORMATION', text: 'Messages fail to appear.' },
+      external_desc: 'Google Chat notifications issue',
+    };
+    const products = { products: [{ title: 'Gmail', id: '1' }, { title: 'Google Chat', id: '2' }] };
+    const r = parseGoogle([open], { vendor: 'Google', products, now });
+    expect(r.severity).toBe(SEVERITY.DEGRADED);
+    expect(r.components.find((c) => c.name === 'Google Chat').severity).toBe(SEVERITY.DEGRADED);
+    expect(r.components.find((c) => c.name === 'Gmail').severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('a resolved informational incident (last status AVAILABLE) stays green', () => {
+    const resolved = {
+      service_name: 'Classroom',
+      status_impact: 'SERVICE_INFORMATION',
+      end: '2026-08-18T22:30:00+00:00',
+      most_recent_update: { status: 'AVAILABLE', text: 'The problem has been resolved.' },
+      external_desc: 'Classroom homepage access',
+    };
+    const r = parseGoogle([resolved], { vendor: 'Google', now });
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
   it('an unrecognised open impact degrades rather than alarms or greens', () => {
     // Not fully fail-closed to unknown, deliberately: the incident IS open —
     // Google said so — only its impact wording is new. Degraded states "there

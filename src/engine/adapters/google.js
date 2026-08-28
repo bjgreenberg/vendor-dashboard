@@ -12,8 +12,14 @@ import { makeRecord, unknownRecord, toPlainText } from '../record.js';
 
 const SOURCE_URL = 'https://www.google.com/appsstatus/dashboard';
 
-/** Statuses that mean "nothing wrong right now". */
-const CLEARED = new Set(['AVAILABLE', 'RESOLVED', 'SERVICE_INFORMATION']);
+/**
+ * Statuses that mean "nothing wrong right now". SERVICE_INFORMATION is NOT one
+ * of them: it is a live impact level (an ongoing incident Google rates as
+ * informational — e.g. Chat messages not appearing until refresh, 2026-08-28).
+ * Every resolved incident in the feed, informational ones included, flips its
+ * last update to AVAILABLE, so that is the only reliable "cleared" signal.
+ */
+const CLEARED = new Set(['AVAILABLE', 'RESOLVED']);
 
 /**
  * `status_impact` is the incident's peak historical impact; the live state is
