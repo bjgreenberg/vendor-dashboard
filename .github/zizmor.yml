@@ -1,0 +1,8 @@
+# zizmor waivers — each with a reason (the nightly qa-lane workflow-scout
+# runs zizmor with this config).
+rules:
+  artipacked:
+    ignore:
+      # The endpoint-rot watchdog checks out with credentials ON PURPOSE:
+      # it commits a fix branch and opens a PR from inside the workflow.
+      - endpoint-rot-fix-proposal.yml
