@@ -80,5 +80,15 @@ export function unknownRecord(vendor, reason, opts = {}) {
  */
 export function toPlainText(text) {
   if (typeof text !== 'string') return '';
-  return text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  return (
+    text
+      .replace(/<[^>]*>/g, ' ')
+      // Markdown emphasis/heading markers: some feeds (Google's) ship markdown
+      // in a plain-text field, and the markers rendered literally on the card
+      // (2026-08-28). Only the markers go — the words stay.
+      .replace(/(\*\*|__)(?=\S)([^*_]+?)(?<=\S)\1/g, '$2')
+      .replace(/(^|\s)#{1,6}\s+/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }

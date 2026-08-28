@@ -51,6 +51,32 @@ function severityOf(incident) {
  *   has nothing to expand.
  * @returns {import('../record.js').StatusRecord}
  */
+/**
+ * Google ships one markdown blob — `**Summary:** … **Description:** …
+ * **Customer Symptoms:** … **Workaround:** …` — in BOTH `external_desc` and
+ * the latest update. Rendered raw it appeared three times over on the card
+ * with its markers intact (2026-08-28). Split it into the pieces the card
+ * actually has slots for: a title (product + first sentence of the summary),
+ * one description (the Description section), and a one-line component note
+ * (the workaround, when Google offers one).
+ * @param {any} incident
+ * @returns {{title: string, description: string, componentLine: string}}
+ */
+function sectionsOf(incident) {
+  const raw = String(incident?.most_recent_update?.text ?? incident?.external_desc ?? '');
+  /** @type {Record<string, string>} */
+  const sections = {};
+  const re = /\*\*([A-Za-z ]+):\*\*\s*([\s\S]*?)(?=\*\*[A-Za-z ]+:\*\*|$)/g;
+  for (const m of raw.matchAll(re)) sections[m[1].trim().toLowerCase()] = toPlainText(m[2]);
+  const summary = sections.summary ?? sections.title ?? toPlainText(raw);
+  const firstSentence = summary.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? summary;
+  const product = String(incident?.service_name ?? '').trim();
+  const title = product ? `${product}: ${firstSentence}` : firstSentence;
+  const description = sections.description ?? summary;
+  const componentLine = sections.workaround ? `Workaround: ${sections.workaround}` : '';
+  return { title, description, componentLine };
+}
+
 export function parseGoogle(payload, options) {
   const { vendor, products, now } = options ?? {};
   const incidents = Array.isArray(payload) ? payload : payload?.incidents;
@@ -71,7 +97,7 @@ export function parseGoogle(payload, options) {
       byService.set(name, {
         name,
         severity: sev,
-        description: toPlainText(i?.most_recent_update?.text ?? i?.external_desc ?? ''),
+        description: sectionsOf(i).componentLine,
       });
     }
   }
@@ -102,13 +128,12 @@ export function parseGoogle(payload, options) {
   }
 
   const primary = open[0];
+  const text = sectionsOf(primary);
   return makeRecord({
     vendor,
     severity: worstOf([...byService.values()].map((c) => c.severity)),
-    incidentName: toPlainText(primary?.external_desc ?? '') || 'Service incident',
-    description:
-      toPlainText(primary?.most_recent_update?.text ?? primary?.external_desc ?? '') ||
-      'Active incident reported by Google.',
+    incidentName: text.title || 'Service incident',
+    description: text.description || 'Active incident reported by Google.',
     sourceUrl: SOURCE_URL,
     components,
     now,

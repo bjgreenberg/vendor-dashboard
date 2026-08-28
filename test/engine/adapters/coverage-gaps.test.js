@@ -186,3 +186,50 @@ describe('concur — incident severity, catalogue, and banner interplay', () => 
     expect(r.warnings[0]).toMatch(/banner is displayed but no matching open incident/);
   });
 });
+
+// 2026-08-28 (owner, on the live board): Google's incident text arrived three
+// times over — as the title, the description, and the Google Chat component
+// line — with its markdown bold markers intact. Google ships one long
+// markdown blob (**Summary:** … **Description:** … **Customer Symptoms:** …
+// **Workaround:** …) in both `external_desc` and the latest update; the card
+// needs a title, one description, and a short component line.
+describe('google — incident text is split, deduplicated, and de-markdowned', () => {
+  const blob =
+    '**Summary:** Google Chat users are experiencing an issue where they receive notifications for new messages, but the actual messages fail to appear. ' +
+    '**Description:** We are experiencing an intermittent issue with Google Chat. Our engineering team is working on mitigating the issue. ' +
+    '**Customer Symptoms:** Users receive notifications but messages fail to appear unless they refresh. ' +
+    '**Workaround:** Users can refresh to see new messages';
+  const open = {
+    service_name: 'Google Chat',
+    status_impact: 'SERVICE_INFORMATION',
+    most_recent_update: { status: 'SERVICE_INFORMATION', text: blob },
+    external_desc: blob,
+  };
+  const r = parseGoogle([open], { vendor: 'Google', now });
+
+  it('title is the product plus the first sentence of the summary, no markdown', () => {
+    expect(r.incidentName).toBe(
+      'Google Chat: Google Chat users are experiencing an issue where they receive notifications for new messages, but the actual messages fail to appear.',
+    );
+    expect(r.incidentName).not.toContain('**');
+  });
+
+  it('description is the Description section only, no markdown, not the title again', () => {
+    expect(r.description).toBe(
+      'We are experiencing an intermittent issue with Google Chat. Our engineering team is working on mitigating the issue.',
+    );
+    expect(r.description).not.toContain('**');
+  });
+
+  it('the component line carries the workaround, briefly', () => {
+    const chat = r.components.find((c) => c.name === 'Google Chat');
+    expect(chat.description).toBe('Workaround: Users can refresh to see new messages');
+  });
+
+  it('a plain, unsectioned description still renders sensibly', () => {
+    const plain = { ...open, external_desc: 'Gmail is slow for some users.', most_recent_update: { status: 'SERVICE_DISRUPTION', text: 'Gmail is slow for some users.' }, service_name: 'Gmail' };
+    const p = parseGoogle([plain], { vendor: 'Google', now });
+    expect(p.incidentName).toBe('Gmail: Gmail is slow for some users.');
+    expect(p.description).toBe('Gmail is slow for some users.');
+  });
+});
