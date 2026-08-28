@@ -54,6 +54,7 @@ function probeTls() {
       // crosses the socket: handshake, read the peer certificate, close. The
       // verification RESULT (checkServerIdentity below) is the probe's
       // output, not a trust decision.
+      // nosemgrep: problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification
       { host, port: 443, servername: host, rejectUnauthorized: false, timeout: 10_000 },
       () => {
         const cert = sock.getPeerCertificate();
