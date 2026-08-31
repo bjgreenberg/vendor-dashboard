@@ -34,14 +34,14 @@
     "@eslint/js": "^10.0.1",
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^10.0.0",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "axe-core": "^4.13.0",
-    "eslint": "^10.8.0",
+    "eslint": "^10.9.1",
     "fast-check": "^4.9.0",
     "globals": "^17.11.0",
     "jsdom": "^30.0.1",
     "vitest": "^4.1.10",
-    "wrangler": "4.125.0"
+    "wrangler": "4.127.1"
   },
   "overrides": {
     "jsdom": {
