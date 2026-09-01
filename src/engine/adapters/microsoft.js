@@ -367,15 +367,21 @@ export function parseMicrosoftAdminPost(payload, options) {
   if (!Number.isFinite(updated)) {
     return unknownRecord(vendor, 'payload carried no parseable LastUpdatedTime', opts);
   }
-  // A frozen endpoint repeating "Available" forever is as misleading as silence.
-  const ageMin = Math.round((at.getTime() - updated) / 60000);
-  if (ageMin > 30) {
-    return unknownRecord(vendor, `status has not been refreshed for ${ageMin} minutes`, opts);
-  }
-
   const severity = CONSUMER_STATUS[raw.toLowerCase()] ?? SEVERITY.UNKNOWN;
   if (severity === SEVERITY.UNKNOWN) {
     return unknownRecord(vendor, `unrecognised status "${raw}"`, opts);
+  }
+
+  // A frozen endpoint repeating "Available" forever is as misleading as
+  // silence — but ONLY for operational claims. An incident post naturally
+  // sits unchanged between vendor updates (live 2026-09-01: a real
+  // "Service degradation" read `unknown` because the post was 37 minutes
+  // old), so a non-operational status stays trusted for 24h before the
+  // abandoned-post cap distrusts it too.
+  const ageMin = Math.round((at.getTime() - updated) / 60000);
+  const staleCapMin = severity === SEVERITY.OPERATIONAL ? 30 : 24 * 60;
+  if (ageMin > staleCapMin) {
+    return unknownRecord(vendor, `status has not been refreshed for ${ageMin} minutes`, opts);
   }
 
   return makeRecord({

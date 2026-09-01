@@ -218,6 +218,34 @@ describe('microsoft admin post — 2026-09-01 live vocabulary', () => {
     expect(r.severity).toBe(SEVERITY.DEGRADED);
   });
 
+  it('trusts a non-operational status past the 30-min freshness window (an incident post naturally sits unchanged)', () => {
+    const p = {
+      Status: 'Service degradation',
+      Title: 'Service issue',
+      LastUpdatedTime: new Date(FIXED.getTime() - 37 * 60000).toISOString(),
+    };
+    const r = admin(p);
+    expect(r.severity).toBe(SEVERITY.DEGRADED);
+  });
+
+  it('still distrusts a stale OPERATIONAL claim (the frozen-green trap the rule exists for)', () => {
+    const p = {
+      Status: 'Available',
+      LastUpdatedTime: new Date(FIXED.getTime() - 37 * 60000).toISOString(),
+    };
+    const r = admin(p);
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+  });
+
+  it('stops trusting even an incident post after 24h without updates (abandoned-post cap)', () => {
+    const p = {
+      Status: 'Service degradation',
+      LastUpdatedTime: new Date(FIXED.getTime() - 25 * 3600000).toISOString(),
+    };
+    const r = admin(p);
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+  });
+
   it('still fails closed on genuinely unrecognised phrases', () => {
     const p = {
       Status: 'Vibes are off',
