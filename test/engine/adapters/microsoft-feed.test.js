@@ -205,3 +205,25 @@ describe('microsoft admin-centre meta status', () => {
     );
   });
 });
+
+describe('microsoft admin post — 2026-09-01 live vocabulary', () => {
+  it('maps "Service degradation" to degraded (live 2026-09-01: the mac feed emitted it and the row read unknown for 20h)', () => {
+    const p = {
+      Status: 'Service degradation',
+      Title: 'Service issue',
+      Message: 'Affected: Microsoft 365 admin centre.',
+      LastUpdatedTime: new Date(FIXED.getTime() - 5 * 60000).toISOString(),
+    };
+    const r = admin(p);
+    expect(r.severity).toBe(SEVERITY.DEGRADED);
+  });
+
+  it('still fails closed on genuinely unrecognised phrases', () => {
+    const p = {
+      Status: 'Vibes are off',
+      LastUpdatedTime: new Date(FIXED.getTime() - 5 * 60000).toISOString(),
+    };
+    const r = admin(p);
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+  });
+});

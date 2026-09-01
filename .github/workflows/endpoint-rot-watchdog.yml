@@ -72,12 +72,16 @@ jobs:
               echo "issue already open for $vendor"
               continue
             fi
-            url=$(jq -r --arg v "$vendor" '.vendors[] | select(.name == $v) | .url' config/vendors.json)
+            # Composite vendors carry pageUrl + sources[].url, not a flat .url
+            # (2026-09-01: jq returned null for Microsoft, new URL("null")
+            # crashed the diagnose script, and the rot issue never filed).
+            url=$(jq -r --arg v "$vendor" '.vendors[] | select(.name == $v) | .url // .pageUrl // empty' config/vendors.json)
             since=$(jq -r --arg v "$vendor" '.records[] | select(.vendor == $v) | .unknownSince' status.json)
             {
               echo "The board has reported **$vendor** as \`unknown\` continuously since \`$since\` (threshold: ${THRESHOLD_HOURS}h)."
               echo
-              node scripts/watchdog/diagnose-endpoint.mjs "$url"
+              node scripts/watchdog/diagnose-endpoint.mjs "$url" \
+                || echo "_(automatic diagnosis unavailable for this endpoint)_"
               echo
               echo "_Filed automatically by the endpoint-rot watchdog. It will comment and close this issue if the vendor recovers._"
             } > body.md

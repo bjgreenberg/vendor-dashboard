@@ -264,6 +264,10 @@ const CONSUMER_STATUS = Object.freeze(
     normal: SEVERITY.OPERATIONAL,
     restored: SEVERITY.OPERATIONAL,
     degraded: SEVERITY.DEGRADED,
+    // Observed live 2026-09-01 on /api/posts/mac: Microsoft emits the
+    // two-word phrase, not the bare adjective — the row read `unknown`
+    // for 20 hours during a real admin-centre degradation.
+    'service degradation': SEVERITY.DEGRADED,
     investigating: SEVERITY.DEGRADED,
     advisory: SEVERITY.DEGRADED,
     incident: SEVERITY.PARTIAL_OUTAGE,

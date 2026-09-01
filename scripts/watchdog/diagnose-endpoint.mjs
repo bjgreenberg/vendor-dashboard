@@ -22,7 +22,15 @@ if (!raw) {
   console.error('usage: diagnose-endpoint.mjs <url>');
   process.exit(2);
 }
-const url = new URL(raw);
+let url;
+try {
+  url = new URL(raw);
+} catch {
+  // A malformed URL must degrade the issue body, never abort the filing
+  // (2026-09-01: an uncaught TypeError here suppressed a real rot alert).
+  console.log(`_(automatic diagnosis unavailable: not a valid URL: ${raw})_`);
+  process.exit(0);
+}
 const host = url.hostname;
 
 async function probeDns() {
