@@ -18,7 +18,7 @@ import { connect as tlsConnect, checkServerIdentity } from 'node:tls';
 import { classify } from './classify.mjs';
 
 const raw = process.argv[2];
-if (!raw || raw === 'null') {
+if (!raw) {
   console.error('usage: diagnose-endpoint.mjs <url>');
   process.exit(2);
 }
