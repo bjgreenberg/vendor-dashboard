@@ -1,0 +1,1336 @@
+{
+  "components": [
+    {
+      "id": "35b8c8f5d42e8536c54ab3dfe09d2a30",
+      "description": null,
+      "name": "Agreement Desk",
+      "type": "product",
+      "parentId": "05fbd4b9e20cbd3c8baf7cd782877311",
+      "status": "available",
+      "children": [
+        "5afdf6bda88dcd9ad70270b9a231b1f7",
+        "e1a69f68b0983abcfa06d3aa2304bcf9",
+        "3945ccaefb22c0e21a42acfc44e81a58",
+        "73ad323c9969317cf6a481c80481de9a",
+        "91a54fd5ff3fc166b34f095eb472e037",
+        "a20617c4f894feff8b18f31d6157ac7f"
+      ]
+    },
+    {
+      "id": "40b44ba85beaf6d7e01f1d2ac776dd53",
+      "description": null,
+      "name": "Agreement Manager",
+      "type": "product",
+      "parentId": "05fbd4b9e20cbd3c8baf7cd782877311",
+      "status": "available",
+      "uptimeReporting": true,
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": [
+        "e10832f0216a1ad993d00e7321fa6c5b",
+        "2bf5a4bcf0469fdd0a21c25583a1ccd7",
+        "2c6a46670df33db34c30bc90868b6691",
+        "260949cebf58da51d952cd9d88765470",
+        "2346e1fdb7fa20748a46f66b03340da2",
+        "984de50b4ab4db42cb7c3eb01f707ed7"
+      ]
+    },
+    {
+      "id": "e10832f0216a1ad993d00e7321fa6c5b",
+      "description": null,
+      "name": "DEMO",
+      "type": "site",
+      "parentId": "40b44ba85beaf6d7e01f1d2ac776dd53",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "3ae64058ca17207cf74d6d3053c18997",
+      "description": null,
+      "name": "DEMO",
+      "type": "site",
+      "parentId": "4779f280b9df6f19bbf194143f4659cd",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "9a1ee7db742dfe513f66b670e86632cf",
+      "description": null,
+      "name": "DEMO",
+      "type": "site",
+      "parentId": "2ff4099a82b90da428bc9fe2c16f84ae",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "c844dbe02100b12e5830023e77fe77b1",
+      "description": null,
+      "name": "DEMO",
+      "type": "site",
+      "parentId": "9d8206ca8740c103c27fe03ea3ea3a8e",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "138fc2a7022b0e1f9260670711fe4fea",
+      "description": null,
+      "name": "DEMO",
+      "type": "site",
+      "parentId": "437f80eebd9d9fe4adb07a8f971d8fb2",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "5afdf6bda88dcd9ad70270b9a231b1f7",
+      "description": null,
+      "name": "DEMO",
+      "type": "site",
+      "parentId": "35b8c8f5d42e8536c54ab3dfe09d2a30",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "30d52fe8aa0b9154277f083e6e982894",
+      "description": null,
+      "name": "AU",
+      "type": "site",
+      "parentId": "2ff4099a82b90da428bc9fe2c16f84ae",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "e1a69f68b0983abcfa06d3aa2304bcf9",
+      "description": null,
+      "name": "AU",
+      "type": "site",
+      "parentId": "35b8c8f5d42e8536c54ab3dfe09d2a30",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "4025acee7f9710a23290911cb023d571",
+      "description": null,
+      "name": "AU",
+      "type": "site",
+      "parentId": "437f80eebd9d9fe4adb07a8f971d8fb2",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 99.95,
+          "388e72e556daa62a942e5c72cc3e3f3b": 99.98,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.97,
+          "fa503fda7628f923ba2f6d53b75004ac": 99.92
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "9c5c2df972e64ea6086e7ab24a7e7608",
+      "description": null,
+      "name": "AU",
+      "type": "site",
+      "parentId": "9d8206ca8740c103c27fe03ea3ea3a8e",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "2bf5a4bcf0469fdd0a21c25583a1ccd7",
+      "description": null,
+      "name": "AU",
+      "type": "site",
+      "parentId": "40b44ba85beaf6d7e01f1d2ac776dd53",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "7596c2839c3ac1f4840878c34fb46933",
+      "description": null,
+      "name": "AU",
+      "type": "site",
+      "parentId": "4779f280b9df6f19bbf194143f4659cd",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "5e72ec98dc1bda4911ef89dca917ffd2",
+      "description": null,
+      "name": "CA",
+      "type": "site",
+      "parentId": "2ff4099a82b90da428bc9fe2c16f84ae",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "45a19479a52d12498dd2a9c18ace9ebd",
+      "description": null,
+      "name": "CA",
+      "type": "site",
+      "parentId": "4779f280b9df6f19bbf194143f4659cd",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "6baafafb15090814c8a972741b002e2b",
+      "description": null,
+      "name": "CA",
+      "type": "site",
+      "parentId": "9d8206ca8740c103c27fe03ea3ea3a8e",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "3945ccaefb22c0e21a42acfc44e81a58",
+      "description": null,
+      "name": "CA",
+      "type": "site",
+      "parentId": "35b8c8f5d42e8536c54ab3dfe09d2a30",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "f3b476d2f71a61463ea862a3463d5ae8",
+      "description": null,
+      "name": "CA",
+      "type": "site",
+      "parentId": "437f80eebd9d9fe4adb07a8f971d8fb2",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 99.98,
+          "4bbbf579ff3a89effa646e8cf5d90278": 99.97,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.97,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "2c6a46670df33db34c30bc90868b6691",
+      "description": null,
+      "name": "CA",
+      "type": "site",
+      "parentId": "40b44ba85beaf6d7e01f1d2ac776dd53",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "0e5310c20a5d8972dbebcaad0cd17fad",
+      "description": null,
+      "name": "EU",
+      "type": "site",
+      "parentId": "9d8206ca8740c103c27fe03ea3ea3a8e",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "73ad323c9969317cf6a481c80481de9a",
+      "description": null,
+      "name": "EU",
+      "type": "site",
+      "parentId": "35b8c8f5d42e8536c54ab3dfe09d2a30",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "c593a04e92f5b48dc7033d0553201983",
+      "description": null,
+      "name": "EU",
+      "type": "site",
+      "parentId": "437f80eebd9d9fe4adb07a8f971d8fb2",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 99.94,
+          "388e72e556daa62a942e5c72cc3e3f3b": 99.99,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.99,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "260949cebf58da51d952cd9d88765470",
+      "description": null,
+      "name": "EU",
+      "type": "site",
+      "parentId": "40b44ba85beaf6d7e01f1d2ac776dd53",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "c8d3b29d88249f2c889c511373b10706",
+      "description": null,
+      "name": "EU",
+      "type": "site",
+      "parentId": "4779f280b9df6f19bbf194143f4659cd",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "f43298b404a6d5a2bfad3a328f8c9f2c",
+      "description": null,
+      "name": "EU",
+      "type": "site",
+      "parentId": "2ff4099a82b90da428bc9fe2c16f84ae",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "db06c2979aed8697b45a5b00b0ecb920",
+      "description": null,
+      "name": "JP1",
+      "type": "site",
+      "parentId": "9d8206ca8740c103c27fe03ea3ea3a8e",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "c6732e46d259866dfd4e913d69cd4d4c",
+      "description": null,
+      "name": "JP1",
+      "type": "site",
+      "parentId": "2ff4099a82b90da428bc9fe2c16f84ae",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "353f07aba0d0b80d0a9573b9043cc46e",
+      "description": null,
+      "name": "JP1",
+      "type": "site",
+      "parentId": "437f80eebd9d9fe4adb07a8f971d8fb2",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 99.99,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.99,
+          "fa503fda7628f923ba2f6d53b75004ac": 99.97
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "91a54fd5ff3fc166b34f095eb472e037",
+      "description": null,
+      "name": "JP1",
+      "type": "site",
+      "parentId": "35b8c8f5d42e8536c54ab3dfe09d2a30",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "ba105b939e233ebed194378dd98fced4",
+      "description": null,
+      "name": "JP1",
+      "type": "site",
+      "parentId": "4779f280b9df6f19bbf194143f4659cd",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "2346e1fdb7fa20748a46f66b03340da2",
+      "description": null,
+      "name": "JP1",
+      "type": "site",
+      "parentId": "40b44ba85beaf6d7e01f1d2ac776dd53",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "451aee79c0a7cdf6a294aa19547df818",
+      "description": null,
+      "name": "NA1",
+      "type": "site",
+      "parentId": "437f80eebd9d9fe4adb07a8f971d8fb2",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 99.99,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 99.96,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.88,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "cba28e4c0700328a0bd7dbcf2c40cb26",
+      "description": null,
+      "name": "NA2",
+      "type": "site",
+      "parentId": "437f80eebd9d9fe4adb07a8f971d8fb2",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 99.99,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 99.97,
+          "dbca01758c6881ff80ea9b906141416e": 99.94,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "320a6d6a20274af2d069a435f0e171af",
+      "description": null,
+      "name": "NA3",
+      "type": "site",
+      "parentId": "437f80eebd9d9fe4adb07a8f971d8fb2",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 99.99,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 99.97,
+          "dbca01758c6881ff80ea9b906141416e": 99.98,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.88,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "7f80078ed3cdd3264d8070916c92a821",
+      "description": null,
+      "name": "NA4",
+      "type": "site",
+      "parentId": "437f80eebd9d9fe4adb07a8f971d8fb2",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 99.97,
+          "dbca01758c6881ff80ea9b906141416e": 99.94,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 99.88
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "6e6678067b64214b6e4dbdf35ccde3af",
+      "description": null,
+      "name": "US",
+      "type": "site",
+      "parentId": "4779f280b9df6f19bbf194143f4659cd",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "a20617c4f894feff8b18f31d6157ac7f",
+      "description": null,
+      "name": "US",
+      "type": "site",
+      "parentId": "35b8c8f5d42e8536c54ab3dfe09d2a30",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "31b9f4313f9e96ee88b9f58d04fa08d7",
+      "description": null,
+      "name": "US",
+      "type": "site",
+      "parentId": "9d8206ca8740c103c27fe03ea3ea3a8e",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "b4d4bfc5c1f110ca334d3b3cb1169fee",
+      "description": null,
+      "name": "US",
+      "type": "site",
+      "parentId": "2ff4099a82b90da428bc9fe2c16f84ae",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "984de50b4ab4db42cb7c3eb01f707ed7",
+      "description": null,
+      "name": "US",
+      "type": "site",
+      "parentId": "40b44ba85beaf6d7e01f1d2ac776dd53",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "c183565a3317634d3be044eea8ee8140",
+      "description": null,
+      "name": "CLM",
+      "type": "product",
+      "parentId": null,
+      "status": "available",
+      "uptimeReporting": true,
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 99.99,
+          "388e72e556daa62a942e5c72cc3e3f3b": 99.05,
+          "4bbbf579ff3a89effa646e8cf5d90278": 99.99,
+          "dbca01758c6881ff80ea9b906141416e": 99.97,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.93,
+          "fa503fda7628f923ba2f6d53b75004ac": 99.93
+        }
+      },
+      "children": [
+        "f005b47c09853268c8645fbeef67fba0",
+        "f68af159eed8c2571ccd7ef7c7e332fe",
+        "08b7eaa65d7ba27db5a30b064749b0d4",
+        "b4a1622a6f11e6efbd0cd1553df8c58d",
+        "414fc11cb8695a1901dcbba793e96be3",
+        "2f52902fd6104f7f3555d58fc5aa3a79",
+        "601525db36a0da2280014cd7224eb286",
+        "b168c06ef95c6967d1fc2a839a3d439a",
+        "e3728f42f402c16b549ce4131306cc90",
+        "b0f77384044fc278b4a2a059875caf41",
+        "ea9189ec6339902f8c532c28a903d5c3",
+        "cc5d3cf29528defaa4428b2ec89a3520",
+        "048278d879f39cb5044802085c38cd90"
+      ]
+    },
+    {
+      "id": "f005b47c09853268c8645fbeef67fba0",
+      "description": null,
+      "name": "DEMO S1",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "f68af159eed8c2571ccd7ef7c7e332fe",
+      "description": null,
+      "name": "EU11",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 99.84,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 99.77,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.89,
+          "fa503fda7628f923ba2f6d53b75004ac": 99.99
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "08b7eaa65d7ba27db5a30b064749b0d4",
+      "description": null,
+      "name": "EU21",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 90.54,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.87,
+          "fa503fda7628f923ba2f6d53b75004ac": 99.99
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "b4a1622a6f11e6efbd0cd1553df8c58d",
+      "description": null,
+      "name": "NA11",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 99.96,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.82,
+          "fa503fda7628f923ba2f6d53b75004ac": 99.97
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "414fc11cb8695a1901dcbba793e96be3",
+      "description": null,
+      "name": "NA21",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 99.99,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 99.94,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.86,
+          "fa503fda7628f923ba2f6d53b75004ac": 99.98
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "2f52902fd6104f7f3555d58fc5aa3a79",
+      "description": null,
+      "name": "S1.AU",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "601525db36a0da2280014cd7224eb286",
+      "description": null,
+      "name": "S1.EU",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "b168c06ef95c6967d1fc2a839a3d439a",
+      "description": null,
+      "name": "S1.US",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 99.97,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "e3728f42f402c16b549ce4131306cc90",
+      "description": null,
+      "name": "S2.US",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "b0f77384044fc278b4a2a059875caf41",
+      "description": null,
+      "name": "US11",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 99.15,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 99.99,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.99,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "ea9189ec6339902f8c532c28a903d5c3",
+      "description": null,
+      "name": "US12",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 99.15,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "cc5d3cf29528defaa4428b2ec89a3520",
+      "description": null,
+      "name": "US13",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 98.98,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 99.21
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "048278d879f39cb5044802085c38cd90",
+      "description": null,
+      "name": "UAT NA11",
+      "type": "site",
+      "parentId": "c183565a3317634d3be044eea8ee8140",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 99.96,
+          "dbca01758c6881ff80ea9b906141416e": 99.99,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.99,
+          "fa503fda7628f923ba2f6d53b75004ac": 99.99
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "437f80eebd9d9fe4adb07a8f971d8fb2",
+      "description": null,
+      "name": "eSignature",
+      "type": "product",
+      "parentId": null,
+      "status": "available",
+      "uptimeReporting": true,
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 99.98,
+          "388e72e556daa62a942e5c72cc3e3f3b": 99.99,
+          "4bbbf579ff3a89effa646e8cf5d90278": 99.98,
+          "dbca01758c6881ff80ea9b906141416e": 99.98,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.97,
+          "fa503fda7628f923ba2f6d53b75004ac": 99.96
+        }
+      },
+      "children": [
+        "138fc2a7022b0e1f9260670711fe4fea",
+        "4025acee7f9710a23290911cb023d571",
+        "f3b476d2f71a61463ea862a3463d5ae8",
+        "c593a04e92f5b48dc7033d0553201983",
+        "353f07aba0d0b80d0a9573b9043cc46e",
+        "451aee79c0a7cdf6a294aa19547df818",
+        "cba28e4c0700328a0bd7dbcf2c40cb26",
+        "320a6d6a20274af2d069a435f0e171af",
+        "7f80078ed3cdd3264d8070916c92a821",
+        "7c705a3c9b6d2999575c4a467e0c2602",
+        "cfa7bc1c250d51d8d41c56766257d415"
+      ]
+    },
+    {
+      "id": "7c705a3c9b6d2999575c4a467e0c2602",
+      "description": null,
+      "name": "USFED",
+      "type": "site",
+      "parentId": "437f80eebd9d9fe4adb07a8f971d8fb2",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 99.81
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "cfa7bc1c250d51d8d41c56766257d415",
+      "description": null,
+      "name": "FedRAMP",
+      "type": "site",
+      "parentId": "437f80eebd9d9fe4adb07a8f971d8fb2",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "05fbd4b9e20cbd3c8baf7cd782877311",
+      "description": null,
+      "name": "IAM Features",
+      "type": "group",
+      "parentId": null,
+      "status": "available",
+      "children": [
+        "35b8c8f5d42e8536c54ab3dfe09d2a30",
+        "40b44ba85beaf6d7e01f1d2ac776dd53",
+        "4779f280b9df6f19bbf194143f4659cd",
+        "0ea3c9b19bc3dfc3affe1b68b3f2bdc2",
+        "9d8206ca8740c103c27fe03ea3ea3a8e",
+        "2ff4099a82b90da428bc9fe2c16f84ae"
+      ]
+    },
+    {
+      "id": "4779f280b9df6f19bbf194143f4659cd",
+      "description": null,
+      "name": "Identify",
+      "type": "product",
+      "parentId": "05fbd4b9e20cbd3c8baf7cd782877311",
+      "status": "available",
+      "children": [
+        "3ae64058ca17207cf74d6d3053c18997",
+        "7596c2839c3ac1f4840878c34fb46933",
+        "45a19479a52d12498dd2a9c18ace9ebd",
+        "c8d3b29d88249f2c889c511373b10706",
+        "ba105b939e233ebed194378dd98fced4",
+        "6e6678067b64214b6e4dbdf35ccde3af"
+      ]
+    },
+    {
+      "id": "4f621c463660cb83cc259157878c90ee",
+      "description": null,
+      "name": "Insight",
+      "type": "product",
+      "parentId": null,
+      "status": "available",
+      "uptimeReporting": true,
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 99.91,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.88,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": [
+        "c72eb86729e3c8e1fb775c2a2919c9c2",
+        "f13bdc1842f66755cbd42c51c6d6b313",
+        "43af3a99342d54558e2cff227fb711be",
+        "54ce2a643cf0063e30234f4f87d62a96",
+        "45050065c783bd2c971638c9b713eb04",
+        "fc5704ae014940760abb0462b275533a",
+        "704edb8eab0066016ececcb64804b616",
+        "c7381ea9a8a9448006588649badbadd8"
+      ]
+    },
+    {
+      "id": "c72eb86729e3c8e1fb775c2a2919c9c2",
+      "description": null,
+      "name": "DEMO",
+      "type": "site",
+      "parentId": "4f621c463660cb83cc259157878c90ee",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "f13bdc1842f66755cbd42c51c6d6b313",
+      "description": null,
+      "name": "EU.C",
+      "type": "site",
+      "parentId": "4f621c463660cb83cc259157878c90ee",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "43af3a99342d54558e2cff227fb711be",
+      "description": null,
+      "name": "EU.N",
+      "type": "site",
+      "parentId": "4f621c463660cb83cc259157878c90ee",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "54ce2a643cf0063e30234f4f87d62a96",
+      "description": null,
+      "name": "EU.W",
+      "type": "site",
+      "parentId": "4f621c463660cb83cc259157878c90ee",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "45050065c783bd2c971638c9b713eb04",
+      "description": null,
+      "name": "NA.C",
+      "type": "site",
+      "parentId": "4f621c463660cb83cc259157878c90ee",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 99.66,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "fc5704ae014940760abb0462b275533a",
+      "description": null,
+      "name": "NA.E",
+      "type": "site",
+      "parentId": "4f621c463660cb83cc259157878c90ee",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.61,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "704edb8eab0066016ececcb64804b616",
+      "description": null,
+      "name": "NA.NE",
+      "type": "site",
+      "parentId": "4f621c463660cb83cc259157878c90ee",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "c7381ea9a8a9448006588649badbadd8",
+      "description": null,
+      "name": "NA.W",
+      "type": "site",
+      "parentId": "4f621c463660cb83cc259157878c90ee",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 99.66,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 99.61,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "0ea3c9b19bc3dfc3affe1b68b3f2bdc2",
+      "description": null,
+      "name": "Notary",
+      "type": "product",
+      "parentId": "05fbd4b9e20cbd3c8baf7cd782877311",
+      "status": "available",
+      "children": [
+        "9c26918ec25ac0c28c2b0c060b91ccee",
+        "d32643c89ff0bb6a60f77fdfb590178b"
+      ]
+    },
+    {
+      "id": "9c26918ec25ac0c28c2b0c060b91ccee",
+      "description": null,
+      "name": "DEMO",
+      "type": "site",
+      "parentId": "0ea3c9b19bc3dfc3affe1b68b3f2bdc2",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "d32643c89ff0bb6a60f77fdfb590178b",
+      "description": null,
+      "name": "PROD",
+      "type": "site",
+      "parentId": "0ea3c9b19bc3dfc3affe1b68b3f2bdc2",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "43b8901832c5a95a7d6d770754cda452",
+      "description": null,
+      "name": "Rooms",
+      "type": "product",
+      "parentId": null,
+      "status": "available",
+      "uptimeReporting": true,
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": [
+        "53b813bdb76943836adc102fd96928fd",
+        "7134d1cfb9eb89e9ff76ba02f374fd35"
+      ]
+    },
+    {
+      "id": "53b813bdb76943836adc102fd96928fd",
+      "description": null,
+      "name": "DEMO",
+      "type": "site",
+      "parentId": "43b8901832c5a95a7d6d770754cda452",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "7134d1cfb9eb89e9ff76ba02f374fd35",
+      "description": null,
+      "name": "PROD",
+      "type": "site",
+      "parentId": "43b8901832c5a95a7d6d770754cda452",
+      "status": "available",
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": []
+    },
+    {
+      "id": "bf1fca6eefb00db8c4f45934496714fb",
+      "description": null,
+      "name": "DEMO",
+      "type": "site",
+      "parentId": "ff82974fe333f684c4cd05ff6c3e1145",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "ff82974fe333f684c4cd05ff6c3e1145",
+      "description": null,
+      "name": "Trusted Service Provider",
+      "type": "product",
+      "parentId": null,
+      "status": "available",
+      "children": [
+        "bf1fca6eefb00db8c4f45934496714fb",
+        "a71985e78aa9103e003f94c243153d2c"
+      ]
+    },
+    {
+      "id": "a71985e78aa9103e003f94c243153d2c",
+      "description": null,
+      "name": "PROD",
+      "type": "site",
+      "parentId": "ff82974fe333f684c4cd05ff6c3e1145",
+      "status": "available",
+      "children": []
+    },
+    {
+      "id": "9d8206ca8740c103c27fe03ea3ea3a8e",
+      "description": null,
+      "name": "Workflow Builder",
+      "type": "product",
+      "parentId": "05fbd4b9e20cbd3c8baf7cd782877311",
+      "status": "available",
+      "uptimeReporting": true,
+      "availability": {
+        "uptime": {
+          "211e8da2d5d09b4c7cc8320a15bb60d6": 100.0,
+          "388e72e556daa62a942e5c72cc3e3f3b": 100.0,
+          "4bbbf579ff3a89effa646e8cf5d90278": 100.0,
+          "dbca01758c6881ff80ea9b906141416e": 100.0,
+          "e8132e4ccc8ee76be2f9b0980d475302": 100.0,
+          "fa503fda7628f923ba2f6d53b75004ac": 100.0
+        }
+      },
+      "children": [
+        "c844dbe02100b12e5830023e77fe77b1",
+        "9c5c2df972e64ea6086e7ab24a7e7608",
+        "6baafafb15090814c8a972741b002e2b",
+        "0e5310c20a5d8972dbebcaad0cd17fad",
+        "db06c2979aed8697b45a5b00b0ecb920",
+        "31b9f4313f9e96ee88b9f58d04fa08d7"
+      ]
+    },
+    {
+      "id": "2ff4099a82b90da428bc9fe2c16f84ae",
+      "description": null,
+      "name": "Workspaces",
+      "type": "product",
+      "parentId": "05fbd4b9e20cbd3c8baf7cd782877311",
+      "status": "available",
+      "children": [
+        "9a1ee7db742dfe513f66b670e86632cf",
+        "30d52fe8aa0b9154277f083e6e982894",
+        "5e72ec98dc1bda4911ef89dca917ffd2",
+        "f43298b404a6d5a2bfad3a328f8c9f2c",
+        "c6732e46d259866dfd4e913d69cd4d4c",
+        "b4d4bfc5c1f110ca334d3b3cb1169fee"
+      ]
+    }
+  ]
+}

@@ -372,6 +372,43 @@ describe('collect — optional secondary fetches', () => {
     );
     expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
   });
+
+  // Docusign (health.docusign.com) splits the product tree from the incident
+  // list; an active incident must reach the parser through the second fetch.
+  it('feeds the docusign incidents endpoint to the parser so an active incident votes', async () => {
+    const incidents = JSON.parse(fixture('Docusign-incidents.json'));
+    incidents.incidents[0].status = 'investigating';
+    const res = await collect(
+      cfg([{ name: 'Docusign', type: 'docusign', url: 'https://ds/components', incidentsUrl: 'https://ds/incidents' }]),
+      {
+        fetchFn: stubFetch({
+          'https://ds/components': { body: fixture('Docusign-components.json') },
+          'https://ds/incidents': { body: JSON.stringify(incidents) },
+        }),
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.DEGRADED);
+    expect(res.records[0].incidentName).toMatch(/Incident 5692/);
+    expect(res.records[0].warnings).toEqual([]);
+  });
+
+  it('still judges docusign on its components when the incidents fetch fails, with a warning', async () => {
+    const res = await collect(
+      cfg([{ name: 'Docusign', type: 'docusign', url: 'https://ds/components', incidentsUrl: 'https://ds/incidents' }]),
+      {
+        fetchFn: stubFetch({
+          'https://ds/components': { body: fixture('Docusign-components.json') },
+          'https://ds/incidents': new Error('boom'),
+        }),
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+    expect(res.records[0].warnings.join(' ')).toMatch(/incidents\.json unavailable/);
+  });
 });
 
 // Microsoft publishes the same payload at two addresses whose failures are only

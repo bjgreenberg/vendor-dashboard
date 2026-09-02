@@ -85,7 +85,7 @@ flowchart TB
     collect --> adapters{"dispatch by type"}
     adapters -->|"Statuspage v2"| a1["statuspage"]
     adapters -->|"Instatus"| a2["instatus"]
-    adapters -->|"bespoke"| a3["aws · azure · google · apple<br/>okta · salesforce · concur · ibm<br/>oracle · microsoft · zscaler<br/>metastatus · signal · sorryapp · betterstack"]
+    adapters -->|"bespoke"| a3["aws · azure · google · apple<br/>okta · salesforce · concur · ibm<br/>oracle · microsoft · zscaler · docusign<br/>metastatus · signal · sorryapp · betterstack"]
     a1 --> norm["severity + scope + roll-up"]
     a2 --> norm
     a3 --> norm
@@ -200,6 +200,7 @@ codebase serve different deployments with different configs.
 | `scope.regionGroups` | Optional. `{ "GroupName": ["US East", …] }` — for a group whose leaves are geographies, only the listed ones vote on severity. The rest display (prefixed with the group name) but do not vote, per the US vantage point |
 | `dataCenters` | Concur only — restrict to named data centres |
 | `bannerUrl` | Concur only — its secondary "something is wrong" signal |
+| `incidentsUrl` | Docusign only — health.docusign.com keeps its incident list on a second document; advisory, an active incident votes and supplies the card text |
 
 **Scoping matters more than it looks.** Cloudflare publishes ~470 components,
 most of them edge PoPs. Without a scope, routine re-routing in Arica or Guam —

@@ -16,6 +16,7 @@
     "  sorryapp    SorryApp status.json",
     "  betterstack Better Stack HTML status page",
     "  zscaler     Zscaler Trust portal per-cloud cloud-status API",
+    "  docusign    health.docusign.com components.json (+ incidentsUrl, advisory)",
     "",
     "scope (optional): restrict which components count, by group or exact name.",
     "  Without it, the vendor's own page-level indicator is trusted.",
@@ -490,11 +491,12 @@
       }
     },
     {
-      "$comment": "Services live at GROUP level; leaves are per-datacentre instances. MIGRATION WATCH: Docusign is moving to health.docusign.com (a Next.js app whose embedded state carries only locale strings - status is fetched client-side, so it is not parseable yet). status.docusign.com still returns 200 as of 2026-07-31. When the old endpoint is retired this row fails closed to unknown with a visible warning - it cannot rot to green the way findings H6 and H7 did - so switch it when health.docusign.com exposes a machine-readable feed.",
+      "$comment": "health.docusign.com replaced status.docusign.com (the Statuspage endpoint began 301-redirecting to HTML on 2026-09-01, and the row failed closed to unknown as designed). The Next.js page fetches two JSON documents client-side: components.json (the product tree, every node with its own status - the vote) and incidents.json (last ~100 incidents, resolved included - advisory context, but an ACTIVE incident votes too). The adapter displays the six top-level products rolled up from their per-datacentre sites, the equivalent of the old componentLevel=group view. Vocabulary mapped: available / performance_degradation / service_disruption; anything else fails closed. Endpoints found by reading the page's network log; no maintenance feed exists.",
       "name": "Docusign",
-      "type": "statuspage",
-      "url": "https://status.docusign.com/api/v2/summary.json",
-      "componentLevel": "group",
+      "type": "docusign",
+      "url": "https://health.docusign.com/production/1ds/ssg/apps/health/dynamic/components.json",
+      "incidentsUrl": "https://health.docusign.com/production/1ds/ssg/apps/health/dynamic/incidents.json",
+      "pageUrl": "https://health.docusign.com/status",
       "brandDomain": "docusign.com"
     },
     {
