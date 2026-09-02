@@ -53,6 +53,51 @@ describe('docusign (health.docusign.com components + incidents feeds)', () => {
     expect(r.components.find((c) => c.name === 'IAM Features').severity).toBe(SEVERITY.MAJOR_OUTAGE);
   });
 
+  it('a child shared by two parents (a DAG) votes for BOTH parents, not just the first visited', () => {
+    // Copilot review on PR #130: a single visited-set returned the second
+    // parent green when a shared child was already counted under the first.
+    const payload = {
+      components: [
+        { id: 'p1', name: 'P1', type: 'product', parentId: null, status: 'available', children: ['shared'] },
+        { id: 'p2', name: 'P2', type: 'product', parentId: null, status: 'available', children: ['shared'] },
+        { id: 'shared', name: 'Shared', type: 'site', parentId: 'p1', status: 'service_disruption', children: [] },
+        { id: 's2', name: 'S2', type: 'site', parentId: 'p2', status: 'available', children: [] },
+      ],
+    };
+    const r = parseDocusign(payload, opts());
+    expect(r.components.find((c) => c.name === 'P1').severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    // parentId names p1, but p2 lists the same child too — it must count there as well.
+    expect(r.components.find((c) => c.name === 'P2').severity).toBe(SEVERITY.MAJOR_OUTAGE);
+  });
+
+  it('a cycle in the tree fails closed to unknown with a warning, never green', () => {
+    const payload = {
+      components: [
+        { id: 'a', name: 'A', type: 'product', parentId: null, status: 'available', children: ['b'] },
+        { id: 'b', name: 'B', type: 'product', parentId: 'a', status: 'available', children: ['a'] },
+      ],
+    };
+    const r = parseDocusign(payload, opts());
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.warnings.join(' ')).toMatch(/cycle/i);
+  });
+
+  it('a cycle beneath a healthy root still fails that root closed', () => {
+    const payload = {
+      components: [
+        { id: 'root', name: 'Root', type: 'product', parentId: null, status: 'available', children: ['b'] },
+        { id: 'b', name: 'B', type: 'product', parentId: 'root', status: 'available', children: ['c'] },
+        { id: 'c', name: 'C', type: 'site', parentId: 'b', status: 'available', children: ['b'] },
+        { id: 'other', name: 'Other', type: 'product', parentId: null, status: 'available', children: [] },
+      ],
+    };
+    const r = parseDocusign(payload, opts());
+    expect(r.components.find((c) => c.name === 'Root').severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.components.find((c) => c.name === 'Other').severity).toBe(SEVERITY.OPERATIONAL);
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.warnings.join(' ')).toMatch(/cycle through "B"/);
+  });
+
   it('fails closed on a status word it has never seen', () => {
     const payload = structuredClone(fixture('Docusign-components'));
     byName(payload, 'NA1').status = 'partially_available';

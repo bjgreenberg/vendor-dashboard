@@ -96,40 +96,66 @@ export function parseDocusign(payload, options) {
     return unknown('components.json carried no component list');
   }
 
-  // Index the tree once; children are referenced by id, and parentId is the
-  // authority for "is this a root" (children arrays are not always complete).
+  // Index the tree once. The feed states each edge twice — `parentId` on the
+  // child and `children[]` on the parent — and the two agreed exactly in the
+  // live capture (74 edges each). Take the UNION so a child either side
+  // claims reaches every parent that names it; a shared child then votes for
+  // each of them, not only the first one walked.
   const byId = new Map();
   for (const c of list) {
     if (c && typeof c === 'object' && typeof c.id === 'string') byId.set(c.id, c);
   }
   const childrenOf = new Map();
+  const hasParent = new Set();
+  const link = (parentId, childId) => {
+    if (!byId.has(parentId) || !byId.has(childId) || parentId === childId) return;
+    if (!childrenOf.has(parentId)) childrenOf.set(parentId, new Set());
+    childrenOf.get(parentId).add(childId);
+    hasParent.add(childId);
+  };
   for (const c of byId.values()) {
-    if (c.parentId && byId.has(c.parentId)) {
-      if (!childrenOf.has(c.parentId)) childrenOf.set(c.parentId, []);
-      childrenOf.get(c.parentId).push(c);
-    }
+    if (typeof c.parentId === 'string') link(c.parentId, c.id);
+    if (Array.isArray(c.children)) for (const k of c.children) link(c.id, k);
   }
 
-  /** Worst of a component and all its descendants; unknown words fail closed. */
-  const rollUp = (c, seen = new Set()) => {
-    if (seen.has(c.id)) return SEVERITY.OPERATIONAL; // cycle guard
-    seen.add(c.id);
+  /**
+   * Worst of a component and all its descendants. Memoised per node so a
+   * shared child is judged once and counted for every parent; the recursion
+   * PATH (not a global visited-set) detects cycles, which fail closed — a
+   * malformed tree is uncertainty, not health. Unknown words fail closed too.
+   */
+  const memo = new Map();
+  const rollUp = (id, path) => {
+    if (memo.has(id)) return memo.get(id);
+    if (path.has(id)) {
+      warnings.push(`component tree contains a cycle through "${byId.get(id)?.name ?? id}"`);
+      return SEVERITY.UNKNOWN;
+    }
+    const c = byId.get(id);
     const own = mapWord(c.status);
     if (own === null) {
       warnings.push(`unrecognised component status "${String(c.status)}" on "${c.name ?? c.id}"`);
     }
-    const kids = (childrenOf.get(c.id) ?? []).map((k) => rollUp(k, seen));
-    return worst([own ?? SEVERITY.UNKNOWN, ...kids]);
+    path.add(id);
+    const kids = [...(childrenOf.get(id) ?? [])].map((k) => rollUp(k, path));
+    path.delete(id);
+    const result = worst([own ?? SEVERITY.UNKNOWN, ...kids]);
+    memo.set(id, result);
+    return result;
   };
 
-  const roots = [...byId.values()].filter((c) => !c.parentId || !byId.has(c.parentId));
+  const roots = [...byId.values()].filter((c) => !hasParent.has(c.id));
+  if (roots.length === 0) {
+    return unknown(
+      byId.size === 0
+        ? 'components.json carried no usable components'
+        : 'component tree has no root — every component names a parent (cycle)',
+    );
+  }
   const components = roots.map((c) => ({
     name: typeof c.name === 'string' && c.name.trim() ? c.name.trim() : c.id,
-    severity: rollUp(c),
+    severity: rollUp(c.id, new Set()),
   }));
-  if (components.length === 0) {
-    return unknown('components.json carried no usable components');
-  }
 
   // Incidents: advisory document, but an ACTIVE one votes.
   let incidentName = '';
