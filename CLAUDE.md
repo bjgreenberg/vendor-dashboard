@@ -79,6 +79,16 @@ a future non-Cloudflare deployment possible.
   from Microsoft's own feed: `status.cloud.microsoft` reports only when the
   admin centre itself is unreachable. Exchange/Entra/Intune/Defender health is
   tenant-scoped by design. Do not go looking again.
+- **Docusign is `type: "docusign"`, not statuspage.** `status.docusign.com`
+  began 301-redirecting to the `health.docusign.com` HTML shell on 2026-09-01
+  (the row failed closed to `unknown`, as designed). The page's real data is two
+  client-fetched JSON documents (`…/dynamic/components.json` = the vote,
+  `…/dynamic/incidents.json` = advisory `incidentsUrl`; an ACTIVE incident also
+  votes). Only three status words exist across both feeds — `available`,
+  `performance_degradation`, `service_disruption`; anything else fails closed.
+  Roll-up takes the union of `parentId` and `children[]` edges, memoised per
+  node, with cycle detection on the recursion path (Copilot caught the
+  visited-set version under-reporting shared children on PR #130).
 - **Adapters return EVERY component, healthy included** — the dashboard decides
   what to show. Returning only unhealthy ones breaks the expand-all disclosure
   (fixed 2026-07-31; the healthy-path early return had omitted them).

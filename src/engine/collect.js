@@ -34,6 +34,7 @@ import { parseOracle } from './adapters/oracle.js';
 import { parseMetaStatus } from './adapters/metastatus.js';
 import { parseSignal } from './adapters/signal.js';
 import { parseZscaler } from './adapters/zscaler.js';
+import { parseDocusign } from './adapters/docusign.js';
 
 /** Default per-vendor deadline. A hung status page must not stall the run. */
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -97,6 +98,7 @@ const JSON_ADAPTERS = {
   oracle: parseOracle,
   metastatus: parseMetaStatus,
   zscaler: parseZscaler,
+  docusign: parseDocusign,
 };
 
 /**
@@ -422,6 +424,21 @@ async function collectOne(vendor, ctx) {
         opts.products = JSON.parse(await res.text());
       } catch {
         /* catalogue is advisory; incidents still decide severity */
+      }
+    }
+
+    // Docusign's health page splits the product tree (vendor.url) from the
+    // incident list. The incidents document is advisory: an active incident
+    // votes and supplies the card text, but if the fetch fails the components
+    // still decide and the parser records a warning (opts.incidents undefined).
+    if (vendor.type === 'docusign' && vendor.incidentsUrl) {
+      try {
+        const res = await fetchFn(vendor.incidentsUrl, {
+          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+        });
+        opts.incidents = JSON.parse(await res.text());
+      } catch {
+        /* advisory; parseDocusign warns and judges on components alone */
       }
     }
 

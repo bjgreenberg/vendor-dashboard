@@ -1,0 +1,129 @@
+{
+  "incidents": [
+    {
+      "id": "fed21396c39d25ee8f99844ae68cb8db",
+      "incidentId": "68733dfce806deeb7b832d94496a7097",
+      "title": "UI Latency Issues (Incident 5692)",
+      "status": "resolved",
+      "impact": "performance_degradation",
+      "events": [
+        {
+          "id": "f46f945de33be28c4be79fff09f6c0f4",
+          "body": "The incident has been resolved. Incident duration and timelines are subject to revision pending the results of any related investigation.",
+          "status": "resolved",
+          "deliverNotifications": true,
+          "displayAt": "2026-08-31T17:29:20.913497Z",
+          "createdAt": "2026-08-31T17:29:22.127391Z",
+          "updatedAt": "2026-08-31T17:29:22.127391Z"
+        },
+        {
+          "id": "2c837150ac24ce09c5d7d96039a80ac8",
+          "body": "We are continuing to investigate this issue.",
+          "status": "investigating",
+          "deliverNotifications": true,
+          "displayAt": "2026-08-31T16:45:45.462437Z",
+          "createdAt": "2026-08-31T16:45:46.365159Z",
+          "updatedAt": "2026-08-31T16:45:46.365159Z"
+        }
+      ],
+      "postmortem": null,
+      "createdAt": "2026-08-31T16:06:51.963438Z",
+      "updatedAt": "2026-08-31T17:29:22.127391Z",
+      "components": [
+        {
+          "id": "601525db36a0da2280014cd7224eb286",
+          "name": "S1.EU",
+          "status": "available"
+        }
+      ],
+      "startedAt": "2026-08-31T16:06:50.862567Z",
+      "monitoringAt": null,
+      "resolvedAt": "2026-08-31T17:29:20.913497Z"
+    },
+    {
+      "id": "5cde3668e0870fac77edf83e02bfb12d",
+      "incidentId": "f4213e4906ebdb7c661f808b7261db1e",
+      "title": "Slow performance and delays for Agreement Manager, CLM, and eSign (Incident 5674)",
+      "status": "resolved",
+      "impact": "performance_degradation",
+      "events": [
+        {
+          "id": "6e5abcbe2df7fc0222d90790e8a4c654",
+          "body": "The incident has been resolved. Incident duration and timelines are subject to revision pending the results of any related investigation.  Customers may have experienced errors from 2026-08-27 11:27 PM UTC until 2026-08-28 01:18 AM UTC.",
+          "status": "resolved",
+          "deliverNotifications": true,
+          "displayAt": "2026-08-28T01:49:00Z",
+          "createdAt": "2026-08-28T01:49:04.877866Z",
+          "updatedAt": "2026-08-28T03:53:03.580559Z"
+        },
+        {
+          "id": "1f80ab653729077dbe7268e665b32755",
+          "body": "A fix has been implemented and we are monitoring the results.",
+          "status": "monitoring",
+          "deliverNotifications": true,
+          "displayAt": "2026-08-28T01:27:53.800488Z",
+          "createdAt": "2026-08-28T01:27:54.618576Z",
+          "updatedAt": "2026-08-28T01:27:54.618576Z"
+        }
+      ],
+      "postmortem": null,
+      "createdAt": "2026-08-27T23:39:07.535642Z",
+      "updatedAt": "2026-08-28T04:08:05.042641Z",
+      "components": [
+        {
+          "id": "f3b476d2f71a61463ea862a3463d5ae8",
+          "name": "CA",
+          "status": "available"
+        },
+        {
+          "id": "4025acee7f9710a23290911cb023d571",
+          "name": "AU",
+          "status": "available"
+        }
+      ],
+      "startedAt": "2026-08-27T23:39:06.047002Z",
+      "monitoringAt": "2026-08-28T01:27:53.800488Z",
+      "resolvedAt": "2026-08-28T01:49:00Z"
+    },
+    {
+      "id": "d8d56c28d815649b664fa30cec778e16",
+      "incidentId": "990b161f6a869c89ab8ed4f82c973dc7",
+      "title": "Issues in JP1 with Salesforce Writeback (Incident 5648)",
+      "status": "resolved",
+      "impact": "available",
+      "events": [
+        {
+          "id": "288fa35e4e550fd1eb40f9b7429fc88a",
+          "body": "The incident has been resolved. Incident duration and timelines are subject to revision pending the results of any related investigation.",
+          "status": "resolved",
+          "deliverNotifications": true,
+          "displayAt": "2026-08-24T16:19:37.882401Z",
+          "createdAt": "2026-08-24T16:19:38.827769Z",
+          "updatedAt": "2026-08-24T16:19:38.827769Z"
+        },
+        {
+          "id": "55355cd20f3f82f65d1e782a6d74857b",
+          "body": "Customers in JP1 may experience issues when writing back to Salesforce after signing a document. Engineering teams are engaged and are actively triaging this issue. ",
+          "status": "investigating",
+          "deliverNotifications": true,
+          "displayAt": "2026-08-24T10:10:13.495037Z",
+          "createdAt": "2026-08-24T10:10:14.666643Z",
+          "updatedAt": "2026-08-24T10:10:14.666643Z"
+        }
+      ],
+      "postmortem": null,
+      "createdAt": "2026-08-24T10:10:14.666643Z",
+      "updatedAt": "2026-08-24T16:19:38.827769Z",
+      "components": [
+        {
+          "id": "353f07aba0d0b80d0a9573b9043cc46e",
+          "name": "JP1",
+          "status": "available"
+        }
+      ],
+      "startedAt": "2026-08-24T10:10:13.495037Z",
+      "monitoringAt": null,
+      "resolvedAt": "2026-08-24T16:19:37.882401Z"
+    }
+  ]
+}

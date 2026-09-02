@@ -85,7 +85,7 @@ flowchart TB
     collect --> adapters{"dispatch by type"}
     adapters -->|"Statuspage v2"| a1["statuspage"]
     adapters -->|"Instatus"| a2["instatus"]
-    adapters -->|"bespoke"| a3["aws · azure · google · apple<br/>okta · salesforce · concur · ibm<br/>oracle · microsoft · zscaler<br/>metastatus · signal · sorryapp · betterstack"]
+    adapters -->|"bespoke"| a3["aws · azure · google · apple<br/>okta · salesforce · concur · ibm<br/>oracle · microsoft · zscaler · docusign<br/>metastatus · signal · sorryapp · betterstack"]
     a1 --> norm["severity + scope + roll-up"]
     a2 --> norm
     a3 --> norm
@@ -117,6 +117,12 @@ planned maintenance is a *known* benign state.
   components.
 - **Incidents never contribute to severity**, only to context. Deriving status
   from incidents alone caused errors in both directions in the predecessor.
+  Two bespoke adapters are the deliberate exceptions, each because the vendor
+  publishes no trustworthy component state: Zscaler's per-service boolean stayed
+  `true` through an open degradation, so its *active-event list* is the vote;
+  Docusign's `components.json` is the vote, but an *active* incident on its
+  second document votes too — the two feeds are both the vendor's word, and
+  when they disagree the worse one wins. Resolved incidents never vote anywhere.
 - **The board judges from a US vantage point, and the page says so.** For
   vendors publishing per-region status, `scope` picks the US components that
   vote on severity, while `componentLevel: 'group'` keeps the card showing the
@@ -200,6 +206,7 @@ codebase serve different deployments with different configs.
 | `scope.regionGroups` | Optional. `{ "GroupName": ["US East", …] }` — for a group whose leaves are geographies, only the listed ones vote on severity. The rest display (prefixed with the group name) but do not vote, per the US vantage point |
 | `dataCenters` | Concur only — restrict to named data centres |
 | `bannerUrl` | Concur only — its secondary "something is wrong" signal |
+| `incidentsUrl` | Docusign only — health.docusign.com keeps its incident list on a second document; advisory, an active incident votes and supplies the card text |
 
 **Scoping matters more than it looks.** Cloudflare publishes ~470 components,
 most of them edge PoPs. Without a scope, routine re-routing in Arica or Guam —
@@ -403,6 +410,12 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
   bracket walk rather than regex — written against the original free plan's
   10 ms CPU budget and kept because cheap parsing is still enforced (see the
   `perf` gate).
+- **Docusign has no maintenance feed.** `health.docusign.com` (which replaced
+  the Statuspage-hosted `status.docusign.com` on 2026-09-01) publishes a
+  component tree and an incident list, nothing scheduled. The adapter reads
+  those two documents; the retired endpoint's 301-to-HTML is what the row's
+  `unknown` fail-closed path looked like in practice — one row, visible
+  warning, no false green.
 - **No uptime history UI yet.** History *is* recorded from day one; only the
   reporting is unbuilt.
 
