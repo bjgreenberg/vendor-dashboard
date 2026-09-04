@@ -75,6 +75,13 @@ a future non-Cloudflare deployment possible.
   history.atom and history.rss return 401). The adapter parses the incidents the
   page embeds as JSON, via `indexOf` + a linear bracket walk — NOT regex: the
   page is ~347 KB against a 10 ms CPU budget. Measured 0.58 ms.
+- **Microsoft prefixes status words with "Service"** — `Service degradation`
+  (live 2026-09-01, PR #127), `Service restored` (live 2026-09-03: Copilot's
+  resolved incident held the row `unknown` for 9 h because only the bare word
+  `restored` was mapped). `consumerSeverity()` in the Microsoft adapter drops
+  a leading `service ` and looks up the remainder, so a third variant maps like
+  its bare word while an unseen word still fails closed. Do not add per-phrase
+  map entries for this; extend the vocabulary with bare words.
 - **Microsoft publishes no public per-workload enterprise health.** Verified
   from Microsoft's own feed: `status.cloud.microsoft` reports only when the
   admin centre itself is unreachable. Exchange/Entra/Intune/Defender health is

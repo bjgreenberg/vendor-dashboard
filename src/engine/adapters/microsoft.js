@@ -279,6 +279,29 @@ const CONSUMER_STATUS = Object.freeze(
 );
 
 /**
+ * Look a status word up in CONSUMER_STATUS, tolerating Microsoft's habit of
+ * prefixing the word with "Service": "Service degradation" (live 2026-09-01,
+ * PR #127) and "Service restored" (live 2026-09-03 — Copilot's resolved
+ * incident kept the row `unknown` for 9 hours because only the bare word
+ * `restored` was mapped). The prefix is dropped and the remainder looked up,
+ * so a third variant maps like its bare word while a word we have never
+ * seen still fails closed — "Service sparkly" is `unknown`, as is a bare
+ * "Service".
+ *
+ * @param {string} raw the post's Status field, trimmed
+ * @returns {string} a SEVERITY value, UNKNOWN when unrecognised
+ */
+export function consumerSeverity(raw) {
+  const word = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  const direct = CONSUMER_STATUS[word];
+  if (direct) return direct;
+  const m = /^service\s+(\S.*)$/.exec(word);
+  return (m && CONSUMER_STATUS[m[1]]) ?? SEVERITY.UNKNOWN;
+}
+
+/**
  * @param {any} payload parsed /api/posts/m365Consumer (array of workloads)
  * @param {{vendor: string, now?: () => Date}} options
  * @returns {import('../record.js').StatusRecord}
@@ -293,8 +316,7 @@ export function parseMicrosoftConsumer(payload, options) {
   }
 
   const components = rows.map((s) => {
-    const raw = String(s?.Status ?? '').trim();
-    const severity = CONSUMER_STATUS[raw.toLowerCase()] ?? SEVERITY.UNKNOWN;
+    const severity = consumerSeverity(s?.Status);
     return {
       name: toPlainText(s?.ServiceDisplayName ?? s?.ServiceWorkloadName ?? 'Unknown service'),
       severity,
@@ -367,7 +389,7 @@ export function parseMicrosoftAdminPost(payload, options) {
   if (!Number.isFinite(updated)) {
     return unknownRecord(vendor, 'payload carried no parseable LastUpdatedTime', opts);
   }
-  const severity = CONSUMER_STATUS[raw.toLowerCase()] ?? SEVERITY.UNKNOWN;
+  const severity = consumerSeverity(raw);
   if (severity === SEVERITY.UNKNOWN) {
     return unknownRecord(vendor, `unrecognised status "${raw}"`, opts);
   }
