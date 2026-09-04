@@ -177,6 +177,47 @@ describe('microsoft consumer products', () => {
   });
 });
 
+describe('microsoft consumer — 2026-09-03 live vocabulary', () => {
+  // Recorded 2026-09-03 10:46 PM CDT: Copilot's post read `Status: "Service
+  // restored"` with the incident's final update as its Title. The map knew
+  // the bare word `restored`, so the row sat `unknown` for 9 hours over a
+  // resolved incident — the "Service degradation" defect (PR #127) again,
+  // one phrase over.
+  const restoredLive = JSON.parse(readFileSync('test/fixtures/Microsoft-consumer-restored.json', 'utf8'));
+
+  it('reads the recorded live payload — a restored Copilot — as operational', () => {
+    const r = consumer(restoredLive);
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+    const copilot = r.components.find((c) => c.name === 'Microsoft Copilot');
+    expect(copilot.severity).toBe(SEVERITY.OPERATIONAL);
+    // context informs, never votes: the final-update title still rides as detail
+    expect(copilot.description).toMatch(/Copilot chat/);
+    expect(r.description).toMatch(/All 10 consumer services report operational/);
+  });
+
+  it('maps a "Service <word>" phrase like its bare word, for both consumer and admin posts', () => {
+    expect(consumer([{ ServiceDisplayName: 'X', Status: 'Service restored' }]).severity).toBe(
+      SEVERITY.OPERATIONAL,
+    );
+    expect(consumer([{ ServiceDisplayName: 'X', Status: 'Service interruption' }]).severity).toBe(
+      SEVERITY.PARTIAL_OUTAGE,
+    );
+    expect(consumer([{ ServiceDisplayName: 'X', Status: 'Service degradation' }]).severity).toBe(
+      SEVERITY.DEGRADED,
+    );
+    expect(admin({ Status: 'Service restored', LastUpdatedTime: FIXED.toISOString() }).severity).toBe(
+      SEVERITY.OPERATIONAL,
+    );
+  });
+
+  it('still fails closed on "Service <never-seen word>"', () => {
+    expect(consumer([{ ServiceDisplayName: 'X', Status: 'Service sparkly' }]).severity).toBe(
+      SEVERITY.UNKNOWN,
+    );
+    expect(consumer([{ ServiceDisplayName: 'X', Status: 'Service' }]).severity).toBe(SEVERITY.UNKNOWN);
+  });
+});
+
 describe('microsoft admin-centre meta status', () => {
   it('reads the live payload and names the product from the vendor', () => {
     const r = admin(adminLive, 'Microsoft 365', justAfter(adminLive));
