@@ -82,7 +82,8 @@ jobs:
           # Keep only the vendors false-green in BOTH passes; every other
           # number comes from the second (fresher) pass.
           jq --slurpfile first report.json '
-            .falseGreen |= [ .[] as $fg | select(($first[0].falseGreen | map(.vendor)) | index($fg.vendor)) ]
+            ($first[0].falseGreen | map(.vendor)) as $keep
+            | .falseGreen |= [ .[] | select(.vendor as $v | ($keep | index($v)) != null) ]
           ' report2.json > report.confirmed.json
           mv report.confirmed.json report.json
           echo "confirmed: $(jq -r '[.falseGreen[].vendor] | join(", ") | if . == "" then "none" else . end' report.json)"
