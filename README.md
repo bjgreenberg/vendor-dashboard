@@ -170,6 +170,15 @@ erDiagram
         TEXT failing_since "first unknown of the active streak"
         INTEGER failures "consecutive unknown collections"
     }
+    truth_check {
+        INTEGER id PK "CHECK id = 1 - single row"
+        TEXT checked_at "when the external truth check last ran"
+        INTEGER covered "vendors the second opinion could read"
+        INTEGER total
+        INTEGER agreed
+        INTEGER disagreements "false greens found"
+        TEXT detail "JSON: falseGreen vendor names"
+    }
     snapshot ||--o{ history : "appends one row per collection"
     snapshot ||--o| vendor_health : "unknown starts/extends a streak"
 ```
@@ -182,6 +191,10 @@ dead-man monitor all read. `vendor_health` tracks consecutive-`unknown`
 streaks per vendor for the [endpoint-rot watchdog](#monitoring) — written in
 the same transactional batch, skipped on budget-exhausted runs (operator
 fault, not vendor rot), surfaced as `unknownSince` on `/api/status`.
+`truth_check` is the single-row stamp the external [truth check](#monitoring)
+writes through `POST /api/truth-check` (bearer-token gated) and the board
+renders under the collection line — absent means never checked, older than
+three hours means overdue.
 
 ## Configuring vendors
 
@@ -230,6 +243,9 @@ emits a warning rather than silently ignoring it.
 | `config/` | Vendor configuration |
 | `migrations/` | D1 schema as ordered migrations (`wrangler d1 migrations apply`) |
 | `test/fixtures/` | Recorded vendor payloads (golden fixtures) |
+| `scripts/truth-check/` | The truth check: `rules.mjs` (pure second-opinion rules, fixture-tested) + `run.mjs` (the network half the workflow drives) |
+| `scripts/watchdog/` | The endpoint-rot watchdog: `classify.mjs` (pure) + `diagnose-endpoint.mjs` (probes) |
+| `scripts/logo-manifest.mjs` | Pure manifest reconciliation for `fetch-logos.mjs`: a refused download never shrinks the manifest |
 | `docs/audit/` | The extraction audit driving this rewrite |
 
 The engine deliberately contains **no** Worker, GCP, or Apps Script APIs. The
@@ -287,6 +303,9 @@ repository is public.) Then make it yours:
    `*.workers.dev` subdomain immediately (`BASE_PATH` handles both mounts).
 3. Swap the site chrome in `src/worker/render.js` (header, footer, share bar)
    for your own.
+4. Optional: enable the truth-check stamp — generate a random token, set it
+   as the Worker secret (`npx wrangler secret put TRUTH_CHECK_TOKEN`) and as
+   the Actions secret of the same name (see [Monitoring](#monitoring)).
 
 Routing is declared in [`wrangler.jsonc`](wrangler.jsonc) as a **route**, not a
 Custom Domain. `briangreenberg.net` is itself a Custom Domain bound to a
@@ -305,7 +324,7 @@ Cache-busting does not help, because it is not caching.
 
 ## Monitoring
 
-Two independent monitors, both GitHub-cron based so they run *outside*
+Three independent monitors, all GitHub-cron based so they run *outside*
 Cloudflare (an alert inside a dying invocation dies with it):
 
 - **Dead-man monitor** (`.github/workflows/staleness-monitor.yml`, every
@@ -324,13 +343,43 @@ Cloudflare (an alert inside a dying invocation dies with it):
   vendor recovers, the watchdog comments and closes the issue. The SendGrid
   rot of 2026-08-12 (a decommissioned custom domain serving a
   `*.statuspage.io` certificate) is the class of failure it automates away.
+- **Truth check** (`.github/workflows/truth-check.yml`, every 2 h) is the
+  only one that checks the **claim** rather than the plumbing: *we render
+  operational — does the vendor agree?* By a different code path from the
+  adapters (`scripts/truth-check/rules.mjs`), it reads each covered vendor's
+  own verdict the simplest way that vendor offers — the Statuspage page
+  indicator, the in-scope component states for a scoped vendor, `page.status`
+  on Instatus, `page.state` on SorryApp, Oracle's page-level `status.json`,
+  and for Google an incident with no `end` time — and compares it with
+  `/api/status`. A **false green** (board `operational`, vendor says
+  otherwise) that survives a ten-minute recheck — the board re-collects
+  each vendor every 15 minutes, so a fresh outage reads as false green until
+  its shard runs — files an issue labeled `truth-check` with the raw evidence and
+  what the board rendered, fails that one run so the owner gets one email,
+  and closes the issue when they agree again; "over-cautious" rows (board
+  says trouble, vendor says fine) are reported, never paged. Open incidents
+  on Statuspage vendors are evidence, not a vote — the settled decision that
+  incidents inform context and never severity holds here too. Platforms the
+  rule does not understand are counted as **uncovered**, never guessed (36 of
+  49 vendors covered on 2026-09-05). The workflow then **stamps the board**:
+  "Truth-checked ‹time› against 36 of 49 vendors' own feeds · no
+  disagreements", overdue after three hours — a stale stamp is itself the
+  alarm. The 2026-08-28 Google misreport (an open Chat incident rendered as
+  all healthy, PR #123) is the class of failure it exists to catch.
 
 **Forks need zero configuration** — issues ride the built-in `GITHUB_TOKEN`.
 Two optional layers, each enabled by adding a single Actions secret:
 
 - **`WATCHDOG_WEBHOOK_URL`** (a Slack Incoming Webhook URL, or anything
   accepting Slack-compatible `{"text": …}` JSON): mirrors issue open/close
-  events to a channel. Skipped silently when absent.
+  events from the watchdog and the truth check to a channel. Skipped silently
+  when absent.
+- **`TRUTH_CHECK_TOKEN`**: lets the truth check stamp the board. The same
+  random value goes in two places — the Worker secret (`npx wrangler secret
+  put TRUTH_CHECK_TOKEN`) that gates `POST /api/truth-check`, and the Actions
+  secret the workflow presents as a bearer token. Without the Worker secret
+  the endpoint answers 501 and the board reads "Not yet truth-checked";
+  without the Actions secret the workflow skips the stamp and says so.
 - **`ANTHROPIC_API_KEY`**: enables the **fix-proposal job**
   (`.github/workflows/endpoint-rot-fix-proposal.yml`). When an
   `endpoint-rot` issue is labeled, Claude re-verifies the diagnosis with its
@@ -345,8 +394,10 @@ Two optional layers, each enabled by adding a single Actions secret:
   secret, a gate job reports "disabled" and ends; the deterministic watchdog
   never depends on this layer.
 
-Full design: the
-[spec](docs/superpowers/specs/2026-08-12-endpoint-rot-watchdog-design.md).
+Full designs: the watchdog
+[spec](docs/superpowers/specs/2026-08-12-endpoint-rot-watchdog-design.md)
+and the truth-check
+[spec](docs/superpowers/specs/2026-09-05-truth-check-design.md).
 
 ## CI gates
 
@@ -427,9 +478,11 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
 | A vendor shows `unknown` | Read its `warnings` in `/service-status/api/status` — it names the HTTP status or parse failure |
 | Board reads "No status data" | The cron has not run yet, or is failing. Check `wrangler tail` and `run_meta` in D1 |
 | Want to link to one service's row | Every card has a slug id: `/service-status#cloudflare`, `#1password`. There is no visible `#` glyph (removed 2026-08-03: it was reported twice as a rendering artifact, on touch and on hover) |
+| `fetch-logos.mjs` says REFUSING TO SHIP | The committed manifest lists a logo for a configured vendor and this clone has no file for it — a bot wall refused the download (LinkedIn, NetSuite, OpenAI, SendGrid, Tableau have all done it). A refused download is not vendor removal, so the build stops instead of shipping a shrunken manifest. Restore `assets/icons` from a clone that has the files (the row below), or declare `iconUrl` for that vendor, then re-run |
 | Vendor logos vanished after `git pull` | You pulled across the commit that untracked the icon dirs — git removed the previously-tracked files. Run `node scripts/fetch-logos.mjs`, or restore the exact prior set: `git checkout <pre-untracking-sha> -- assets/icons public/service-status/icons && git restore --staged assets/icons public/service-status/icons` |
 | Is collection alive right now? | `curl -sf /service-status/health` — 200 with `age_minutes` while fresh; 503 once the snapshot is older than three cycles (45 min) or D1 is unreachable |
 | "This data may be stale" banner | Collection has not succeeded in >30 minutes. The collector, not the vendors, is the problem |
+| "Truth check overdue" on the board | The truth-check workflow has not stamped the board for 3+ hours: the Actions cron stalled or lagged, `TRUTH_CHECK_TOKEN` differs between the Worker and Actions (the stamp step logs the HTTP code), or GitHub disabled the schedule after 60 days of repo inactivity. "Not yet truth-checked" means the Worker secret is not set |
 | `Apple` unknown locally but fine in production | A host with no IPv6 egress. Node's fetch tries AAAA first; Apple is the only vendor publishing AAAA records |
 | Deploy fails: "CPU limits are not supported for the Free plan" | The declared `limits` block is a deliberate tripwire: it means the Workers Paid subscription has lapsed. Restore the plan (or consciously remove the block AND accept 10 ms CPU kills) |
 

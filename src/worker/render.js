@@ -184,6 +184,7 @@ export function humanizeWarning(warning) {
 export function renderDashboard({
   records = [],
   meta = null,
+  truthCheck = null,
   nonce = '',
   now = () => new Date(),
   host = CANONICAL_HOST,
@@ -225,6 +226,26 @@ export function renderDashboard({
   const checkedBlock = meta?.checked_at
     ? `<p class="vs-meta">Last collection <time id="vs-checked" datetime="${esc(meta.checked_at)}">${esc(formatChicago(meta.checked_at))}</time>. Each service is re-checked every 15 minutes.</p>`
     : `<p class="vs-meta">No collection has run yet. Each service is re-checked every 15 minutes.</p>`;
+
+  // The truth-check stamp: verification made visible. The external workflow
+  // compares the board with the vendors' own feeds every two hours and posts
+  // the result here; a missing stamp says so, and a stale one is itself the
+  // alarm (three hours = one missed run plus slack). Vendor names inside it
+  // are vendor strings and render escaped like every other.
+  const TRUTH_STALE_AFTER_MS = 3 * 60 * 60 * 1000;
+  const truthAtMs = truthCheck?.checkedAt ? Date.parse(truthCheck.checkedAt) : NaN;
+  const truthStale = Number.isNaN(truthAtMs) || now().getTime() - truthAtMs > TRUTH_STALE_AFTER_MS;
+  const truthBlock = !truthCheck
+    ? `<p class="vs-meta vs-truth">Not yet truth-checked against the vendors\u2019 own feeds.</p>`
+    : truthStale
+      ? `<p class="vs-stale vs-truth" role="status">Truth check overdue \u2014 last verified against the vendors\u2019 own feeds <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time>.</p>`
+      : `<p class="vs-meta vs-truth${truthCheck.disagreements > 0 ? ' vs-truth--disagree' : ''}">Truth-checked <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> against ${esc(truthCheck.covered)} of ${esc(truthCheck.total)} vendors\u2019 own feeds \u00b7 ${
+          truthCheck.disagreements === 0
+            ? 'no disagreements'
+            : `${esc(truthCheck.disagreements)} disagreement${truthCheck.disagreements === 1 ? '' : 's'}${
+                truthCheck.falseGreen?.length ? ` (${esc(truthCheck.falseGreen.join(', '))})` : ''
+              }`
+        }.</p>`;
 
   // Social description reflects the LIVE board, so a share during an incident
   // says so instead of claiming everything is fine.
@@ -363,6 +384,7 @@ export function renderDashboard({
   <p class="vs-headline ${headlineTone}">${esc(headline)}</p>
   ${staleBanner}
   ${checkedBlock}
+  ${truthBlock}
 
   <p class="vs-note">Select a service name to open its own status page, or expand a
   card to see every component. Some vendors publish only an overall state or a
@@ -708,6 +730,7 @@ const STYLES = `
 :root[data-theme="dark"] .vs-headline.headline--unknown { color: #a3adba; }
 
 .vs-meta, .vs-hint, .vs-note { font-size: .875rem; opacity: .75; margin: .25rem 0; }
+.vs-truth--disagree { font-weight: 600; opacity: 1; }
 .vs-stale {
   margin: .5rem 0; padding: .6rem .8rem; font-size: .875rem;
   border: 1px solid currentColor; border-radius: 8px; color: #8a5a00;
