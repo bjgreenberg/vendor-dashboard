@@ -284,6 +284,10 @@ function validateStamp(body) {
   if (![body.covered, body.total, body.agreed, body.disagreements].every(count)) return null;
   if (!Array.isArray(body.falseGreen) || body.falseGreen.length > 200) return null;
   if (!body.falseGreen.every((v) => typeof v === 'string' && v.length > 0 && v.length <= 200)) return null;
+  // Internal consistency — an inconsistent stamp would render contradictory
+  // verification text, so it is refused like any other malformed body.
+  if (body.covered > body.total || body.agreed > body.covered || body.disagreements > body.covered) return null;
+  if (body.disagreements !== body.falseGreen.length) return null;
   return {
     checkedAt: new Date(body.checkedAt).toISOString(),
     covered: body.covered,

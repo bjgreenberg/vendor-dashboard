@@ -105,6 +105,16 @@ describe('secondOpinion — the other covered platforms', () => {
     expect(o.evidence.join(' ')).toMatch(/no end/);
     expect(secondOpinion(v, { [v.url]: { not: 'an array' } }).verdict).toBe('unreadable');
   });
+  it('google evidence is one line and capped — vendor prose has newlines and no length limit', () => {
+    const v = vendorNamed('Google');
+    const open = fixture('Google-appsstatus-open.json');
+    open[0].external_desc = 'line one\n\n   line two ' + 'x'.repeat(500);
+    const [line] = secondOpinion(v, { [v.url]: open }).evidence;
+    expect(line).not.toMatch(/\n/);
+    expect(line).not.toMatch(/ {2,}/);
+    expect(line.length).toBeLessThan(260);
+    expect(line).toMatch(/line one line two x+…/);
+  });
   it('oracle: the page-level indicator', () => {
     const v = vendorNamed('Oracle Cloud');
     const [url] = probeUrlsFor(v);

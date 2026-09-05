@@ -59,6 +59,11 @@ describe('POST /api/truth-check — the workflow writes the stamp', () => {
     expect((await post(env, stamp({ checkedAt: 'yesterday' }), 't')).status).toBe(400);
     expect((await post(env, stamp({ falseGreen: 'Google' }), 't')).status).toBe(400);
     expect((await post(env, stamp({ falseGreen: ['x'.repeat(300)] }), 't')).status).toBe(400);
+    // internal consistency: a stamp that contradicts itself is malformed too
+    expect((await post(env, stamp({ covered: 50, total: 49 }), 't')).status).toBe(400);
+    expect((await post(env, stamp({ agreed: 37 }), 't')).status).toBe(400);
+    expect((await post(env, stamp({ disagreements: 1 }), 't')).status).toBe(400); // falseGreen is empty
+    expect((await post(env, stamp({ falseGreen: ['Google'] }), 't')).status).toBe(400); // disagreements is 0
   });
   it('stores a good stamp (204) and /api/status carries it', async () => {
     const db = makeD1();

@@ -31,6 +31,16 @@ const STATUSPAGE_HEALTHY_INDICATOR = 'none';
 const STATUSPAGE_OPEN_INCIDENT = (i) => i && i.status !== 'resolved' && i.status !== 'postmortem';
 
 /**
+ * Vendor prose is third-party bytes of any length with any whitespace; the
+ * evidence line is one Markdown bullet. Collapse and cap it.
+ * @param {unknown} text @param {number} [max]
+ */
+const brief = (text, max = 140) => {
+  const t = String(text ?? '').replace(/\s+/g, ' ').trim();
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+};
+
+/**
  * Raw feeds the second opinion needs for a vendor. Empty = not covered: the
  * rule refuses to guess at a platform it does not understand, and the report
  * says so in its coverage count instead of reading it as agreement.
@@ -92,7 +102,7 @@ function statuspageVerdict(payload, scope, label) {
   if (isError(payload)) return { verdict: 'unreadable', evidence: [`${label}: ${payload?.error ?? 'no payload'}`] };
   const incidents = Array.isArray(payload.incidents) ? payload.incidents.filter(STATUSPAGE_OPEN_INCIDENT) : [];
   const incidentNote = incidents.length
-    ? `${incidents.length} open incident(s): ${incidents.map((i) => String(i.name ?? '?')).join('; ')}`
+    ? `${incidents.length} open incident(s): ${incidents.map((i) => brief(i.name ?? '?', 80)).join('; ')}`
     : 'no open incidents';
 
   if (scope && (scope.components || scope.groups)) {
@@ -167,7 +177,7 @@ export function secondOpinion(vendor, bodies) {
       if (open.length === 0) return opinion('fine', [`${vendor.name}: ${body.length} incidents, all with an end time`], urls);
       return opinion(
         'trouble',
-        [`${vendor.name}: ${open.length} incident(s) with no end: ${open.map((i) => `${i.service_name ?? '?'} — ${i.external_desc ?? i.id ?? '?'}`).join('; ')}`],
+        [`${vendor.name}: ${open.length} incident(s) with no end: ${open.map((i) => `${brief(i.service_name ?? '?', 40)} — ${brief(i.external_desc ?? i.id ?? '?')}`).join('; ')}`],
         urls,
       );
     }

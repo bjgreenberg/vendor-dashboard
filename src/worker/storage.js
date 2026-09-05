@@ -163,11 +163,6 @@ export async function writeRun(db, run, options = {}) {
 }
 
 /**
- * Read only the run metadata — the cheap freshness probe for /health.
- * @param {D1Database} db
- * @returns {Promise<any|null>}
- */
-/**
  * Persist the external truth-check's stamp (spec:
  * docs/superpowers/specs/2026-09-05-truth-check-design.md). Single row,
  * upserted; the reader treats an absent row as "never checked" and a stale
@@ -214,6 +209,11 @@ export async function readTruthCheck(db) {
   };
 }
 
+/**
+ * Read only the run metadata — the cheap freshness probe for /health.
+ * @param {D1Database} db
+ * @returns {Promise<any|null>}
+ */
 export async function readMeta(db) {
   const meta = await db.prepare('SELECT * FROM run_meta WHERE id = 1').first();
   return meta ?? null;
