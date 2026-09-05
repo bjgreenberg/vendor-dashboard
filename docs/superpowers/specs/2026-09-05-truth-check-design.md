@@ -46,7 +46,7 @@ have caught it either.
    reproduce), Microsoft (composite of non-Statuspage sources), and the
    bespoke adapters (Apple, Concur, Docusign, IBM Cloud, Meta, Okta, Signal,
    Stormboard, Tableau, Zscaler).
-5. **One disagreement class alerts.** *False green* — the board renders
+5. **One disagreement class alerts, and only when it persists.** *False green* — the board renders
    `operational` while the vendor's verdict is trouble — files an issue and
    emails once. *Over-cautious* (board says trouble, vendor says fine: a
    lagging clear or a scope decision) is reported, never paged. `unknown`
@@ -108,7 +108,12 @@ silent fine.
 
 1. fetch `/api/status` from the workers.dev origin (bot management
    challenges runners on the public hostname — same as the other monitors);
-2. run the comparison;
+2. run the comparison; if it finds a false green, wait ten minutes and run
+   it again — the board re-collects each vendor every 15 minutes, so a
+   vendor that just went down reads as false green until its shard runs.
+   Only a disagreement that survives the second pass is acted on (found
+   during the live dry run: a stale board snapshot produced a one-off false
+   green that a fresh fetch cleared);
 3. per false green: open an issue `truth-check: <vendor>` labeled
    `truth-check` (vendor evidence, source URLs, what the board rendered), or
    comment on the open one; close any open issue whose vendor agrees again;

@@ -63,6 +63,30 @@ jobs:
           curl -sf --max-time 30 "$ORIGIN/api/status" -o status.json
           node scripts/truth-check/run.mjs status.json config/vendors.json --out report.json | tee summary.txt
 
+      # The board re-collects each vendor every 15 minutes, so a vendor that
+      # went down a minute ago reads as a false green until its shard runs —
+      # lag, not a lie. A disagreement must SURVIVE a second look ten minutes
+      # later before it becomes an issue; the first pass alone is never acted
+      # on. Agreement or an unreadable feed on the second pass clears it.
+      - name: Confirm any false green after the board's next collection
+        run: |
+          set -euo pipefail
+          if [ "$(jq '.falseGreen | length' report.json)" = "0" ]; then
+            echo "no false green on the first pass — nothing to confirm"
+            exit 0
+          fi
+          echo "first pass: $(jq -r '[.falseGreen[].vendor] | join(", ")' report.json) — rechecking in 10 minutes"
+          sleep 600
+          curl -sf --max-time 30 "$ORIGIN/api/status" -o status.json
+          node scripts/truth-check/run.mjs status.json config/vendors.json --out report2.json | tee summary.txt
+          # Keep only the vendors false-green in BOTH passes; every other
+          # number comes from the second (fresher) pass.
+          jq --slurpfile first report.json '
+            .falseGreen |= [ .[] as $fg | select(($first[0].falseGreen | map(.vendor)) | index($fg.vendor)) ]
+          ' report2.json > report.confirmed.json
+          mv report.confirmed.json report.json
+          echo "confirmed: $(jq -r '[.falseGreen[].vendor] | join(", ") | if . == "" then "none" else . end' report.json)"
+
       - name: File or refresh an issue per false green; close the agreed ones
         id: issues
         env:

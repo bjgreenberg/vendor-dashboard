@@ -352,7 +352,9 @@ Cloudflare (an alert inside a dying invocation dies with it):
   on Instatus, `page.state` on SorryApp, Oracle's page-level `status.json`,
   and for Google an incident with no `end` time — and compares it with
   `/api/status`. A **false green** (board `operational`, vendor says
-  otherwise) files an issue labeled `truth-check` with the raw evidence and
+  otherwise) that survives a ten-minute recheck — the board re-collects
+  each vendor every 15 minutes, so a fresh outage reads as false green until
+  its shard runs — files an issue labeled `truth-check` with the raw evidence and
   what the board rendered, fails that one run so the owner gets one email,
   and closes the issue when they agree again; "over-cautious" rows (board
   says trouble, vendor says fine) are reported, never paged. Open incidents
