@@ -208,11 +208,17 @@ export function compare(records, opinions) {
   const falseGreen = [];
   const overCautious = [];
   const unreadable = [];
+  const uncovered = [];
   let covered = 0;
   let agreed = 0;
   for (const r of records) {
     const o = opinions.get(r.vendor);
-    if (!o || !o.covered) continue;
+    if (!o || !o.covered) {
+      // Counted from the BOARD, like every other number here — a vendor in
+      // config but not (yet) on the board is not "uncovered", it is absent.
+      uncovered.push(r.vendor);
+      continue;
+    }
     covered += 1;
     if (o.verdict === 'unreadable') {
       unreadable.push(r.vendor);
@@ -227,5 +233,5 @@ export function compare(records, opinions) {
       agreed += 1;
     }
   }
-  return { falseGreen, overCautious, unreadable, covered, total: records.length, agreed };
+  return { falseGreen, overCautious, unreadable, uncovered, covered, total: records.length, agreed };
 }

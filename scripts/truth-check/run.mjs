@@ -77,7 +77,10 @@ for (let i = 0; i < urls.length; i += CONCURRENCY) {
 
 const opinions = new Map(vendors.map((v) => [v.name, secondOpinion(v, bodies)]));
 const result = compare(records, opinions);
-const uncovered = vendors.filter((v) => !opinions.get(v.name)?.covered).map((v) => v.name);
+// Every count, including uncovered, is derived from the BOARD so they add up;
+// vendors in config that are not on the board are reported separately.
+const uncovered = result.uncovered;
+const notOnBoard = vendors.map((v) => v.name).filter((name) => !records.some((r) => r.vendor === name));
 const report = {
   checkedAt: new Date().toISOString(),
   ruleVersion: 1,
@@ -88,6 +91,7 @@ const report = {
   overCautious: result.overCautious,
   unreadable: result.unreadable,
   uncovered,
+  notOnBoard,
 };
 if (outPath) writeFileSync(outPath, JSON.stringify(report, null, 2) + '\n');
 
@@ -101,4 +105,5 @@ for (const f of report.falseGreen) {
 for (const o of report.overCautious) lines.push(`over-cautious — ${o.vendor}: board \`${o.rendered}\`, vendor fine (${o.evidence.join(' | ')})`);
 if (report.unreadable.length) lines.push(`unreadable: ${report.unreadable.join(', ')}`);
 if (uncovered.length) lines.push(`uncovered (no rule for the platform): ${uncovered.join(', ')}`);
+if (notOnBoard.length) lines.push(`in config but not on the board: ${notOnBoard.join(', ')}`);
 console.log(lines.join('\n'));

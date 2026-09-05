@@ -246,8 +246,14 @@ const MANIFEST = join(REPO, 'config', 'logos.json');
 let previous = {};
 try {
   previous = JSON.parse(readFileSync(MANIFEST, 'utf8'));
-} catch {
-  /* first run: no committed manifest yet */
+} catch (err) {
+  // Only a MISSING manifest is a first run. A corrupt or unreadable one must
+  // stop here: treating it as empty would rebuild from disk alone — the
+  // shrunken-manifest failure this reconciliation exists to prevent.
+  if (err?.code !== 'ENOENT') {
+    console.error(`config/logos.json is unreadable (${err?.message ?? err}); refusing to rebuild the manifest from disk alone`);
+    process.exit(1);
+  }
 }
 const configuredSlugs = config.vendors.map((v) => slugify(v.name));
 const reconciled = reconcileManifest(previous, [...fetched], configuredSlugs);
