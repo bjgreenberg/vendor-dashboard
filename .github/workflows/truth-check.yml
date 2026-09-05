@@ -1,0 +1,148 @@
+name: Truth check
+
+# Third monitor, and the only one that checks the CLAIM rather than the
+# plumbing. The dead-man monitor asks "is the collector running?"; the
+# endpoint-rot watchdog asks "is a vendor stuck at unknown?". Neither asks
+# "we render operational — does the vendor agree?". That gap produced the
+# 2026-08-28 Google misreport (PR #123): an open Chat incident rendered as
+# "37 components · all healthy".
+#
+# Every two hours this job fetches each covered vendor's raw feed by a
+# DIFFERENT code path from the adapter (scripts/truth-check/rules.mjs — the
+# vendor's own verdict read the dumbest way that vendor offers), compares it
+# with /api/status, and:
+#   - files/refreshes an issue labeled `truth-check` per FALSE GREEN vendor
+#     (board operational, vendor says otherwise) with the raw evidence and
+#     what we rendered; comments and closes it when they agree again;
+#   - fails the run ONLY when a new disagreement was just filed — one email
+#     per new false green, not one every two hours while it persists;
+#   - stamps the board (POST /api/truth-check, bearer TRUTH_CHECK_TOKEN) so
+#     verification is visible: "Truth-checked <time> · N disagreements". A
+#     stale stamp is itself the alarm (render.js marks it overdue after 3 h).
+#
+# Probes the workers.dev origin, not the public hostname (bot management
+# challenges GitHub's runners — same as the other two monitors).
+#
+# Forks need zero configuration: issues ride GITHUB_TOKEN. Two optional
+# secrets: TRUTH_CHECK_TOKEN (the Worker secret of the same name; without it
+# the stamp step is skipped and the board reads "Not yet truth-checked") and
+# WATCHDOG_WEBHOOK_URL (Slack-compatible mirror, shared with the watchdog).
+#
+# Design: docs/superpowers/specs/2026-09-05-truth-check-design.md
+
+on:
+  schedule:
+    - cron: '41 */2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  ORIGIN: https://vendor-dashboard.gsysd.workers.dev/service-status
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  truth-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Ensure the truth-check label exists
+        run: gh label create truth-check --repo "$GITHUB_REPOSITORY" --description "The board and the vendor disagree" --color B60205 --force
+
+      - name: Compare the board with the vendors' own feeds
+        run: |
+          set -euo pipefail
+          curl -sf --max-time 30 "$ORIGIN/api/status" -o status.json
+          node scripts/truth-check/run.mjs status.json config/vendors.json --out report.json | tee summary.txt
+
+      - name: File or refresh an issue per false green; close the agreed ones
+        id: issues
+        env:
+          WEBHOOK: ${{ secrets.WATCHDOG_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          new=0
+          # Open or update.
+          jq -c '.falseGreen[]' report.json | while IFS= read -r fg; do
+            vendor=$(jq -r '.vendor' <<<"$fg")
+            {
+              echo "The board renders **$vendor** as \`$(jq -r '.rendered' <<<"$fg")\` while the vendor's own feed says otherwise (truth-check $(jq -r '.checkedAt' report.json))."
+              echo
+              echo "Vendor evidence, read by the second-opinion rule (not the adapter):"
+              echo
+              jq -r '.evidence[] | "- " + .' <<<"$fg"
+              echo
+              jq -r '.urls[] | "- source: " + .' <<<"$fg"
+              echo
+              echo "What the board rendered:"
+              echo
+              echo '```json'
+              jq --arg v "$vendor" '.records[] | select(.vendor == $v) | {severity, incidentName, description, checkedAt}' status.json
+              echo '```'
+              echo
+              echo "_Filed automatically by the truth-check workflow. It will comment and close this issue when the board and the vendor agree again. Rules: scripts/truth-check/rules.mjs; the fix is usually in the adapter or the vendor's scope._"
+            } > body.md
+            number=$(gh issue list --repo "$GITHUB_REPOSITORY" --label truth-check --state open \
+                       --search "\"truth-check: $vendor\" in:title" --json number --jq '.[0].number // empty')
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file body.md >/dev/null
+              echo "refreshed #$number for $vendor"
+            else
+              url=$(gh issue create --repo "$GITHUB_REPOSITORY" --label truth-check \
+                      --title "truth-check: $vendor" --body-file body.md)
+              echo "filed $url"
+              echo "$vendor" >> newly-filed.txt
+              if [ -n "${WEBHOOK:-}" ]; then
+                jq -n --arg v "$vendor" --arg u "$url" \
+                  '{text: "vendor-dashboard truth-check: the board says \($v) is operational; the vendor disagrees — \($u)"}' |
+                  curl -sf --max-time 15 -X POST -H 'Content-type: application/json' --data @- "$WEBHOOK" >/dev/null \
+                  || echo "webhook post failed (non-fatal)"
+              fi
+            fi
+          done
+          # Close what agrees again.
+          gh issue list --repo "$GITHUB_REPOSITORY" --label truth-check --state open \
+            --json number,title --jq '.[] | "\(.number)\t\(.title)"' |
+          while IFS=$'\t' read -r number title; do
+            vendor=${title#truth-check: }
+            if ! jq -e --arg v "$vendor" '.falseGreen[] | select(.vendor == $v)' report.json >/dev/null; then
+              gh issue comment "$number" --repo "$GITHUB_REPOSITORY" \
+                --body "Agreed again at $(jq -r '.checkedAt' report.json): the board and $vendor's own feed now say the same thing. Closing."
+              gh issue close "$number" --repo "$GITHUB_REPOSITORY"
+            fi
+          done
+          if [ -f newly-filed.txt ]; then new=$(wc -l < newly-filed.txt | tr -d ' '); fi
+          echo "new=$new" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp the board
+        env:
+          TOKEN: ${{ secrets.TRUTH_CHECK_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "TRUTH_CHECK_TOKEN not configured — the board keeps reading 'Not yet truth-checked'"
+            exit 0
+          fi
+          jq '{checkedAt, covered, total, agreed, disagreements: (.falseGreen | length), falseGreen: [.falseGreen[].vendor]}' report.json > stamp.json
+          code=$(curl -s --max-time 30 -o stamp-response.txt -w '%{http_code}' -X POST \
+                   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+                   --data @stamp.json "$ORIGIN/api/truth-check")
+          echo "stamp HTTP $code"; cat stamp-response.txt; echo
+          [ "$code" = "204" ]
+
+      - name: One email per NEW false green
+        if: steps.issues.outputs.new != '0'
+        env:
+          NEW: ${{ steps.issues.outputs.new }}
+        run: |
+          echo "::error::$NEW new disagreement(s) filed — see the truth-check issues"
+          cat summary.txt
+          exit 1

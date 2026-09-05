@@ -24,6 +24,7 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { reconcileManifest } from './logo-manifest.mjs';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CONFIG = join(REPO, 'config', 'vendors.json');
@@ -233,10 +234,35 @@ for (const f of readdirSync(PUB_DIR)) {
 // broken image. The manifest IS tracked (render.js imports it at build time);
 // the image files are not — they are a build artifact this script regenerates
 // (see .gitignore for why).
-const manifest = {};
-for (const f of fetched) manifest[f.replace(/\.[^.]+$/, '')] = f;
-writeFileSync(join(REPO, 'config', 'logos.json'), JSON.stringify(manifest, null, 2) + '\n');
-console.log(`manifest: ${Object.keys(manifest).length} logos -> config/logos.json (mirrored to public/)`);
+//
+// A REFUSED download never shrinks the manifest (scripts/logo-manifest.mjs).
+// On 2026-08-28 a fresh clone hit bot walls on five favicons, the manifest was
+// rebuilt from what was on disk, and the deploy dropped five logos from the
+// live board. Now: an entry leaves only when its vendor leaves config, and a
+// configured vendor whose committed logo this clone cannot serve stops the
+// build — restore assets/icons from a clone that has it (README,
+// Troubleshooting) or declare `iconUrl`, then re-run.
+const MANIFEST = join(REPO, 'config', 'logos.json');
+let previous = {};
+try {
+  previous = JSON.parse(readFileSync(MANIFEST, 'utf8'));
+} catch {
+  /* first run: no committed manifest yet */
+}
+const configuredSlugs = config.vendors.map((v) => slugify(v.name));
+const reconciled = reconcileManifest(previous, [...fetched], configuredSlugs);
+writeFileSync(MANIFEST, JSON.stringify(reconciled.manifest, null, 2) + '\n');
+console.log(`manifest: ${Object.keys(reconciled.manifest).length} logos -> config/logos.json (mirrored to public/)`);
+for (const slug of reconciled.pruned) console.log(`  - pruned ${slug} (vendor no longer configured)`);
+if (reconciled.missing.length) {
+  console.error(
+    `\nREFUSING TO SHIP: the manifest lists a logo for ${reconciled.missing.length} configured vendor(s) that this clone has no file for ` +
+      `(the download was refused or the asset was never restored here): ${reconciled.missing.join(', ')}.\n` +
+      'A refused download is not vendor removal. Restore assets/icons from a clone that has the files ' +
+      '(README, Troubleshooting) or declare iconUrl in config, then re-run.',
+  );
+  process.exit(1);
+}
 
 console.log(`written: ${results.written.length}  skipped: ${results.skipped.length}  missing: ${results.missing.length}  no brandDomain: ${results.noBrand.length}`);
 for (const w of results.written) console.log(`  + ${w}`);

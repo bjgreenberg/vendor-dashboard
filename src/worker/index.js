@@ -9,7 +9,7 @@
 
 import { collect, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
 import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
-import { writeRun, readSnapshot, readMeta } from './storage.js';
+import { writeRun, readSnapshot, readMeta, writeTruthCheck } from './storage.js';
 import { renderDashboard } from './render.js';
 import vendorConfig from '../../config/vendors.json';
 
@@ -180,17 +180,21 @@ async function handleFetch(request, env) {
     );
   }
 
-  const { records, meta } = await readSnapshot(env.DB);
+  if (path === '/api/truth-check') {
+    return handleTruthCheck(request, env);
+  }
+
+  const { records, meta, truthCheck } = await readSnapshot(env.DB);
 
   if (path === '/api/status') {
-    return json({ meta, records }, { 'Cache-Control': 'public, max-age=60' });
+    return json({ meta, records, truthCheck }, { 'Cache-Control': 'public, max-age=60' });
   }
 
   if (path === '/' || path === '/index.html') {
     // Per-response nonce gates the single inline script, so the CSP can forbid
     // everything else outright rather than allowing 'unsafe-inline' scripts.
     const nonce = crypto.randomUUID().replace(/-/g, '');
-    return new Response(renderDashboard({ records, meta, basePath: base, nonce, host: url.hostname }), {
+    return new Response(renderDashboard({ records, meta, truthCheck, basePath: base, nonce, host: url.hostname }), {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'public, max-age=60',
@@ -230,6 +234,81 @@ async function handleFetch(request, env) {
     status: 404,
     headers: { 'Strict-Transport-Security': HSTS },
   });
+}
+
+/**
+ * The external truth-check workflow's write path (spec:
+ * docs/superpowers/specs/2026-09-05-truth-check-design.md). Bearer-token
+ * gated on a Worker secret; disabled (501) until one is configured so a fork
+ * needs nothing. The body is a trust boundary: shape-checked and bounded
+ * before it reaches D1, and vendor names are rendered escaped like any other
+ * vendor string.
+ * @param {Request} request
+ * @param {{DB: D1Database, TRUTH_CHECK_TOKEN?: string}} env
+ */
+async function handleTruthCheck(request, env) {
+  if (request.method !== 'POST') {
+    return json({ error: 'method not allowed' }, { Allow: 'POST', 'Cache-Control': 'no-store' }, 405);
+  }
+  const expected = env.TRUTH_CHECK_TOKEN;
+  if (typeof expected !== 'string' || expected.length === 0) {
+    return json({ error: 'truth-check not configured on this deployment' }, { 'Cache-Control': 'no-store' }, 501);
+  }
+  const auth = request.headers.get('Authorization') ?? '';
+  const presented = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!constantTimeEqual(presented, expected)) {
+    return json({ error: 'unauthorized' }, { 'Cache-Control': 'no-store' }, 401);
+  }
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'body must be JSON' }, { 'Cache-Control': 'no-store' }, 400);
+  }
+  const stamp = validateStamp(body);
+  if (!stamp) {
+    return json({ error: 'malformed stamp' }, { 'Cache-Control': 'no-store' }, 400);
+  }
+  await writeTruthCheck(env.DB, stamp);
+  return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store', 'Strict-Transport-Security': HSTS } });
+}
+
+/**
+ * Shape + bounds check for the stamp. Returns the cleaned stamp or null.
+ * @param {any} body
+ */
+function validateStamp(body) {
+  if (!body || typeof body !== 'object') return null;
+  const count = (v) => Number.isInteger(v) && v >= 0 && v <= 10_000;
+  if (typeof body.checkedAt !== 'string' || Number.isNaN(Date.parse(body.checkedAt))) return null;
+  if (![body.covered, body.total, body.agreed, body.disagreements].every(count)) return null;
+  if (!Array.isArray(body.falseGreen) || body.falseGreen.length > 200) return null;
+  if (!body.falseGreen.every((v) => typeof v === 'string' && v.length > 0 && v.length <= 200)) return null;
+  return {
+    checkedAt: new Date(body.checkedAt).toISOString(),
+    covered: body.covered,
+    total: body.total,
+    agreed: body.agreed,
+    disagreements: body.disagreements,
+    falseGreen: body.falseGreen,
+  };
+}
+
+/**
+ * Length-independent comparison — a bearer token must not leak by timing.
+ * Portable (no crypto.subtle.timingSafeEqual dependency): compares every
+ * byte of the longer string against the shorter one padded, then folds the
+ * length difference in.
+ * @param {string} a @param {string} b
+ */
+function constantTimeEqual(a, b) {
+  const enc = new TextEncoder();
+  const x = enc.encode(a);
+  const y = enc.encode(b);
+  const n = Math.max(x.length, y.length);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < n; i += 1) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return diff === 0;
 }
 
 // Every response this Worker serves upholds the zone's transport posture —

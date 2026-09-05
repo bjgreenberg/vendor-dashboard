@@ -128,6 +128,16 @@ a future non-Cloudflare deployment possible.
   as 17 simultaneous vendor outages; nothing distinguished "we stopped asking"
   from "they are down". `run.budgetExhausted` and a leading `collector:` warning
   now make that explicit.
+- **The truth check is a SECOND OPINION, not a second adapter.**
+  `scripts/truth-check/rules.mjs` reads each vendor's own verdict the dumbest
+  way that vendor offers (page indicator; in-scope component states; an
+  incident with no `end` for Google) by a code path that shares nothing with
+  `src/engine/`, and files an issue when the board renders `operational`
+  against it. Do not import an adapter or `severity.js` into it — shared code
+  shares bugs, and the check exists to catch the adapter being wrong (Google
+  2026-08-28). Open incidents on Statuspage vendors are evidence there, never a
+  vote, for the same reason they never vote in the engine. A platform the rule
+  cannot read is `uncovered`, stated on the stamp — never guessed.
 - **Never a bare word match on HTML.** Finding H6 was
   `/\boperational\b/.test(html)` against a whole document. Parse structure and
   fail closed.

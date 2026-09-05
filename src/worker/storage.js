@@ -167,6 +167,53 @@ export async function writeRun(db, run, options = {}) {
  * @param {D1Database} db
  * @returns {Promise<any|null>}
  */
+/**
+ * Persist the external truth-check's stamp (spec:
+ * docs/superpowers/specs/2026-09-05-truth-check-design.md). Single row,
+ * upserted; the reader treats an absent row as "never checked" and a stale
+ * one as the alarm.
+ * @param {D1Database} db
+ * @param {{checkedAt: string, covered: number, total: number, agreed: number, disagreements: number, falseGreen: string[]}} stamp
+ */
+export async function writeTruthCheck(db, stamp) {
+  await db
+    .prepare(
+      `INSERT INTO truth_check (id, checked_at, covered, total, agreed, disagreements, detail)
+       VALUES (1, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         checked_at = excluded.checked_at, covered = excluded.covered, total = excluded.total,
+         agreed = excluded.agreed, disagreements = excluded.disagreements, detail = excluded.detail`,
+    )
+    .bind(
+      stamp.checkedAt,
+      stamp.covered,
+      stamp.total,
+      stamp.agreed,
+      stamp.disagreements,
+      JSON.stringify({ falseGreen: stamp.falseGreen ?? [] }),
+    )
+    .run();
+}
+
+/**
+ * The last truth-check stamp, or null when the board has never been checked.
+ * @param {D1Database} db
+ * @returns {Promise<{checkedAt: string, covered: number, total: number, agreed: number, disagreements: number, falseGreen: string[]}|null>}
+ */
+export async function readTruthCheck(db) {
+  const row = await db.prepare('SELECT * FROM truth_check WHERE id = 1').first();
+  if (!row) return null;
+  const detail = safeParse(row.detail, {});
+  return {
+    checkedAt: row.checked_at,
+    covered: row.covered,
+    total: row.total,
+    agreed: row.agreed,
+    disagreements: row.disagreements,
+    falseGreen: Array.isArray(detail?.falseGreen) ? detail.falseGreen.map(String) : [],
+  };
+}
+
 export async function readMeta(db) {
   const meta = await db.prepare('SELECT * FROM run_meta WHERE id = 1').first();
   return meta ?? null;
@@ -175,13 +222,14 @@ export async function readMeta(db) {
 /**
  * Read the current board.
  * @param {D1Database} db
- * @returns {Promise<{records: any[], meta: any|null}>}
+ * @returns {Promise<{records: any[], meta: any|null, truthCheck: any|null}>}
  */
 export async function readSnapshot(db) {
-  const [rows, meta, health] = await Promise.all([
+  const [rows, meta, health, truthCheck] = await Promise.all([
     db.prepare('SELECT * FROM snapshot').all(),
     db.prepare('SELECT * FROM run_meta WHERE id = 1').first(),
     db.prepare('SELECT vendor, failing_since FROM vendor_health').all(),
+    readTruthCheck(db),
   ]);
 
   // Streak start per currently-failing vendor (endpoint-rot watchdog). The
@@ -219,7 +267,7 @@ export async function readSnapshot(db) {
 
   records.sort(compareRecords);
 
-  return { records, meta: meta ?? null };
+  return { records, meta: meta ?? null, truthCheck };
 }
 
 /** @param {unknown} text @param {any} fallback */
