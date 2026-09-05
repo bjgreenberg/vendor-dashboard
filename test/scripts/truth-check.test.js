@@ -171,11 +171,11 @@ describe('compare — the board against the second opinions', () => {
   it('every count is derived from the board, so they add up', () => {
     const r = compare(
       [rec('A', 'operational'), rec('B', 'operational'), rec('C', 'operational'), rec('D', 'unknown')],
-      new Map([op('A', 'trouble'), op('B', 'unreadable'), op('C', 'fine', false), op('Z', 'fine')]), // Z is in config, not on the board
+      new Map([op('A', 'trouble'), op('B', 'unreadable'), op('C', 'fine', false), op('D', 'fine'), op('Z', 'fine')]), // Z is in config, not on the board
     );
     expect(r.total).toBe(4);
     expect(r.covered + r.uncovered.length).toBe(4);
-    expect(r.uncovered).toEqual(['C']);
+    expect(r.uncovered).toEqual(['C']); // C: platform not covered; D is covered but skipped as unknown
     expect(r.falseGreen.length + r.unreadable.length + r.agreed + 1 /* D: unknown, skipped */).toBe(r.covered);
   });
 });
