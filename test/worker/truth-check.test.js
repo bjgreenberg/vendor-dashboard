@@ -57,6 +57,8 @@ describe('POST /api/truth-check — the workflow writes the stamp', () => {
     expect((await post(env, '{not json', 't')).status).toBe(400);
     expect((await post(env, stamp({ covered: -1 }), 't')).status).toBe(400);
     expect((await post(env, stamp({ checkedAt: 'yesterday' }), 't')).status).toBe(400);
+    expect((await post(env, stamp({ checkedAt: '' }), 't')).status).toBe(400);
+    expect((await post(env, stamp({ checkedAt: '2026-09-05T06:00:00.000Z' + ' '.repeat(40) }), 't')).status).toBe(400); // parseable, but not a date-sized string
     expect((await post(env, stamp({ falseGreen: 'Google' }), 't')).status).toBe(400);
     expect((await post(env, stamp({ falseGreen: ['x'.repeat(300)] }), 't')).status).toBe(400);
     // internal consistency: a stamp that contradicts itself is malformed too

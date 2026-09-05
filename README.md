@@ -181,7 +181,6 @@ erDiagram
     }
     snapshot ||--o{ history : "appends one row per collection"
     snapshot ||--o| vendor_health : "unknown starts/extends a streak"
-    snapshot ||--o| truth_check : "verified against the vendors' own feeds"
 ```
 
 `snapshot` is the current board, replaced per-shard inside one transaction so a

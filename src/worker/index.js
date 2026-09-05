@@ -280,7 +280,9 @@ async function handleTruthCheck(request, env) {
 function validateStamp(body) {
   if (!body || typeof body !== 'object') return null;
   const count = (v) => Number.isInteger(v) && v >= 0 && v <= 10_000;
-  if (typeof body.checkedAt !== 'string' || Number.isNaN(Date.parse(body.checkedAt))) return null;
+  // An ISO-8601 stamp is under 40 characters; anything longer is not a date.
+  if (typeof body.checkedAt !== 'string' || body.checkedAt.length === 0 || body.checkedAt.length > 40) return null;
+  if (Number.isNaN(Date.parse(body.checkedAt))) return null;
   if (![body.covered, body.total, body.agreed, body.disagreements].every(count)) return null;
   if (!Array.isArray(body.falseGreen) || body.falseGreen.length > 200) return null;
   if (!body.falseGreen.every((v) => typeof v === 'string' && v.length > 0 && v.length <= 200)) return null;
