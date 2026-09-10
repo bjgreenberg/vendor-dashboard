@@ -51,9 +51,11 @@
       "undici": "^7.29.0"
     },
     "miniflare": {
-      "undici": "^7.29.0"
+      "undici": "^7.29.0",
+      "sharp": "^0.35.4"
     },
-    "sharp": "^0.35.4",
-    "qs": "^6.16.0"
+    "typed-rest-client": {
+      "qs": "^6.16.0"
+    }
   }
 }

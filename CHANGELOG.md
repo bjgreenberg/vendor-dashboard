@@ -22,12 +22,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 - Dependency audit back to zero (qa-lane dep-audit, 2026-09-09): `vitest` +
   `@vitest/coverage-v8` 4.1.10 → 4.1.11 in lockstep (GHSA-82fw-gwwq-j7x9,
-  `@vitest/mocker` path traversal); npm `overrides` pin `sharp` ≥ 0.35.4
-  (GHSA-rgj7-g3m4-5g8c via `miniflare`, whose newest release still ships
-  0.35.2) and `qs` ≥ 6.16.0 (GHSA-x5fp-wj9c-mxmx, GHSA-4mjr-xmp4-gh2g via
-  `@stryker-mutator/core` → `typed-rest-client`). All three chains are dev
-  tooling; the Worker bundle is unchanged. Drop the overrides once upstream
-  moves.
+  `@vitest/mocker` path traversal); npm `overrides` raise the floor of
+  `sharp` to `^0.35.4` under `miniflare` only (GHSA-rgj7-g3m4-5g8c; the newest
+  miniflare still ships 0.35.2) and of `qs` to `^6.16.0` under
+  `typed-rest-client` only (GHSA-x5fp-wj9c-mxmx, GHSA-4mjr-xmp4-gh2g via
+  `@stryker-mutator/core`). Scoped, not global, so a future runtime dependency
+  is never constrained by them. All three chains are dev tooling; the Worker
+  bundle is unchanged. Drop the overrides once upstream moves.
 
 ## [2.4.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.3.1...v2.4.0) (2026-08-26)
 
