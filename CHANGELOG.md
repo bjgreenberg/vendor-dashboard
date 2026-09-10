@@ -17,6 +17,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > verified `git bundle` backup. Entries below start at the rewrite. Everything
 > from here forward is append-only.
 
+## Unreleased
+
+### Fixed
+- Dependency audit back to zero (qa-lane dep-audit, 2026-09-09): `vitest` +
+  `@vitest/coverage-v8` 4.1.10 → 4.1.11 in lockstep (GHSA-82fw-gwwq-j7x9,
+  `@vitest/mocker` path traversal); npm `overrides` raise the floor of
+  `sharp` to `^0.35.4` under `miniflare` only (GHSA-rgj7-g3m4-5g8c; the newest
+  miniflare still ships 0.35.2) and of `qs` to `^6.16.0` under
+  `typed-rest-client` only (GHSA-x5fp-wj9c-mxmx, GHSA-4mjr-xmp4-gh2g via
+  `@stryker-mutator/core`). Scoped, not global, so a future runtime dependency
+  is never constrained by them. All three chains are dev tooling; the Worker
+  bundle is unchanged. Drop the overrides once upstream moves.
+
 ## [2.4.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.3.1...v2.4.0) (2026-08-26)
 
 Two new watch surfaces — Coalition (Control) via the Instatus adapter, and a US Government composite spanning Login.gov, SSA, cloud.gov, and the VA APIs — plus a resilience fix (three adapters now fail closed on empty vote sets instead of reporting green) and status-page SEO matched to outage-intent queries.
