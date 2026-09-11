@@ -588,7 +588,7 @@ export async function collect(config, ctx) {
   // Count EVERY subrequest by wrapping fetchFn itself, rather than incrementing
   // at each call site. Call sites were the original bug: the retry path was
   // metered while base attempts, fallbacks and the advisory second calls
-  // (Concur's banner, Google's catalogue, Perplexity's components) were not, so
+  // (Concur's banner, Google's catalogue, Coalition's Instatus components) were not, so
   // the run had no bound at all. Wrapping the injected function means a new
   // fetch site cannot be added later without being counted.
   const meter = { spent: 0, max: subrequestBudget, denied: 0 };

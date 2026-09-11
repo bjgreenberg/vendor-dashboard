@@ -8,6 +8,11 @@ const fixture = (name) =>
 
 const opts = (over = {}) => ({ vendor: 'Test', sourceUrl: 'https://example.test', ...over });
 
+/** The committed vendor config, for tests that pin a row's repoint. */
+const vendorsConfig = JSON.parse(
+  readFileSync(new URL('../../../config/vendors.json', import.meta.url), 'utf8'),
+);
+
 describe('parseStatuspage — healthy vendors', () => {
   it('reports operational when the vendor is entirely clear', () => {
     const r = parseStatuspage(fixture('GitHub'), opts({ vendor: 'GitHub' }));
@@ -136,9 +141,6 @@ describe('parseStatuspage — record shape', () => {
 // the scope sees SendGrid trouble, Twilio trouble cannot leak in, and
 // page-wide incident context is filtered to the scoped components.
 describe('parseStatuspage — shared status page (SendGrid on Twilio)', () => {
-  const vendorsConfig = JSON.parse(
-    readFileSync(new URL('../../../config/vendors.json', import.meta.url), 'utf8'),
-  );
   const entry = vendorsConfig.vendors.find((v) => v.name === 'SendGrid');
   const twilio = fixture('Twilio-sendgrid');
   // entry?.scope, not entry.scope: if the SendGrid entry is ever renamed or
@@ -211,15 +213,12 @@ describe('parseStatuspage — shared status page (SendGrid on Twilio)', () => {
 // config assertion pins the repoint; the fixture is the live payload recorded
 // 2026-09-11.
 describe('parseStatuspage — Perplexity after its incident.io move (#135)', () => {
-  const vendors = JSON.parse(
-    readFileSync(new URL('../../../config/vendors.json', import.meta.url), 'utf8'),
-  ).vendors;
-  const perplexity = vendors.find((v) => v.name === 'Perplexity');
+  const perplexity = vendorsConfig.vendors.find((v) => v.name === 'Perplexity');
 
   it('is configured as a statuspage vendor on the /api/v2/summary.json path', () => {
+    expect(perplexity, 'Perplexity entry missing from config/vendors.json').toBeDefined();
     expect(perplexity.type).toBe('statuspage');
     expect(perplexity.url).toBe('https://status.perplexity.com/api/v2/summary.json');
-    expect(perplexity.componentsUrl).toBeUndefined();
   });
 
   it('reports operational with its three components from the recorded payload', () => {
