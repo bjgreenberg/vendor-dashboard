@@ -93,7 +93,7 @@ const VOCABULARY = Object.freeze(Object.assign(Object.create(null), {
   maintenance: SEVERITY.MAINTENANCE,
   none: SEVERITY.OPERATIONAL,
 
-  // Instatus (e.g. Perplexity). Page-level uses UP/HASISSUES/UNDERMAINTENANCE;
+  // Instatus (e.g. Coalition). Page-level uses UP/HASISSUES/UNDERMAINTENANCE;
   // components use a squashed, unpunctuated form of the Statuspage words. Both
   // arrive here lowercased by normalizeSeverity.
   up: SEVERITY.OPERATIONAL,
