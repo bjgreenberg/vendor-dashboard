@@ -20,6 +20,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## Unreleased
 
 ### Fixed
+- Perplexity read **Unknown** from 2026-09-10 4:37 PM CDT: the vendor left
+  Instatus for incident.io and `status.perplexity.com/summary.json` began
+  answering 404 (endpoint-rot watchdog issue #135, filed at the 6-hour mark
+  as designed). incident.io serves a Statuspage-compatible v2 API, so the row
+  is repointed to `api/v2/summary.json` under the generic `statuspage`
+  adapter, with the live payload recorded as `test/fixtures/Perplexity-statuspage.json`
+  and a config assertion so the repoint cannot silently regress. Coalition
+  (Control) is now the only Instatus vendor.
 - Dependency audit back to zero (qa-lane dep-audit, 2026-09-09): `vitest` +
   `@vitest/coverage-v8` 4.1.10 → 4.1.11 in lockstep (GHSA-82fw-gwwq-j7x9,
   `@vitest/mocker` path traversal); npm `overrides` raise the floor of

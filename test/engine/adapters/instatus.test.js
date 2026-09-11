@@ -6,7 +6,10 @@ import { SEVERITY } from '../../../src/engine/severity.js';
 const fixture = (n) => JSON.parse(readFileSync(new URL(`../../fixtures/${n}.json`, import.meta.url), 'utf8'));
 const now = () => new Date('2026-07-30T12:00:00Z');
 
-describe('instatus (perplexity)', () => {
+// Perplexity moved to incident.io on 2026-09-10 (#135); this payload, recorded
+// 2026-07-30 while it was still on Instatus, stays as the adapter's real-shape
+// fixture. Coalition is the live Instatus vendor now.
+describe('instatus (Perplexity payload recorded 2026-07-30)', () => {
   it('reports operational from a real all-clear payload', () => {
     const r = parseInstatus(fixture('Perplexity-instatus'), { vendor: 'Perplexity', now });
     expect(r.severity).toBe(SEVERITY.OPERATIONAL);

@@ -204,3 +204,27 @@ describe('parseStatuspage — shared status page (SendGrid on Twilio)', () => {
     expect(r.incidentName).toBe('SMS Delivery Failures from Twilio to Zong Pakistan');
   });
 });
+
+// Perplexity left Instatus for incident.io on 2026-09-10 (`summary.json` began
+// answering 404; the endpoint-rot watchdog filed #135). incident.io serves a
+// Statuspage-compatible v2 API, so the row moves to the generic adapter. The
+// config assertion pins the repoint; the fixture is the live payload recorded
+// 2026-09-11.
+describe('parseStatuspage — Perplexity after its incident.io move (#135)', () => {
+  const vendors = JSON.parse(
+    readFileSync(new URL('../../../config/vendors.json', import.meta.url), 'utf8'),
+  ).vendors;
+  const perplexity = vendors.find((v) => v.name === 'Perplexity');
+
+  it('is configured as a statuspage vendor on the /api/v2/summary.json path', () => {
+    expect(perplexity.type).toBe('statuspage');
+    expect(perplexity.url).toBe('https://status.perplexity.com/api/v2/summary.json');
+    expect(perplexity.componentsUrl).toBeUndefined();
+  });
+
+  it('reports operational with its three components from the recorded payload', () => {
+    const r = parseStatuspage(fixture('Perplexity-statuspage'), opts({ vendor: 'Perplexity' }));
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+    expect(r.components.map((c) => c.name)).toEqual(['Website', 'App', 'Computer']);
+  });
+});
