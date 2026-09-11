@@ -20,6 +20,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## Unreleased
 
 ### Fixed
+- The endpoint-rot **fix-proposal job never ran for a real watchdog issue**
+  (#97, #129, #135 — only the hand-labelled August rehearsals): GitHub raises
+  no workflow runs for events created with the built-in token, and the
+  watchdog files its issues with that token. The watchdog now dispatches
+  `endpoint-rot-fix-proposal.yml` by issue number right after filing
+  (`actions: write`, non-fatal); the proposal gains `workflow_dispatch` and
+  its gate re-reads the named issue (open, not a PR, labelled `endpoint-rot`)
+  on both routes. A `rehearse_issue` input on the watchdog proves the hand-off
+  on demand.
 - Perplexity read **Unknown** from 2026-09-10 4:37 PM CDT: the vendor left
   Instatus for incident.io and `status.perplexity.com/summary.json` began
   answering 404 (endpoint-rot watchdog issue #135, filed at the 6-hour mark

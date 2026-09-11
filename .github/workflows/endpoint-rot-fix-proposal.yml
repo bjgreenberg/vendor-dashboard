@@ -13,10 +13,16 @@ name: Endpoint-rot fix proposal
 # the deterministic watchdog never depends on this layer.
 #
 # SECURITY POSTURE, deliberate:
-# - Trigger is the LABEL event, not issue creation. Applying a label needs
-#   triage permission, so only the watchdog (via GITHUB_TOKEN) or a
-#   maintainer can invoke this job — a drive-by issue titled "endpoint-rot:"
-#   cannot summon it.
+# - Two triggers, one authorization boundary: the LABEL event (a maintainer
+#   hand-labelling — applying a label needs triage permission) and
+#   workflow_dispatch by issue number (the watchdog's hand-off; dispatching
+#   needs write). The gate re-reads the named issue and runs only if it is
+#   OPEN and carries `endpoint-rot`, so a drive-by issue titled
+#   "endpoint-rot:" cannot summon it by either route.
+# - Why dispatch exists (2026-09-11): GitHub raises no workflow runs for
+#   events created with GITHUB_TOKEN, and the watchdog files its issues with
+#   that token — so the label trigger fired only for the hand-labelled
+#   August rehearsals, never for a real rot (#97, #129, #135).
 # - allowed_bots names github-actions explicitly: the watchdog's issues are
 #   authored by github-actions[bot], which the action ignores by default.
 # - Issue bodies embed third-party bytes (probe evidence in fenced blocks).
@@ -28,6 +34,12 @@ name: Endpoint-rot fix proposal
 on:
   issues:
     types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Number of an OPEN issue labelled endpoint-rot (the watchdog passes its freshly filed issue)'
+        required: true
+        type: string
 
 # Top-level: nothing. Write grants live on the one job that needs them
 # (Scorecard TokenPermissions; alert #12) — the gate job runs with zero
@@ -36,12 +48,29 @@ permissions: {}
 
 jobs:
   gate:
-    if: github.event.label.name == 'endpoint-rot'
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'endpoint-rot'
     runs-on: ubuntu-latest
-    permissions: {}
+    permissions:
+      issues: read # re-read the named issue's state and labels
     outputs:
       enabled: ${{ steps.check.outputs.enabled }}
+      issue: ${{ steps.issue.outputs.number }}
     steps:
+      - id: issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROM_INPUT: ${{ github.event.inputs.issue }}
+          FROM_EVENT: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          number="${FROM_INPUT:-$FROM_EVENT}"
+          [[ "$number" =~ ^[0-9]+$ ]] || { echo "issue must be a number, got '$number'" >&2; exit 1; }
+          # The label is the authorization boundary on BOTH routes: a dispatch
+          # naming an unlabelled or closed issue stops here.
+          ok=$(gh api "repos/$GITHUB_REPOSITORY/issues/$number" \
+                 --jq '(.state == "open") and (.pull_request == null) and ([.labels[].name] | index("endpoint-rot") != null)')
+          [ "$ok" = "true" ] || { echo "issue #$number is not an open endpoint-rot issue" >&2; exit 1; }
+          echo "number=$number" >> "$GITHUB_OUTPUT"
       - id: check
         env:
           HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
@@ -73,7 +102,7 @@ jobs:
           allowed_bots: 'github-actions'
           branch_prefix: 'watchdog-fix/'
           prompt: |
-            You are acting on endpoint-rot issue #${{ github.event.issue.number }} in this repository,
+            You are acting on endpoint-rot issue #${{ needs.gate.outputs.issue }} in this repository,
             filed by the automated watchdog when a vendor's status endpoint stayed
             unverifiable for 6+ hours.
 
@@ -99,7 +128,7 @@ jobs:
                (plus adapter/scope/fixtures/tests as the rules require), run
                npm test and npx eslint . until green, and open a DRAFT pull
                request titled "fix: repoint <vendor> status endpoint
-               (watchdog #${{ github.event.issue.number }})" whose body cites
+               (watchdog #${{ needs.gate.outputs.issue }})" whose body cites
                the issue, your verification evidence, and testing instructions.
             4. If no public endpoint exists anymore: do NOT invent one. Comment
                on the issue with what you verified and recommend removing the
