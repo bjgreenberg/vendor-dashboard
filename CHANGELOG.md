@@ -47,6 +47,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   is never constrained by them. All three chains are dev tooling; the Worker
   bundle is unchanged. Drop the overrides once upstream moves.
 
+## [2.4.1](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.4.0...v2.4.1) (2026-09-12)
+
+
+### Bug Fixes
+
+* **deps:** dep-audit back to zero — vitest pair 4.1.11, overrides sharp ≥0.35.4 and qs ≥6.16.0 ([#134](https://github.com/bjgreenberg/vendor-dashboard/issues/134)) ([f5566ce](https://github.com/bjgreenberg/vendor-dashboard/commit/f5566ce72bc97915ccd6542faba78ec9bcc8b5a7))
+* **docusign:** switch to health.docusign.com feeds after Statuspage retirement ([#130](https://github.com/bjgreenberg/vendor-dashboard/issues/130)) ([e66d521](https://github.com/bjgreenberg/vendor-dashboard/commit/e66d52165f722a1ad05eee5d00265d7aab339776))
+* **google:** an open SERVICE_INFORMATION incident is a live incident, not a cleared one ([#123](https://github.com/bjgreenberg/vendor-dashboard/issues/123)) ([3396128](https://github.com/bjgreenberg/vendor-dashboard/commit/33961288abb11306de8ede3938c3bf63b6b5b0c6))
+* **google:** one title, one description, a short component line — and no markdown markers ([#124](https://github.com/bjgreenberg/vendor-dashboard/issues/124)) ([f9c1825](https://github.com/bjgreenberg/vendor-dashboard/commit/f9c1825163a2e768ca5f44970b07f4eeaa33ae5c))
+* harden workflows — persist-credentials: false on every checkout ([#122](https://github.com/bjgreenberg/vendor-dashboard/issues/122)) ([3083a1b](https://github.com/bjgreenberg/vendor-dashboard/commit/3083a1b458c6d903e7cf3a1ca57cb90ac8a2571a))
+* **microsoft:** map 'Service degradation'; watchdog survives composite vendors ([#127](https://github.com/bjgreenberg/vendor-dashboard/issues/127)) ([4cef58b](https://github.com/bjgreenberg/vendor-dashboard/commit/4cef58bd4826bb821b5b50ba51b913ec429863d9))
+* **microsoft:** map 'Service restored' — drop the 'Service ' prefix before vocabulary lookup ([#131](https://github.com/bjgreenberg/vendor-dashboard/issues/131)) ([f34827d](https://github.com/bjgreenberg/vendor-dashboard/commit/f34827dafee60fb48dc5fac4f830b67a6ea33ce3))
+* **microsoft:** staleness only distrusts operational claims ([#128](https://github.com/bjgreenberg/vendor-dashboard/issues/128)) ([d81a3ac](https://github.com/bjgreenberg/vendor-dashboard/commit/d81a3ac8619353d89eed51390f7311fd9cacff21))
+* nosemgrep annotation on the deliberate TLS-diagnostic probe ([#120](https://github.com/bjgreenberg/vendor-dashboard/issues/120)) ([6f236d2](https://github.com/bjgreenberg/vendor-dashboard/commit/6f236d2776f6c7f5ccddf4a26140b2b29f1a5027))
+* **perplexity:** repoint to incident.io's Statuspage-compatible API after summary.json went 404 ([#135](https://github.com/bjgreenberg/vendor-dashboard/issues/135)) ([#136](https://github.com/bjgreenberg/vendor-dashboard/issues/136)) ([d3d9569](https://github.com/bjgreenberg/vendor-dashboard/commit/d3d9569b8da167470128d336dac65ea45c367748))
+* **watchdog:** dispatch the fix proposal explicitly — GITHUB_TOKEN-filed issues never fired its label trigger (worklist [#67](https://github.com/bjgreenberg/vendor-dashboard/issues/67)) ([#137](https://github.com/bjgreenberg/vendor-dashboard/issues/137)) ([197f111](https://github.com/bjgreenberg/vendor-dashboard/commit/197f111e220772f29f2dc6f535fe096a4c606088))
+
 ## [2.4.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.3.1...v2.4.0) (2026-08-26)
 
 Two new watch surfaces — Coalition (Control) via the Instatus adapter, and a US Government composite spanning Login.gov, SSA, cloud.gov, and the VA APIs — plus a resilience fix (three adapters now fail closed on empty vote sets instead of reporting green) and status-page SEO matched to outage-intent queries.
