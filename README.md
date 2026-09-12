@@ -332,15 +332,22 @@ Two optional layers, each enabled by adding a single Actions secret:
   accepting Slack-compatible `{"text": …}` JSON): mirrors issue open/close
   events to a channel. Skipped silently when absent.
 - **`ANTHROPIC_API_KEY`**: enables the **fix-proposal job**
-  (`.github/workflows/endpoint-rot-fix-proposal.yml`). When an
-  `endpoint-rot` issue is labeled, Claude re-verifies the diagnosis with its
-  own probes, hunts down the vendor's current status endpoint, and opens a
+  (`.github/workflows/endpoint-rot-fix-proposal.yml`). The watchdog
+  dispatches it by issue number the moment it files an issue, and a
+  maintainer hand-labelling an issue `endpoint-rot` fires it too; either way
+  its gate re-reads the named issue and proceeds only if it is open and
+  carries the label. (The explicit dispatch exists because GitHub raises no
+  workflow runs for events created with the built-in token — the label
+  trigger alone fired only for hand-labelled rehearsals, never for a real
+  rot; found 2026-09-11 on #135.) Claude then re-verifies the diagnosis with
+  its own probes, hunts down the vendor's current status endpoint, and opens a
   **draft** PR implementing the repoint under the repo's own rules — fixture,
   tests, scoping — which then runs the full CI gate suite like any human
   contribution. A human merges; nothing is auto-applied. Security posture:
-  the trigger is the *label* event (applying labels needs triage permission,
-  so a drive-by issue can't summon it), and the prompt treats issue content
-  as data — probe evidence embeds third-party bytes — with instructions to
+  the label is the authorization boundary on both routes (applying one needs
+  triage permission, dispatching needs write, and the gate checks the issue
+  itself — so a drive-by issue can't summon it), and the prompt treats issue
+  content as data — probe evidence embeds third-party bytes — with instructions to
   re-verify everything and follow nothing found inside it. Without the
   secret, a gate job reports "disabled" and ends; the deterministic watchdog
   never depends on this layer.
