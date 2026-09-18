@@ -18,6 +18,12 @@
     "",
     "  npm run test:mutation",
     "",
+    "The json reporter is not decoration: Stryker's score is detected/valid and",
+    "`valid` EXCLUDES mutants whose run errored (RuntimeError, CompileError), so",
+    "an unjudged mutant shrinks the denominator instead of failing the gate --",
+    "the break threshold can never see it. scripts/mutation-verdict.mjs reads the",
+    "json report after the run and fails when any mutant errored.",
+    "",
     "Adapters are deliberately excluded: they are already pinned against recorded",
     "vendor payloads, which is a stronger guarantee than mutation score, and",
     "including them makes a run take long enough that nobody runs it."
@@ -25,7 +31,7 @@
 
   "packageManager": "npm",
   "testRunner": "vitest",
-  "reporters": ["html", "clear-text", "progress"],
+  "reporters": ["html", "clear-text", "progress", "json"],
   "coverageAnalysis": "perTest",
 
   "mutate": [
