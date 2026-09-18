@@ -1,5 +1,6 @@
 node_modules/
 coverage/
+reports/mutation/
 .DS_Store
 .clasp.json
 creds.json

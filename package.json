@@ -7,7 +7,7 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "test:coverage": "vitest run --coverage",
-    "test:mutation": "stryker run",
+    "test:mutation": "stryker run && node scripts/mutation-verdict.mjs",
     "perf": "node scripts/perf-check.mjs",
     "deploy": "bash scripts/deploy.sh"
   },
