@@ -1,5 +1,5 @@
 /**
- * Instatus status-page adapter (e.g. Perplexity).
+ * Instatus status-page adapter (e.g. Coalition).
  *
  * Instatus is a distinct platform from Atlassian Statuspage with a different
  * vocabulary — page-level `UP` / `HASISSUES` / `UNDERMAINTENANCE`, and

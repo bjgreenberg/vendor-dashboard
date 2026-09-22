@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-08-12 07:39 PM CDT
+Last updated: 2026-09-18 04:18 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -381,15 +381,22 @@ Two optional layers, each enabled by adding a single Actions secret:
   the endpoint answers 501 and the board reads "Not yet truth-checked";
   without the Actions secret the workflow skips the stamp and says so.
 - **`ANTHROPIC_API_KEY`**: enables the **fix-proposal job**
-  (`.github/workflows/endpoint-rot-fix-proposal.yml`). When an
-  `endpoint-rot` issue is labeled, Claude re-verifies the diagnosis with its
-  own probes, hunts down the vendor's current status endpoint, and opens a
+  (`.github/workflows/endpoint-rot-fix-proposal.yml`). The watchdog
+  dispatches it by issue number the moment it files an issue, and a
+  maintainer hand-labelling an issue `endpoint-rot` fires it too; either way
+  its gate re-reads the named issue and proceeds only if it is open and
+  carries the label. (The explicit dispatch exists because GitHub raises no
+  workflow runs for events created with the built-in token — the label
+  trigger alone fired only for hand-labelled rehearsals, never for a real
+  rot; found 2026-09-11 on #135.) Claude then re-verifies the diagnosis with
+  its own probes, hunts down the vendor's current status endpoint, and opens a
   **draft** PR implementing the repoint under the repo's own rules — fixture,
   tests, scoping — which then runs the full CI gate suite like any human
   contribution. A human merges; nothing is auto-applied. Security posture:
-  the trigger is the *label* event (applying labels needs triage permission,
-  so a drive-by issue can't summon it), and the prompt treats issue content
-  as data — probe evidence embeds third-party bytes — with instructions to
+  the label is the authorization boundary on both routes (applying one needs
+  triage permission, dispatching needs write, and the gate checks the issue
+  itself — so a drive-by issue can't summon it), and the prompt treats issue
+  content as data — probe evidence embeds third-party bytes — with instructions to
   re-verify everything and follow nothing found inside it. Without the
   secret, a gate job reports "disabled" and ends; the deterministic watchdog
   never depends on this layer.

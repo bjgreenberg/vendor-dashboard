@@ -441,7 +441,7 @@
       "brandDomain": "cloudflare.com"
     },
     {
-      "$comment": "status.coalitioninc.com (Instatus) monitors ONLY the Coalition Control platform - Control API and Control Web. Coalition's incident-response / MDR / SOC / SIEM services publish no health endpoint anywhere (verified 2026-08-14: status.coalition.com and trust.coalitioninc.com do not resolve, and no other status surface exists), so the row is named 'Coalition (Control)' - the Microsoft (Consumer Services) precedent: label what the endpoint actually verifies, never the whole company. Same two-endpoint split as Perplexity: summary.json carries only page.status; componentsUrl is advisory - if it fails the page status still decides severity.",
+      "$comment": "status.coalitioninc.com (Instatus) monitors ONLY the Coalition Control platform - Control API and Control Web. Coalition's incident-response / MDR / SOC / SIEM services publish no health endpoint anywhere (verified 2026-08-14: status.coalition.com and trust.coalitioninc.com do not resolve, and no other status surface exists), so the row is named 'Coalition (Control)' - the Microsoft (Consumer Services) precedent: label what the endpoint actually verifies, never the whole company. Instatus splits page state and components across two endpoints: summary.json carries only page.status; componentsUrl is advisory - if it fails the page status still decides severity.",
       "name": "Coalition (Control)",
       "type": "instatus",
       "url": "https://status.coalitioninc.com/summary.json",
@@ -696,11 +696,10 @@
       }
     },
     {
-      "$comment": "Instatus splits page state and components across two endpoints; summary.json carries only page.status. componentsUrl is advisory - if it fails the page status still decides severity. PINNED to shard 7 so IBM Cloud and Oracle Cloud, the two largest parses left, each get an invocation to themselves.",
+      "$comment": "Moved from Instatus to incident.io on 2026-09-10: the old summary.json began answering 404 (watchdog issue #135). incident.io serves a Statuspage-compatible v2 API (page/status/components/incidents at api/v2/summary.json), so the generic adapter reads it; the DNS chain (statuspage.incident.io) is the tell if it moves again. PINNED to shard 7 so IBM Cloud and Oracle Cloud, the two largest parses left, each get an invocation to themselves.",
       "name": "Perplexity",
-      "type": "instatus",
-      "url": "https://status.perplexity.com/summary.json",
-      "componentsUrl": "https://status.perplexity.com/api/v2/components.json",
+      "type": "statuspage",
+      "url": "https://status.perplexity.com/api/v2/summary.json",
       "brandDomain": "perplexity.ai",
       "shard": 7
     },

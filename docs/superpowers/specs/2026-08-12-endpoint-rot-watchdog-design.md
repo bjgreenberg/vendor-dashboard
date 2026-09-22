@@ -148,6 +148,23 @@ are authored by `github-actions[bot]`, which the action ignores unless
 boundary, since applying labels needs triage permission — a drive-by issue
 titled "endpoint-rot:" cannot summon the job.
 
+### Trigger fix (2026-09-11)
+
+The label trigger never fired for a real watchdog issue (#97, #129, #135):
+GitHub creates no workflow runs for events raised with `GITHUB_TOKEN`, and
+the watchdog files its issues with that token. Only the August rehearsals —
+labelled by hand — ever ran the proposal. `workflow_dispatch` is the
+documented exception, so the watchdog now dispatches
+`endpoint-rot-fix-proposal.yml -f issue=<n>` right after `gh issue create`
+(permission `actions: write`; non-fatal, the deterministic layer never
+depends on it). The proposal keeps the label trigger for hand-labelling and
+adds `workflow_dispatch: inputs.issue`; its `gate` job (now `issues: read`)
+re-reads the named issue and proceeds only if it is open, not a PR, and
+labelled `endpoint-rot` — the same boundary on both routes. A
+`rehearse_issue` input on the watchdog dispatches the proposal for an
+already-labelled issue and does nothing else, so the hand-off is provable
+without waiting for a rot.
+
 ## Testing
 
 - **Worker/engine**: streak upsert/clear/skip-on-budgetExhausted unit tests

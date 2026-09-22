@@ -1,0 +1,41 @@
+{
+    "page": {
+        "id": "01KZSFD3VPNK8C7QRFH0GAZ4H2",
+        "name": "Perplexity",
+        "url": "https://status.perplexity.com/",
+        "updated_at": "2026-08-24T23:32:34Z"
+    },
+    "status": {
+        "description": "All Systems Operational",
+        "indicator": "none"
+    },
+    "components": [
+        {
+            "id": "01KZSFD424KQ6VQYV4R0KCA30P",
+            "name": "Website",
+            "status": "operational",
+            "created_at": "2026-08-11T22:34:32Z",
+            "updated_at": "2026-08-24T20:50:43Z",
+            "position": 0,
+            "page_id": "01KZSFD3VPNK8C7QRFH0GAZ4H2"
+        },
+        {
+            "id": "01KZSFD424NN3EYBS78TMVWNEK",
+            "name": "App",
+            "status": "operational",
+            "created_at": "2026-08-11T22:34:32Z",
+            "updated_at": "2026-08-24T20:50:43Z",
+            "position": 1,
+            "page_id": "01KZSFD3VPNK8C7QRFH0GAZ4H2"
+        },
+        {
+            "id": "01M0TRMC3ED1PG4GRRXXMVNNZ6",
+            "name": "Computer",
+            "status": "operational",
+            "created_at": "2026-08-24T20:50:43Z",
+            "updated_at": "2026-08-24T20:50:43Z",
+            "position": 2,
+            "page_id": "01KZSFD3VPNK8C7QRFH0GAZ4H2"
+        }
+    ]
+}

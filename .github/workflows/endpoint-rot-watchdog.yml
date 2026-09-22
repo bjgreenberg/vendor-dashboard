@@ -19,16 +19,32 @@ name: Endpoint-rot watchdog
 # is set, mirror opens/closes to it (Slack-compatible {"text": ...}); forks
 # without the secret skip that silently and need zero configuration.
 #
+# HAND-OFF (2026-09-11): after filing, dispatch endpoint-rot-fix-proposal.yml
+# for the new issue explicitly. GitHub raises NO workflow runs for events
+# created with GITHUB_TOKEN, so the proposal's `issues: labeled` trigger never
+# fired for a real watchdog issue (#97, #129, #135 — only the hand-labelled
+# August rehearsals ever ran it). `workflow_dispatch` is the documented
+# exception. The proposal's gate re-checks the label on the named issue, so
+# the authorization boundary is unchanged. `rehearse_issue` proves this token
+# can hand off, without waiting for a real rot.
+#
 # Design: docs/superpowers/specs/2026-08-12-endpoint-rot-watchdog-design.md
 
 on:
   schedule:
     - cron: '17 */2 * * *'
   workflow_dispatch:
+    inputs:
+      rehearse_issue:
+        description: 'Hand-off rehearsal: dispatch the fix proposal for this already-labelled issue number and do nothing else'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
   issues: write
+  actions: write # dispatch endpoint-rot-fix-proposal.yml for each filed issue
 
 env:
   API: https://vendor-dashboard.gsysd.workers.dev/service-status/api/status
@@ -46,10 +62,22 @@ jobs:
         with:
           node-version: 22
 
+      - name: Rehearse the hand-off only
+        if: github.event.inputs.rehearse_issue != ''
+        env:
+          REHEARSE_ISSUE: ${{ github.event.inputs.rehearse_issue }}
+        run: |
+          set -euo pipefail
+          [[ "$REHEARSE_ISSUE" =~ ^[0-9]+$ ]] || { echo "rehearse_issue must be an issue number" >&2; exit 1; }
+          gh workflow run endpoint-rot-fix-proposal.yml --repo "$GITHUB_REPOSITORY" -f issue="$REHEARSE_ISSUE"
+          echo "dispatched the fix proposal for #$REHEARSE_ISSUE"
+
       - name: Ensure the endpoint-rot label exists
+        if: github.event.inputs.rehearse_issue == ''
         run: gh label create endpoint-rot --repo "$GITHUB_REPOSITORY" --description "A vendor status endpoint has rotted" --color B60205 --force
 
       - name: File issues for rotted vendors
+        if: github.event.inputs.rehearse_issue == ''
         env:
           WEBHOOK: ${{ secrets.WATCHDOG_WEBHOOK_URL }}
         run: |
@@ -88,6 +116,13 @@ jobs:
             issue_url=$(gh issue create --repo "$GITHUB_REPOSITORY" --label endpoint-rot \
               --title "endpoint-rot: $vendor" --body-file body.md)
             echo "filed $issue_url"
+            # Explicit hand-off: GITHUB_TOKEN-created issues raise no `labeled`
+            # run, so the proposal is dispatched by number (its gate re-checks
+            # the label). Non-fatal: the deterministic layer never depends on it.
+            gh workflow run endpoint-rot-fix-proposal.yml --repo "$GITHUB_REPOSITORY" \
+              -f issue="${issue_url##*/}" \
+              && echo "dispatched the fix proposal for ${issue_url##*/}" \
+              || echo "fix-proposal dispatch failed (non-fatal)"
             if [ -n "${WEBHOOK:-}" ]; then
               jq -n --arg v "$vendor" --arg u "$issue_url" \
                 '{text: "vendor-dashboard watchdog: \($v) status endpoint has rotted — \($u)"}' |
@@ -97,6 +132,7 @@ jobs:
           done <<< "$rotted"
 
       - name: Close recovered issues
+        if: github.event.inputs.rehearse_issue == ''
         env:
           WEBHOOK: ${{ secrets.WATCHDOG_WEBHOOK_URL }}
         run: |
