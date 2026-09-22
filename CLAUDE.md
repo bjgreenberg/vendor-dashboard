@@ -50,6 +50,12 @@ a future non-Cloudflare deployment possible.
   decommissioned, 2026-08-12) must not display the host page's unrelated
   incidents. An incident naming no components is kept: context informs, never
   votes, and unattributable context could be real.
+- **Without a scope, the page indicator always votes — group mode included.**
+  Groups are not guaranteed to be the vendor's full roll-up: QuantumWorkplace
+  carried a page-wide `maintenance` on an ungrouped third-party leaf while all
+  four product groups read operational, and the board showed Operational next
+  to "Service Under Maintenance" (truth-check issue #143, 2026-09-21). Group
+  mode decides the DISPLAY; it never silences the indicator.
 - **A configured scope overrides the vendor's page indicator.** The operator has
   declared what matters. This is what lets Cloudflare read operational while 26
   edge PoPs re-route.
