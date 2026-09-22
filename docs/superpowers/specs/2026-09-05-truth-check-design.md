@@ -130,9 +130,12 @@ Forks need zero configuration: issues ride `GITHUB_TOKEN`.
   covered, total, agreed, disagreements, detail JSON).
 - `POST /api/truth-check`: 501 until the deployment sets the
   `TRUTH_CHECK_TOKEN` Worker secret; 401 on a missing or wrong bearer
-  (length-independent compare); 400 on a malformed or out-of-bounds body
-  (the workflow is a trust boundary too); 204 on success; 405 for any other
-  method. Names in the stamp render escaped like every vendor string.
+  (length-independent compare); 400 on a malformed, out-of-bounds or
+  self-contradicting body, or a `checkedAt` more than five minutes ahead of
+  the Worker's clock — a future stamp would silence "Truth check overdue",
+  the one thing a leaked token must not buy (the workflow is a trust
+  boundary too); 204 on success; 405 for any other method. Names in the
+  stamp render escaped like every vendor string.
 - `/api/status` gains `truthCheck` (null when never checked); the dashboard
   renders the stamp under the collection line, stale after three hours.
 

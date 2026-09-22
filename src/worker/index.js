@@ -273,6 +273,10 @@ async function handleTruthCheck(request, env) {
   return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store', 'Strict-Transport-Security': HSTS } });
 }
 
+// How far ahead of the Worker's clock a stamp's checkedAt may sit. Runner and
+// Worker clocks drift by seconds; a stamp minutes ahead is not a clock.
+const STAMP_MAX_FUTURE_MS = 5 * 60 * 1000;
+
 /**
  * Shape + bounds check for the stamp. Returns the cleaned stamp or null.
  * @param {any} body
@@ -282,7 +286,12 @@ function validateStamp(body) {
   const count = (v) => Number.isInteger(v) && v >= 0 && v <= 10_000;
   // An ISO-8601 stamp is under 40 characters; anything longer is not a date.
   if (typeof body.checkedAt !== 'string' || body.checkedAt.length === 0 || body.checkedAt.length > 40) return null;
-  if (Number.isNaN(Date.parse(body.checkedAt))) return null;
+  const checkedAtMs = Date.parse(body.checkedAt);
+  if (Number.isNaN(checkedAtMs)) return null;
+  // A future stamp would hold off "Truth check overdue" for as long as it
+  // says — the one thing a leaked token must not buy. Allow ordinary clock
+  // skew between the runner and the Worker, nothing more.
+  if (checkedAtMs - Date.now() > STAMP_MAX_FUTURE_MS) return null;
   if (![body.covered, body.total, body.agreed, body.disagreements].every(count)) return null;
   if (!Array.isArray(body.falseGreen) || body.falseGreen.length > 200) return null;
   if (!body.falseGreen.every((v) => typeof v === 'string' && v.length > 0 && v.length <= 200)) return null;

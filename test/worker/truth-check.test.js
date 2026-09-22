@@ -67,6 +67,16 @@ describe('POST /api/truth-check — the workflow writes the stamp', () => {
     expect((await post(env, stamp({ disagreements: 1 }), 't')).status).toBe(400); // falseGreen is empty
     expect((await post(env, stamp({ falseGreen: ['Google'] }), 't')).status).toBe(400); // disagreements is 0
   });
+  it('rejects a checkedAt in the future (400) — a leaked token must not be able to silence "Truth check overdue"', async () => {
+    const db = makeD1();
+    const env = { DB: db, TRUTH_CHECK_TOKEN: 't' };
+    const hourAhead = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    expect((await post(env, stamp({ checkedAt: hourAhead }), 't')).status).toBe(400);
+    expect(await readTruthCheck(db)).toBeNull();
+    // ordinary clock skew between the runner and the Worker is not an attack
+    const minuteAhead = new Date(Date.now() + 60 * 1000).toISOString();
+    expect((await post(env, stamp({ checkedAt: minuteAhead }), 't')).status).toBe(204);
+  });
   it('stores a good stamp (204) and /api/status carries it', async () => {
     const db = makeD1();
     const env = { DB: db, TRUTH_CHECK_TOKEN: 't' };
