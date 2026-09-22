@@ -47,6 +47,36 @@ describe('componentLevel: group — when the vendor puts products at group level
     expect(r.severity).toBe(SEVERITY.DEGRADED);
   });
 
+  // Truth-check finding 2026-09-21 (issue #143): QuantumWorkplace's page read
+  // "Service Under Maintenance" (indicator `maintenance`) while every product
+  // GROUP stayed operational — the maintenance sat on an ungrouped third-party
+  // leaf, "Twilio SMS Long Code, North America". The board rendered Operational
+  // with the description "Service Under Maintenance" on the same card. Without a
+  // scope the operator has declared nothing, so the vendor's own indicator votes
+  // here as it does in plain component mode. The fixture is the live feed with
+  // the verified 02:53Z state restored (the vendor cleared it minutes later).
+  it('lets the page indicator vote when no scope is configured — a vendor-wide maintenance the groups do not carry', () => {
+    const qw = fixture('QuantumWorkplace-summary-2026-09-21-maintenance');
+    const r = parseStatuspage(qw, { vendor: 'QuantumWorkplace', componentLevel: 'group', now });
+    expect(r.severity).toBe(SEVERITY.MAINTENANCE);
+    expect(r.description).toBe('Service Under Maintenance');
+    // the display is unchanged: products, not the Twilio leaf
+    expect(r.components.map((c) => c.name)).toEqual(['Employee Engagement', 'Performance Management', 'Analytics', 'Integrations']);
+    expect(r.components.every((c) => c.severity === SEVERITY.OPERATIONAL)).toBe(true);
+  });
+
+  it('a page indicator of none adds nothing — healthy groups still read operational', () => {
+    const healthy = { ...netsuiteLike, components: netsuiteLike.components.map((c) => ({ ...c, status: 'operational' })) };
+    const r = parseStatuspage(healthy, { vendor: 'NetSuite', componentLevel: 'group', now });
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('an unrecognised page indicator fails closed to unknown, even with healthy groups', () => {
+    const odd = { ...netsuiteLike, status: { indicator: 'mostly_fine' }, components: netsuiteLike.components.map((c) => ({ ...c, status: 'operational' })) };
+    const r = parseStatuspage(odd, { vendor: 'NetSuite', componentLevel: 'group', now });
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+  });
+
   it('falls back to leaves when the vendor publishes no groups', () => {
     const flat = {
       page: { url: 'https://x' },

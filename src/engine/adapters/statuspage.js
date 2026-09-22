@@ -134,7 +134,9 @@ function indicatorSeverity(payload) {
  *   operator has declared what they care about. This is what lets Cloudflare
  *   read Operational while 26 far-flung edge PoPs are re-routing (decision D1).
  * - **No scope configured** -> severity is the worst of the page indicator and
- *   all components. Without a declared scope, use every signal available.
+ *   all components (in group mode: the groups). Without a declared scope, use
+ *   every signal available — a group roll-up can miss an ungrouped leaf the
+ *   indicator carries (QuantumWorkplace, 2026-09-21).
  * - **Incidents never contribute to severity**, only to context. The
  *   predecessor derived status *solely* from incidents, which produced errors
  *   in both directions: it missed component-only outages (finding M2) and it
@@ -282,10 +284,18 @@ export function parseStatuspage(payload, options) {
         ? worst(leafSelection.selected.map((c) => normalizeSeverity(c.status)))
         : SEVERITY.UNKNOWN;
   } else if (useGroups) {
-    // Unscoped group mode: the groups' own rolled-up statuses decide, as
-    // before (the page indicator stays out of it — groups ARE the vendor's
-    // roll-up).
-    severity = worst(selected.map((c) => normalizeSeverity(c.status)));
+    // Unscoped group mode: the groups decide what the card DISPLAYS, but the
+    // page indicator votes too, exactly as in unscoped component mode. Groups
+    // are NOT always the vendor's full roll-up: QuantumWorkplace put a
+    // vendor-wide "Service Under Maintenance" on an ungrouped third-party leaf
+    // while every product group stayed operational, and the board rendered
+    // Operational next to that very description (truth-check issue #143,
+    // 2026-09-21). Without a scope the operator has declared nothing, so
+    // every signal the vendor publishes counts.
+    severity = worst([
+      indicatorSeverity(payload),
+      ...selected.map((c) => normalizeSeverity(c.status)),
+    ]);
   } else {
     severity = worst([
       indicatorSeverity(payload),

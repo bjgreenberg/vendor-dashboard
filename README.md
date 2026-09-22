@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-09-18 04:18 PM CDT
+Last updated: 2026-09-21 10:04 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -114,7 +114,11 @@ planned maintenance is a *known* benign state.
   components only*. The vendor's own page indicator is ignored, because the
   operator has declared what they care about.
 - **Without a scope** — severity is the worst of the page indicator and all
-  components.
+  components (in group mode, the groups). The indicator votes here even in
+  group mode: a vendor can hang a page-wide maintenance on an ungrouped
+  third-party leaf while every product group stays operational, which is how
+  QuantumWorkplace rendered Operational beside "Service Under Maintenance"
+  until the truth check caught it (2026-09-21).
 - **Incidents never contribute to severity**, only to context. Deriving status
   from incidents alone caused errors in both directions in the predecessor.
   Two bespoke adapters are the deliberate exceptions, each because the vendor
