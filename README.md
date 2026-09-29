@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-09-21 10:04 PM CDT
+Last updated: 2026-09-25 12:51 AM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -328,8 +328,10 @@ Cache-busting does not help, because it is not caching.
 
 ## Monitoring
 
-Three independent monitors, all GitHub-cron based so they run *outside*
-Cloudflare (an alert inside a dying invocation dies with it):
+Three independent monitors, all running *outside* Cloudflare (an alert
+inside a dying invocation dies with it). Two are GitHub-cron based; the
+truth check runs on the always-on Mac first and on GitHub as a backstop
+(see [Where the truth check runs](#where-the-truth-check-runs)):
 
 - **Dead-man monitor** (`.github/workflows/staleness-monitor.yml`, every
   15 min) watches **whole-board freshness**: `/health` answers 503 when the
@@ -370,6 +372,44 @@ Cloudflare (an alert inside a dying invocation dies with it):
   disagreements", overdue after three hours — a stale stamp is itself the
   alarm. The 2026-08-28 Google misreport (an open Chat incident rendered as
   all healthy, PR #123) is the class of failure it exists to catch.
+
+### Where the truth check runs
+
+Since 2026-09-25 the truth check has **two runners executing one script**,
+`scripts/truth-check/check.sh` (compare → confirm → issues → stamp; exit `3`
+means "a NEW disagreement was filed", any other non-zero is the check itself
+failing), so they cannot drift:
+
+| Runner | Cadence | Role | Secrets |
+|---|---|---|---|
+| **hume** (the always-on Mac), `com.briangreenberg.vendor-dashboard-truth-check` via `scripts/truth-check/hume.sh` | hourly at :11 | **primary** — an exact schedule, watched by health-monitor's dead man's switch (stamp `~/.local/state/vendor-dashboard-truth-check/last-success`, log `~/Library/Logs/vendor-dashboard-truth-check.log`, 1 MiB cap) | login-keychain items `vendor-dashboard-truth-check-pat` (fine-grained PAT, this repo only, Issues: read/write + Metadata: read) and `vendor-dashboard-truth-check-token` (the Worker's `TRUTH_CHECK_TOKEN`) — read by `hume.sh` into the environment, never logged |
+| **GitHub** (`.github/workflows/truth-check.yml`) | every 2 h at :41 UTC, cron | **backstop** — outside the fleet entirely; forks get it with zero configuration | `secrets.TRUTH_CHECK_TOKEN`, `GITHUB_TOKEN` for issues |
+
+Why two: GitHub's cron drops slots routinely (runs came 3–6 h apart against a
+2 h schedule on 2026-09-24), so the board's three-hour "Truth check overdue"
+rule fired on a *scheduling miss*, not on a verification gap. hume gives the
+stamp an exact clock; GitHub keeps an opinion that survives a hume outage.
+The stamp is idempotent, so two writers are fine — the newer wins, and
+`validateStamp` refuses a future-dated one either way.
+
+hume's runner is fail-closed in every direction its tests pin
+(`test/scripts/truth-check-sh.test.js`, stub tools, no network): a completed
+check — clean, refreshed, or exit 3 — writes the success stamp (a new
+disagreement is the board being wrong, not the job failing; the issue and the
+board's stamp text carry it); a board that cannot be fetched or a `gh`/`node`
+error withholds the stamp; a missing keychain item is a named `ERROR:` line
+and exit 2, no stamp; on any Mac but hume the fleet-synced job declines
+quietly. The LaunchAgent (dotfiles) puts `/opt/homebrew/bin` on `PATH`
+because launchd's default lacks `node`, `jq` and `gh`; the plist is linted
+with `plistlib` as well as `plutil`.
+
+**Runbook.** Overdue on the board → `tail ~/Library/Logs/vendor-dashboard-truth-check.log`
+on hume: `ERROR: keychain item …` names the secret to add; `ERROR: truth check
+failed (exit N)` means read the lines above it (board unreachable, `gh` auth);
+no lines at all means launchd did not fire — `launchctl print
+gui/$UID/com.briangreenberg.vendor-dashboard-truth-check`. The GitHub run
+list shows whether the backstop stamped meanwhile. Design note:
+`docs/superpowers/specs/2026-09-25-truth-check-on-hume.md`.
 
 **Forks need zero configuration** — issues ride the built-in `GITHUB_TOKEN`.
 Two optional layers, each enabled by adding a single Actions secret:
