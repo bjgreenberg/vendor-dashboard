@@ -22,8 +22,23 @@
  * publishes no indicator, so there an incident with no `end` IS the verdict.
  *
  * Runtime-agnostic: pure functions over parsed payloads. Fetching lives in
- * run.mjs; the workflow decides what to do with the result.
+ * run.mjs; the workflow decides what to do with the result. The readers for
+ * the non-Statuspage platforms live in vendor-rules.mjs (worklist #124).
  */
+
+import {
+  appleVerdict, awsVerdict, concurVerdict, regionLensVerdict, docusignVerdict, ibmVerdict, metaVerdict,
+  msConsumerVerdict, msPostVerdict, adoVerdict, oktaVerdict, signalVerdict, betterStackVerdict,
+  salesforceVerdict, zscalerCloudVerdict, worstOf,
+} from './vendor-rules.mjs';
+
+/** Composite source types the second opinion can read, and how. */
+const SOURCE_READERS = {
+  'microsoft-consumer': msConsumerVerdict,
+  'azure-post': msPostVerdict,
+  'microsoft-admin': msPostVerdict,
+  'azure-devops': adoVerdict,
+};
 
 /** Verdicts: 'fine' | 'trouble' | 'unreadable' | 'uncovered'. */
 
@@ -50,16 +65,34 @@ const brief = (text, max = 140) => {
 export function probeUrlsFor(vendor) {
   switch (vendor?.type) {
     case 'statuspage': {
-      // Region lenses (Discord's regionGroups) are engine semantics this dumb
-      // rule does not reproduce; component/group scopes are plain name lists.
+      // Region prefixes on a Statuspage vendor are not reproduced; Discord's
+      // regionGroups lens is (regionLensVerdict, 2026-09-30).
       const scope = vendor.scope;
-      if (scope && (scope.regionGroups || scope.regionPrefixes)) return [];
+      if (scope && scope.regionPrefixes) return [];
       return vendor.url ? [vendor.url] : [];
     }
     case 'instatus':
     case 'sorryapp':
     case 'google':
+    case 'apple':
+    case 'aws':
+    case 'ibm-cloud':
+    case 'metastatus':
+    case 'okta':
+    case 'signal':
+    case 'betterstack':
+    case 'salesforce':
       return vendor.url ? [vendor.url] : [];
+    case 'concur-status': {
+      const urls = Array.isArray(vendor.statusUrls) && vendor.statusUrls.length ? vendor.statusUrls : [vendor.url];
+      return urls.filter(Boolean);
+    }
+    case 'docusign':
+      return vendor.url && vendor.incidentsUrl ? [vendor.url, vendor.incidentsUrl] : [];
+    case 'zscaler': {
+      const clouds = Array.isArray(vendor.clouds) && vendor.clouds.length ? vendor.clouds.map((c) => c?.url) : [vendor.url];
+      return clouds.every(Boolean) ? clouds : [];
+    }
     case 'oracle': {
       // The configured feed is the 1.6 MB components document; the page-level
       // indicator lives in a 173-byte sibling on the same host — an independent
@@ -72,7 +105,8 @@ export function probeUrlsFor(vendor) {
     }
     case 'composite': {
       const sources = Array.isArray(vendor.sources) ? vendor.sources : [];
-      if (sources.length === 0 || !sources.every((s) => s?.type === 'statuspage' && s.url)) return [];
+      const readable = (s) => s?.url && (s.type === 'statuspage' || Object.hasOwn(SOURCE_READERS, s.type));
+      if (sources.length === 0 || !sources.every(readable)) return [];
       return sources.map((s) => s.url);
     }
     default:
@@ -139,20 +173,27 @@ function statuspageVerdict(payload, scope, label) {
  * Never throws: an unreadable payload is `unreadable`, an unsupported
  * platform is `uncovered`.
  * @param {any} vendor a config/vendors.json entry
- * @param {Record<string, any>} bodies parsed body per probed URL ({error} on failure)
+ * @param {Record<string, any>} bodies parsed body per probed URL ({error} on failure;
+ *   {error, text} for a body that is not JSON — HTML and JavaScript feeds)
+ * @param {number} [now] epoch ms, for readers that compare event times (Apple)
  */
-export function secondOpinion(vendor, bodies) {
+export function secondOpinion(vendor, bodies, now = Date.now()) {
   const urls = probeUrlsFor(vendor);
   if (urls.length === 0) return { covered: false, verdict: 'uncovered', evidence: [], urls };
   const body = bodies?.[urls[0]];
 
   switch (vendor.type) {
     case 'statuspage': {
-      const r = statuspageVerdict(body, vendor.scope, vendor.name);
+      const r = vendor.scope?.regionGroups
+        ? regionLensVerdict(body, vendor.name, vendor.scope.regionGroups)
+        : statuspageVerdict(body, vendor.scope, vendor.name);
       return opinion(r.verdict, r.evidence, urls);
     }
     case 'composite': {
-      const results = vendor.sources.map((s) => statuspageVerdict(bodies?.[s.url], s.scope, `${vendor.name}/${s.group ?? s.url}`));
+      const results = vendor.sources.map((s) => {
+        const label = `${vendor.name}/${s.group ?? s.url}`;
+        return s.type === 'statuspage' ? statuspageVerdict(bodies?.[s.url], s.scope, label) : SOURCE_READERS[s.type](bodies?.[s.url], label);
+      });
       const evidence = results.flatMap((r) => r.evidence);
       const worst = results.some((r) => r.verdict === 'trouble')
         ? 'trouble'
@@ -183,6 +224,37 @@ export function secondOpinion(vendor, bodies) {
     }
     case 'oracle': {
       const r = statuspageVerdict(body, undefined, vendor.name);
+      return opinion(r.verdict, r.evidence, urls);
+    }
+    case 'apple': {
+      const r = appleVerdict(body, vendor.name, now);
+      return opinion(r.verdict, r.evidence, urls);
+    }
+    case 'aws': {
+      const r = awsVerdict(body, vendor.name, vendor.scope?.regionPrefixes);
+      return opinion(r.verdict, r.evidence, urls);
+    }
+    case 'concur-status': {
+      const r = concurVerdict(urls.map((u) => bodies?.[u]), vendor.name);
+      return opinion(r.verdict, r.evidence, urls);
+    }
+    case 'docusign': {
+      const r = docusignVerdict(body, bodies?.[urls[1]], vendor.name);
+      return opinion(r.verdict, r.evidence, urls);
+    }
+    case 'zscaler': {
+      const labels = Array.isArray(vendor.clouds) && vendor.clouds.length ? vendor.clouds.map((c) => c.label) : [vendor.name];
+      const r = worstOf(urls.map((u, i) => zscalerCloudVerdict(bodies?.[u], `${vendor.name}/${labels[i] ?? u}`)));
+      return opinion(r.verdict, r.evidence, urls);
+    }
+    case 'ibm-cloud':
+    case 'metastatus':
+    case 'okta':
+    case 'signal':
+    case 'betterstack':
+    case 'salesforce': {
+      const read = { 'ibm-cloud': ibmVerdict, metastatus: metaVerdict, okta: oktaVerdict, signal: signalVerdict, betterstack: betterStackVerdict, salesforce: salesforceVerdict }[vendor.type];
+      const r = read(body, vendor.name);
       return opinion(r.verdict, r.evidence, urls);
     }
     default:

@@ -18,6 +18,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { probeUrlsFor, secondOpinion, compare } from './rules.mjs';
+import { decodeBody } from './vendor-rules.mjs';
 
 const UA = 'vendor-dashboard-truth-check/1 (+https://github.com/bjgreenberg/vendor-dashboard; second-opinion probe)';
 const TIMEOUT_MS = 20_000;
@@ -44,18 +45,23 @@ async function fetchJson(url) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: ctrl.signal, redirect: 'follow' });
+    // HTML and JavaScript feeds (Okta, Signal, Better Stack, Apple) are read
+    // too, so accept them — JSON first.
+    const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json, text/html;q=0.9, */*;q=0.8' }, signal: ctrl.signal, redirect: 'follow' });
     if (!res.ok) return { error: `HTTP ${res.status}` };
     const len = Number(res.headers.get('content-length') ?? 0);
     if (len > MAX_BYTES) return { error: `body ${len} bytes exceeds cap` };
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length > MAX_BYTES) return { error: `body ${buf.length} bytes exceeds cap` };
     // Some feeds ship a BOM or a JSON-with-charset header; strip and parse.
-    const text = buf.toString('utf8').replace(/^\uFEFF/, '');
+    // AWS serves UTF-16 with a byte-order mark: decode by the BOM.
+    const text = decodeBody(buf);
     try {
       return JSON.parse(text);
     } catch {
-      return { error: `not JSON (${text.slice(0, 60).replace(/\s+/g, ' ')}…)` };
+      // Not JSON: keep the text for the readers that want HTML/JavaScript;
+      // every JSON reader still sees `error` and calls it unreadable.
+      return { error: `not JSON (${text.slice(0, 60).replace(/\s+/g, ' ')}…)`, text };
     }
   } catch (err) {
     return { error: err?.name === 'AbortError' ? `timeout after ${TIMEOUT_MS} ms` : String(err?.message ?? err) };
@@ -83,7 +89,7 @@ const uncovered = result.uncovered;
 const notOnBoard = vendors.map((v) => v.name).filter((name) => !records.some((r) => r.vendor === name));
 const report = {
   checkedAt: new Date().toISOString(),
-  ruleVersion: 1,
+  ruleVersion: 2, // 2: readers for the 13 non-Statuspage platforms (worklist #124)
   total: result.total,
   covered: result.covered,
   agreed: result.agreed,
