@@ -10,7 +10,8 @@
 import { collect, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
 import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
 import { writeRun, readSnapshot, readMeta, writeTruthCheck } from './storage.js';
-import { renderDashboard } from './render.js';
+import { siteAssetVersions } from './site-assets.js';
+import { renderDashboard, CANONICAL_HOST } from './render.js';
 import vendorConfig from '../../config/vendors.json';
 
 /** Must match `triggers.crons` in wrangler.jsonc; shard rotation is derived from it. */
@@ -194,7 +195,10 @@ async function handleFetch(request, env) {
     // Per-response nonce gates the single inline script, so the CSP can forbid
     // everything else outright rather than allowing 'unsafe-inline' scripts.
     const nonce = crypto.randomUUID().replace(/-/g, '');
-    return new Response(renderDashboard({ records, meta, truthCheck, basePath: base, nonce, host: url.hostname }), {
+    // The site's assets exist only on the site's host; elsewhere (workers.dev)
+    // the plain links are all there is.
+    const assetVersions = url.hostname === CANONICAL_HOST ? await siteAssetVersions() : null;
+    return new Response(renderDashboard({ records, meta, truthCheck, basePath: base, nonce, host: url.hostname, assetVersions }), {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'public, max-age=60',
