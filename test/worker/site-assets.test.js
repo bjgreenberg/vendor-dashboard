@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { siteAssetVersions, resetSiteAssetCache, SITE_ASSETS } from '../../src/worker/site-assets.js';
 import { renderDashboard } from '../../src/worker/render.js';
@@ -40,6 +40,24 @@ describe('siteAssetVersions — the site’s own content hashes', () => {
     expect(await siteAssetVersions({ fetchFn: boom, digest: md5, now: () => 0 })).toBeNull();
     const good = await siteAssetVersions({ fetchFn: okFetch(), digest: md5, now: () => 0 });
     expect(await siteAssetVersions({ fetchFn: boom, digest: md5, now: () => 10 * 60_000 })).toEqual(good);
+  });
+  it('gives up on a site that does not answer within three seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      const hang = (url, { signal }) =>
+        new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))));
+      const pending = siteAssetVersions({ fetchFn: hang, digest: md5, now: () => 0 });
+      await vi.advanceTimersByTimeAsync(3001);
+      expect(await pending).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('the default digest is MD5 on Workers; where the runtime lacks it (Node), the page keeps plain links', async () => {
+    // Node's WebCrypto has no MD5, so the default digest throws here and the
+    // result is the fallback, never a wrong hash. Production verification of
+    // the Workers path: the served page's ?v= must equal the site's own.
+    expect(await siteAssetVersions({ fetchFn: okFetch(), now: () => 0 })).toBeNull();
   });
 });
 
