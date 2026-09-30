@@ -236,6 +236,7 @@ const AZURE_POST_STATUS = Object.freeze(
     normal: SEVERITY.OPERATIONAL,
     restored: SEVERITY.OPERATIONAL,
     degraded: SEVERITY.DEGRADED,
+    degradation: SEVERITY.DEGRADED, // "Service degradation" (live 2026-09-30)
     investigating: SEVERITY.DEGRADED,
     advisory: SEVERITY.DEGRADED,
     incident: SEVERITY.PARTIAL_OUTAGE,
@@ -245,6 +246,25 @@ const AZURE_POST_STATUS = Object.freeze(
     maintenance: SEVERITY.MAINTENANCE,
   }),
 );
+
+const AZURE_POST_INCIDENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Look a status word up in AZURE_POST_STATUS, tolerating Microsoft's
+ * "Service <word>" phrasing ("Service degradation", live 2026-09-30 during an
+ * ExpressRoute Gateway incident: the row read `unknown`). The prefix is
+ * dropped and the remainder looked up, so a word never seen still fails
+ * closed: "Service sparkly" and a bare "Service" are `unknown`.
+ * @param {string} raw
+ * @returns {string}
+ */
+function azurePostSeverity(raw) {
+  const word = String(raw ?? '').trim().toLowerCase();
+  const direct = AZURE_POST_STATUS[word];
+  if (direct) return direct;
+  const m = /^service\s+(\S.*)$/.exec(word);
+  return (m && AZURE_POST_STATUS[m[1]]) ?? SEVERITY.UNKNOWN;
+}
 
 /**
  * @param {any} payload parsed /api/posts/azure
@@ -264,18 +284,23 @@ export function parseAzurePost(payload, options) {
   if (!Number.isFinite(updated)) {
     return unknownRecord(vendor, 'payload carried no parseable LastUpdatedTime', opts);
   }
+  const severity = azurePostSeverity(raw);
+  if (severity === SEVERITY.UNKNOWN) {
+    return unknownRecord(vendor, `unrecognised status "${raw}"`, opts);
+  }
+
+  // A frozen endpoint repeating "Available" is as misleading as silence, but
+  // an incident post naturally sits unchanged between vendor updates (the
+  // admin-centre parser learned this 2026-09-01). So only an operational
+  // claim goes stale at 30 minutes; a non-operational one is trusted a day.
   const ageMs = at.getTime() - updated;
-  if (ageMs > AZURE_POST_MAX_AGE_MS) {
+  const maxAgeMs = severity === SEVERITY.OPERATIONAL ? AZURE_POST_MAX_AGE_MS : AZURE_POST_INCIDENT_MAX_AGE_MS;
+  if (ageMs > maxAgeMs) {
     return unknownRecord(
       vendor,
       `status has not been refreshed for ${Math.round(ageMs / 60000)} minutes`,
       opts,
     );
-  }
-
-  const severity = AZURE_POST_STATUS[raw.toLowerCase()] ?? SEVERITY.UNKNOWN;
-  if (severity === SEVERITY.UNKNOWN) {
-    return unknownRecord(vendor, `unrecognised status "${raw}"`, opts);
   }
 
   return makeRecord({

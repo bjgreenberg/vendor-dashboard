@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { parseAzureFeed, parseAzureDevOps } from '../../../src/engine/adapters/azure.js';
+import { parseAzureFeed, parseAzureDevOps, parseAzurePost } from '../../../src/engine/adapters/azure.js';
 import { SEVERITY } from '../../../src/engine/severity.js';
 
 // Added after Microsoft retired the endpoint behind the original "Microsoft"
@@ -140,5 +140,36 @@ describe('azure devops health api', () => {
 
   it('treats a service with no geographies as unknown, not healthy', () => {
     expect(ado({ services: [{ id: 'S' }] }).severity).toBe(SEVERITY.UNKNOWN);
+  });
+});
+
+describe('azure via status.cloud.microsoft (/api/posts/azure)', () => {
+  // parseAzurePost had no direct tests until 2026-09-30, when a live Azure
+  // ExpressRoute incident posted "Service degradation" and the Microsoft row
+  // read `unknown` ("unrecognised status") instead of degraded — the same
+  // two-word vocabulary the consumer/admin parsers learned in PR #127.
+  const NOW = new Date('2026-09-30T22:45:00Z');
+  const post = (Status, minutesOld = 5, extra = {}) =>
+    parseAzurePost(
+      [{ Status, LastUpdatedTime: new Date(NOW.getTime() - minutesOld * 60000).toISOString(), Title: 'T', Message: 'M', ...extra }],
+      { vendor: 'Microsoft', now: () => NOW },
+    );
+
+  it('maps the "Service <word>" phrasing like its bare word', () => {
+    expect(post('Service degradation').severity).toBe(SEVERITY.DEGRADED);
+    expect(post('Service restored').severity).toBe(SEVERITY.OPERATIONAL);
+    expect(post('Service interruption').severity).toBe(SEVERITY.PARTIAL_OUTAGE);
+    expect(post('Available').severity).toBe(SEVERITY.OPERATIONAL);
+  });
+  it('still fails closed on a word it has never seen', () => {
+    expect(post('Service sparkly').severity).toBe(SEVERITY.UNKNOWN);
+    expect(post('Service').severity).toBe(SEVERITY.UNKNOWN);
+  });
+  it('keeps trusting an incident post that sits unchanged between vendor updates', () => {
+    expect(post('Service degradation', 45).severity).toBe(SEVERITY.DEGRADED);
+  });
+  it('distrusts a frozen operational claim after 30 minutes and an abandoned incident post after a day', () => {
+    expect(post('Available', 45).severity).toBe(SEVERITY.UNKNOWN);
+    expect(post('Service degradation', 25 * 60).severity).toBe(SEVERITY.UNKNOWN);
   });
 });
