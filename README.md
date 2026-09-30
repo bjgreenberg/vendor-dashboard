@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-09-30 05:49 PM CDT
+Last updated: 2026-09-30 06:45 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -244,6 +244,7 @@ emits a warning rather than silently ignoring it.
 | `src/engine/rollup.js` | Parent roll-up and progressive disclosure |
 | `src/engine/collect.js` | Orchestrator: concurrency, deadlines, bounded retry |
 | `src/worker/` | Cloudflare bindings **only** — `scheduled()`, `fetch()`, D1, rendering |
+| `src/worker/site-assets.js` | Content-hashes the site's `site.css`, `theme.js` and `consent.js` (md5, first 10 hex, as the site's build does) so the page links the same `?v=` URLs as the site; 5-minute isolate cache, plain links as the fallback |
 | `config/` | Vendor configuration |
 | `migrations/` | D1 schema as ordered migrations (`wrangler d1 migrations apply`) |
 | `test/fixtures/` | Recorded vendor payloads (golden fixtures) |
@@ -306,7 +307,9 @@ repository is public.) Then make it yours:
    briangreenberg.net, which is not your zone. Your deployment serves on your
    `*.workers.dev` subdomain immediately (`BASE_PATH` handles both mounts).
 3. Swap the site chrome in `src/worker/render.js` (header, footer, share bar)
-   for your own.
+   for your own, and point `SITE_ORIGIN` / `SITE_ASSETS` in
+   `src/worker/site-assets.js` at your site's stylesheet and scripts (or
+   leave them: off the canonical host the page uses plain links).
 4. Optional: enable the truth-check stamp — generate a random token, set it
    as the Worker secret (`npx wrangler secret put TRUTH_CHECK_TOKEN`) and as
    the Actions secret of the same name (see [Monitoring](#monitoring)).
@@ -539,6 +542,7 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
 | Symptom | Cause / fix |
 |---|---|
 | Paths 404 right after deploy | Propagation lag. Wait 20–30 s and retest before debugging |
+| Page layout lags a site CSS fix (e.g. header flush to the phone edge) | The page links the site's `/assets/site.css`, which the site serves `immutable` for a year. Since 2026-09-30 the Worker links it with the site's own `?v=<hash>`; if the served HTML shows a plain `/assets/site.css` link, the Worker could not fetch or hash the site's assets — check `wrangler tail` |
 | A vendor shows `unknown` | Read its `warnings` in `/service-status/api/status` — it names the HTTP status or parse failure |
 | Board reads "No status data" | The cron has not run yet, or is failing. Check `wrangler tail` and `run_meta` in D1 |
 | Want to link to one service's row | Every card has a slug id: `/service-status#cloudflare`, `#1password`. There is no visible `#` glyph (removed 2026-08-03: it was reported twice as a rendering artifact, on touch and on hover) |

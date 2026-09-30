@@ -181,6 +181,18 @@ export function humanizeWarning(warning) {
  * @param {{records: any[], meta: any, nonce?: string, now?: () => Date, host?: string}} input
  * @returns {string} complete HTML document
  */
+/**
+ * `?v=<hash>` for a borrowed site asset, or '' when the version is unknown or
+ * not a plain hex hash (it is interpolated into an attribute unescaped-safe
+ * only because it is validated here).
+ * @param {Record<string, string> | null} versions
+ * @param {string} key
+ */
+function assetQuery(versions, key) {
+  const v = versions?.[key];
+  return typeof v === 'string' && /^[0-9a-f]{6,64}$/.test(v) ? `?v=${v}` : '';
+}
+
 export function renderDashboard({
   records = [],
   meta = null,
@@ -188,6 +200,7 @@ export function renderDashboard({
   nonce = '',
   now = () => new Date(),
   host = CANONICAL_HOST,
+  assetVersions = null,
 }) {
   // Only the canonical host may be indexed; the workers.dev address is a
   // backend URL and indexing it would create a competing duplicate.
@@ -302,7 +315,7 @@ export function renderDashboard({
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <meta name="theme-color" content="#B4633A">
-<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/site.css${assetQuery(assetVersions, 'css')}">
 <script${nonce ? ` nonce="${esc(nonce)}"` : ''}>
 /* This page defaults to DARK, unlike the rest of the site which follows the
    system. It runs BEFORE theme.js and before first paint, so there is no flash.
@@ -321,12 +334,12 @@ export function renderDashboard({
   }
 })();
 </script>
-<script src="/assets/js/theme.js"></script>
+<script src="/assets/js/theme.js${assetQuery(assetVersions, 'theme')}"></script>
 <!-- Analytics, mirroring the site exactly (see ANALYTICS above).
      Cloudflare Web Analytics is cookieless and ungated; Google Analytics is
      loaded ONLY by the site's own consent gate, never from here. -->
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "${esc(CF_BEACON_TOKEN)}"}'></script>
-<script src="/assets/js/consent.js" defer></script>
+<script src="/assets/js/consent.js${assetQuery(assetVersions, 'consent')}" defer></script>
 <style>${STYLES}</style>
 </head>
 <body>
