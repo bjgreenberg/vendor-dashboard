@@ -298,6 +298,13 @@ function validateStamp(body) {
   // Internal consistency — an inconsistent stamp would render contradictory
   // verification text, so it is refused like any other malformed body.
   if (body.covered > body.total || body.agreed > body.covered || body.disagreements > body.covered) return null;
+  // The names of the vendors the check cannot read yet. Optional (an older
+  // runner sends none); when sent, bounded like falseGreen and never more
+  // names than the gap between total and covered.
+  const uncovered = body.uncovered ?? [];
+  if (!Array.isArray(uncovered) || uncovered.length > 200) return null;
+  if (!uncovered.every((v) => typeof v === 'string' && v.length > 0 && v.length <= 200)) return null;
+  if (uncovered.length > body.total - body.covered) return null;
   if (body.disagreements !== body.falseGreen.length) return null;
   return {
     checkedAt: new Date(body.checkedAt).toISOString(),
@@ -306,6 +313,7 @@ function validateStamp(body) {
     agreed: body.agreed,
     disagreements: body.disagreements,
     falseGreen: body.falseGreen,
+    uncovered,
   };
 }
 

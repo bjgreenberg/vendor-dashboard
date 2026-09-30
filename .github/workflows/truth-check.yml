@@ -17,7 +17,8 @@ name: Truth check
 #   - fails the run ONLY when a new disagreement was just filed — one email
 #     per new false green, not one every two hours while it persists;
 #   - stamps the board (POST /api/truth-check, bearer TRUTH_CHECK_TOKEN) so
-#     verification is visible: "Truth-checked <time> · N disagreements". A
+#     verification is visible: "Double-checked <time> against N of M vendors'
+#     own status feeds · K disagreements", naming the unchecked vendors. A
 #     stale stamp is itself the alarm (render.js marks it overdue after 3 h).
 #
 # Probes the workers.dev origin, not the public hostname (bot management

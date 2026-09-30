@@ -233,19 +233,32 @@ export function renderDashboard({
   // alarm (three hours = one missed run plus slack). Vendor names inside it
   // are vendor strings and render escaped like every other.
   const TRUTH_STALE_AFTER_MS = 3 * 60 * 60 * 1000;
+  // "36 of 49" alone reads as 13 vendors gone missing (Brian, 2026-09-30).
+  // They are on the board; the second opinion just cannot read their feed
+  // format yet. Say so, and name them when the runner sent the names.
+  const truthGap = (tc) => Math.max(0, tc.total - tc.covered);
+  const truthUnchecked = (tc) =>
+    truthGap(tc) === 0
+      ? ''
+      : ` The other ${esc(truthGap(tc))} publish their status in formats this check can\u2019t read yet; the board still reads them.`;
+  // A <details> is flow content, so the list sits after the paragraph, not in it.
+  const truthUncheckedList = (tc) =>
+    truthGap(tc) > 0 && Array.isArray(tc.uncovered) && tc.uncovered.length === truthGap(tc)
+      ? `<details class="vs-truth-list"><summary>Which ${esc(truthGap(tc))}?</summary>${esc(tc.uncovered.join(', '))}</details>`
+      : '';
   const truthAtMs = truthCheck?.checkedAt ? Date.parse(truthCheck.checkedAt) : NaN;
   const truthStale = Number.isNaN(truthAtMs) || now().getTime() - truthAtMs > TRUTH_STALE_AFTER_MS;
   const truthBlock = !truthCheck
     ? `<p class="vs-meta vs-truth">Not yet truth-checked against the vendors\u2019 own feeds.</p>`
     : truthStale
       ? `<p class="vs-stale vs-truth" role="status">Truth check overdue \u2014 last verified against the vendors\u2019 own feeds <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time>.</p>`
-      : `<p class="vs-meta vs-truth${truthCheck.disagreements > 0 ? ' vs-truth--disagree' : ''}">Truth-checked <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> against ${esc(truthCheck.covered)} of ${esc(truthCheck.total)} vendors\u2019 own feeds \u00b7 ${
+      : `<p class="vs-meta vs-truth${truthCheck.disagreements > 0 ? ' vs-truth--disagree' : ''}">Double-checked <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> against ${esc(truthCheck.covered)} of ${esc(truthCheck.total)} vendors\u2019 own status feeds \u00b7 ${
           truthCheck.disagreements === 0
             ? 'no disagreements'
             : `${esc(truthCheck.disagreements)} disagreement${truthCheck.disagreements === 1 ? '' : 's'}${
                 truthCheck.falseGreen?.length ? ` (${esc(truthCheck.falseGreen.join(', '))})` : ''
               }`
-        }.</p>`;
+        }.${truthUnchecked(truthCheck)}</p>${truthUncheckedList(truthCheck)}`;
 
   // Social description reflects the LIVE board, so a share during an incident
   // says so instead of claiming everything is fine.
@@ -731,6 +744,10 @@ const STYLES = `
 
 .vs-meta, .vs-hint, .vs-note { font-size: .875rem; opacity: .75; margin: .25rem 0; }
 .vs-truth--disagree { font-weight: 600; opacity: 1; }
+.vs-truth-list { font-size: .875rem; opacity: .75; margin: .1rem 0 .25rem; }
+/* Keep the summary a list-item so the disclosure arrow shows; padding gives a 44px tap target. */
+.vs-truth-list > summary { cursor: pointer; padding: .7rem 0; min-height: 44px; box-sizing: border-box; }
+.vs-truth-list > summary:hover { opacity: 1; }
 .vs-stale {
   margin: .5rem 0; padding: .6rem .8rem; font-size: .875rem;
   border: 1px solid currentColor; border-radius: 8px; color: #8a5a00;
