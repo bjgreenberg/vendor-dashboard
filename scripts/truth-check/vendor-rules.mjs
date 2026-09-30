@@ -285,7 +285,9 @@ export function oktaVerdict(body, label) {
 export function signalVerdict(body, label) {
   const html = textOf(body);
   if (!html) return unreadable(label, body?.error ?? 'no HTML');
-  const m = /id=["']symbol["'][^>]*>\s*([^<\s][^<]*?)\s*</i.exec(html);
+  // Bounded quantifiers: a vendor page is untrusted input, and an unbounded
+  // lazy run before \s*< backtracks quadratically on a long tag-free stretch.
+  const m = /id=["']symbol["'][^>]{0,200}>\s{0,50}([^<\s][^<]{0,40}?)\s{0,50}</i.exec(html);
   if (!m) return unreadable(label, 'no status symbol on the page');
   const glyph = m[1].trim();
   const up = /^(&check;|&#10003;|&#x2713;|✓|✔|&#10004;|&#x2714;|&checkmark;)$/i.test(glyph);

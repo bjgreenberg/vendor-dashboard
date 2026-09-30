@@ -259,3 +259,16 @@ describe('Zscaler — every cloud, by the legend’s visible flag', () => {
     expect(judge(zs, (i) => (i === 0 ? { error: 'HTTP 502' } : quiet)).verdict).toBe('unreadable');
   });
 });
+
+describe('hostile input — a vendor page cannot stall the checker', () => {
+  it('Signal: a long tag-free stretch after the symbol is read in well under a second', () => {
+    // A character, then 100k spaces, then no "<": the old unbounded lazy
+    // pattern backtracked quadratically here (~0.75 s at 40k, measured
+    // 2026-09-30; tens of minutes at the 5 MB body cap).
+    const page = `<span id="symbol">x${' '.repeat(100_000)}y`;
+    const t = performance.now();
+    const o = secondOpinion(config.vendors.find((v) => v.name === 'Signal'), { [config.vendors.find((v) => v.name === 'Signal').url]: { error: 'not JSON', text: page } });
+    expect(performance.now() - t).toBeLessThan(1000);
+    expect(o.verdict).toBe('unreadable');
+  });
+});
