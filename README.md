@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-09-25 12:51 AM CDT
+Last updated: 2026-09-30 05:32 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -368,9 +368,12 @@ truth check runs on the always-on Mac first and on GitHub as a backstop
   incidents inform context and never severity holds here too. Platforms the
   rule does not understand are counted as **uncovered**, never guessed (36 of
   49 vendors covered on 2026-09-05). The workflow then **stamps the board**:
-  "Truth-checked ‹time› against 36 of 49 vendors' own feeds · no
-  disagreements", overdue after three hours — a stale stamp is itself the
-  alarm. The 2026-08-28 Google misreport (an open Chat incident rendered as
+  "Double-checked ‹time› against 36 of 49 vendors' own status feeds · no
+  disagreements. The other 13 publish their status in formats this check
+  can't read yet; the board still reads them.", with a collapsible "Which
+  13?" list of the unchecked vendors (the stamp carries their names since
+  2026-09-30, so "36 of 49" never reads as 13 vendors gone missing). It goes
+  overdue after three hours — a stale stamp is itself the alarm. The 2026-08-28 Google misreport (an open Chat incident rendered as
   all healthy, PR #123) is the class of failure it exists to catch.
 
 ### Where the truth check runs

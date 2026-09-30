@@ -168,7 +168,7 @@ export async function writeRun(db, run, options = {}) {
  * upserted; the reader treats an absent row as "never checked" and a stale
  * one as the alarm.
  * @param {D1Database} db
- * @param {{checkedAt: string, covered: number, total: number, agreed: number, disagreements: number, falseGreen: string[]}} stamp
+ * @param {{checkedAt: string, covered: number, total: number, agreed: number, disagreements: number, falseGreen: string[], uncovered?: string[]}} stamp
  */
 export async function writeTruthCheck(db, stamp) {
   await db
@@ -185,7 +185,7 @@ export async function writeTruthCheck(db, stamp) {
       stamp.total,
       stamp.agreed,
       stamp.disagreements,
-      JSON.stringify({ falseGreen: stamp.falseGreen ?? [] }),
+      JSON.stringify({ falseGreen: stamp.falseGreen ?? [], uncovered: stamp.uncovered ?? [] }),
     )
     .run();
 }
@@ -193,7 +193,7 @@ export async function writeTruthCheck(db, stamp) {
 /**
  * The last truth-check stamp, or null when the board has never been checked.
  * @param {D1Database} db
- * @returns {Promise<{checkedAt: string, covered: number, total: number, agreed: number, disagreements: number, falseGreen: string[]}|null>}
+ * @returns {Promise<{checkedAt: string, covered: number, total: number, agreed: number, disagreements: number, falseGreen: string[], uncovered: string[]}|null>}
  */
 export async function readTruthCheck(db) {
   const row = await db.prepare('SELECT * FROM truth_check WHERE id = 1').first();
@@ -206,6 +206,7 @@ export async function readTruthCheck(db) {
     agreed: row.agreed,
     disagreements: row.disagreements,
     falseGreen: Array.isArray(detail?.falseGreen) ? detail.falseGreen.map(String) : [],
+    uncovered: Array.isArray(detail?.uncovered) ? detail.uncovered.map(String) : [],
   };
 }
 

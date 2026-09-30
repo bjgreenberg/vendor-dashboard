@@ -37,6 +37,13 @@ describe('storage — truth_check row', () => {
     expect((await readTruthCheck(db)).checkedAt).toBe('2026-09-05T08:00:00.000Z');
     expect(db.sqlite.prepare('SELECT count(*) AS n FROM truth_check').get().n).toBe(1);
   });
+  it('keeps the names of the vendors the check could not read', async () => {
+    const db = makeD1();
+    await writeTruthCheck(db, stamp({ uncovered: ['Apple', 'AWS'] }));
+    expect((await readTruthCheck(db)).uncovered).toEqual(['Apple', 'AWS']);
+    await writeTruthCheck(db, stamp()); // an older runner sends no names
+    expect((await readTruthCheck(db)).uncovered).toEqual([]);
+  });
 });
 
 describe('POST /api/truth-check — the workflow writes the stamp', () => {
@@ -66,6 +73,16 @@ describe('POST /api/truth-check — the workflow writes the stamp', () => {
     expect((await post(env, stamp({ agreed: 37 }), 't')).status).toBe(400);
     expect((await post(env, stamp({ disagreements: 1 }), 't')).status).toBe(400); // falseGreen is empty
     expect((await post(env, stamp({ falseGreen: ['Google'] }), 't')).status).toBe(400); // disagreements is 0
+    // the uncovered names are optional, but bounded and consistent when sent
+    expect((await post(env, stamp({ uncovered: 'Apple' }), 't')).status).toBe(400);
+    expect((await post(env, stamp({ uncovered: ['x'.repeat(300)] }), 't')).status).toBe(400);
+    expect((await post(env, stamp({ covered: 48, uncovered: ['Apple', 'AWS'] }), 't')).status).toBe(400); // 2 names, 1 gap
+  });
+  it('accepts a stamp with the uncovered names (204) and /api/status carries them', async () => {
+    const env = { DB: makeD1(), TRUTH_CHECK_TOKEN: 't' };
+    expect((await post(env, stamp({ covered: 47, agreed: 47, uncovered: ['Apple', 'AWS'] }), 't')).status).toBe(204);
+    const body = await (await worker.fetch(new Request('https://w.example/api/status'), env)).json();
+    expect(body.truthCheck.uncovered).toEqual(['Apple', 'AWS']);
   });
   it('rejects a checkedAt in the future (400) — a leaked token must not be able to silence "Truth check overdue"', async () => {
     const db = makeD1();
@@ -100,11 +117,28 @@ describe('renderDashboard — the truth-check stamp', () => {
   it('says so when the board has never been truth-checked', () => {
     expect(render(null)).toContain('Not yet truth-checked');
   });
-  it('a fresh stamp with no disagreements reads as verified', () => {
+  it('a fresh stamp with no disagreements reads as verified, in plain words', () => {
     const html = render(stamp());
-    expect(html).toMatch(/Truth-checked <time[^>]*datetime="2026-09-05T06:00:00.000Z"[^>]*>[^<]+<\/time> against 36 of 49 vendors/);
+    expect(html).toMatch(/Double-checked <time[^>]*datetime="2026-09-05T06:00:00.000Z"[^>]*>[^<]+<\/time> against 36 of 49 vendors\u2019 own status feeds/);
     expect(html).toContain('no disagreements');
     expect(html).not.toContain('overdue');
+  });
+  it('explains the vendors it could not check instead of leaving "36 of 49" unexplained', () => {
+    const html = render(stamp());
+    expect(html).toContain('The other 13 publish their status in formats this check can\u2019t read yet');
+    expect(html).toContain('the board still reads them');
+    expect(html).not.toContain('<details'); // no names sent, no list
+  });
+  it('names the unchecked vendors in a collapsible list, escaped', () => {
+    const html = render(stamp({ covered: 47, agreed: 47, uncovered: ['Apple', '<b>x</b>'] }));
+    expect(html).toContain('The other 2 publish');
+    expect(html).toMatch(/<details[^>]*><summary>Which 2\?<\/summary>/);
+    expect(html).toContain('Apple, &lt;b&gt;x&lt;/b&gt;');
+  });
+  it('says nothing about unchecked vendors when every vendor is checked', () => {
+    const html = render(stamp({ covered: 49, agreed: 49 }));
+    expect(html).toContain('against 49 of 49');
+    expect(html).not.toContain('The other');
   });
   it('disagreements are counted and named', () => {
     const html = render(stamp({ disagreements: 2, falseGreen: ['Google', 'Zoom'] }));

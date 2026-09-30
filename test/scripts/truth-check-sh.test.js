@@ -22,6 +22,7 @@ const REPORT_CLEAN = {
   total: 4,
   agreed: 3,
   falseGreen: [],
+  uncovered: ['Zscaler'],
 };
 const REPORT_FALSE_GREEN = {
   ...REPORT_CLEAN,
@@ -120,6 +121,7 @@ describe('check.sh — the shared truth-check orchestration', () => {
       agreed: 3,
       disagreements: 0,
       falseGreen: [],
+      uncovered: ['Zscaler'],
     });
     expect(r.out).toMatch(/stamp HTTP 204/);
   });

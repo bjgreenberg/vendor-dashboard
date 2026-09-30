@@ -128,7 +128,7 @@ new=$(wc -l < newly-filed.txt | tr -d ' ')
 if [ -z "${TRUTH_CHECK_TOKEN:-}" ]; then
   echo "TRUTH_CHECK_TOKEN not configured — the board keeps reading 'Not yet truth-checked'"
 else
-  jq '{checkedAt, covered, total, agreed, disagreements: (.falseGreen | length), falseGreen: [.falseGreen[].vendor]}' report.json > stamp.json
+  jq '{checkedAt, covered, total, agreed, disagreements: (.falseGreen | length), falseGreen: [.falseGreen[].vendor], uncovered: (.uncovered // [])}' report.json > stamp.json
   code=$(curl -s --max-time 30 -o stamp-response.txt -w '%{http_code}' -X POST \
            -H "Authorization: Bearer $TRUTH_CHECK_TOKEN" -H 'Content-Type: application/json' \
            --data @stamp.json "$ORIGIN/api/truth-check")
