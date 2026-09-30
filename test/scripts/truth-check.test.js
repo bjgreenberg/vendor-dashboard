@@ -23,11 +23,12 @@ describe('probeUrlsFor — which raw feeds the second opinion reads', () => {
     const gov = vendorNamed('US Government');
     expect(probeUrlsFor(gov)).toEqual(gov.sources.map((s) => s.url));
   });
-  it('region-scoped or unsupported vendors are not covered (empty list, never a guess)', () => {
-    expect(probeUrlsFor(vendorNamed('AWS'))).toEqual([]);
-    expect(probeUrlsFor(vendorNamed('Discord'))).toEqual([]);
-    expect(probeUrlsFor(vendorNamed('Microsoft'))).toEqual([]);
+  it('an unsupported platform or source is not covered (empty list, never a guess)', () => {
+    // AWS, Discord and Microsoft were here until 2026-09-30; worklist #124
+    // gave them readers (test/scripts/truth-check-readers.test.js).
     expect(probeUrlsFor({ name: 'x', type: 'never-heard-of-it', url: 'https://x' })).toEqual([]);
+    expect(probeUrlsFor({ name: 'x', type: 'statuspage', url: 'https://x', scope: { regionPrefixes: ['us-'] } })).toEqual([]);
+    expect(probeUrlsFor({ name: 'x', type: 'composite', sources: [{ type: 'never-heard-of-it', url: 'https://x' }] })).toEqual([]);
   });
 });
 
@@ -135,8 +136,10 @@ describe('secondOpinion — the other covered platforms', () => {
     expect(o.evidence.join(' ')).toContain(gov.sources[1].group);
   });
   it('an uncovered vendor says so and never guesses', () => {
-    const o = secondOpinion(vendorNamed('AWS'), {});
+    const o = secondOpinion({ name: 'x', type: 'never-heard-of-it', url: 'https://x' }, {});
     expect(o).toMatchObject({ covered: false, verdict: 'uncovered' });
+    // A covered vendor whose feed never arrived is unreadable, not uncovered.
+    expect(secondOpinion(vendorNamed('AWS'), {})).toMatchObject({ covered: true, verdict: 'unreadable' });
   });
 });
 

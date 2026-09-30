@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-09-30 05:32 PM CDT
+Last updated: 2026-09-30 05:49 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -356,7 +356,16 @@ truth check runs on the always-on Mac first and on GitHub as a backstop
   own verdict the simplest way that vendor offers — the Statuspage page
   indicator, the in-scope component states for a scoped vendor, `page.status`
   on Instatus, `page.state` on SorryApp, Oracle's page-level `status.json`,
-  and for Google an incident with no `end` time — and compares it with
+  and for Google an incident with no `end` time — and, since 2026-09-30
+  (`scripts/truth-check/vendor-rules.mjs`, worklist #124), the other 13
+  platforms too, each preferring a different field from its adapter: Apple's
+  event start/end times, AWS's numeric event `status` (US regions only, as
+  on the board), IBM's parsed `statusItems`, Okta's embedded incident
+  records, Stormboard's page heading, Signal's status symbol, Zscaler's
+  legend `visible` flag per cloud, Concur per data centre, Docusign
+  components plus open incidents, Meta's exact status words, Tableau's
+  active production instances, Discord through the same US voice-region
+  lens as the board, and Microsoft source by source. It compares that with
   `/api/status`. A **false green** (board `operational`, vendor says
   otherwise) that survives a ten-minute recheck — the board re-collects
   each vendor every 15 minutes, so a fresh outage reads as false green until
@@ -367,13 +376,14 @@ truth check runs on the always-on Mac first and on GitHub as a backstop
   on Statuspage vendors are evidence, not a vote — the settled decision that
   incidents inform context and never severity holds here too. Platforms the
   rule does not understand are counted as **uncovered**, never guessed (36 of
-  49 vendors covered on 2026-09-05). The workflow then **stamps the board**:
-  "Double-checked ‹time› against 36 of 49 vendors' own status feeds · no
-  disagreements. The other 13 publish their status in formats this check
-  can't read yet; the board still reads them.", with a collapsible "Which
-  13?" list of the unchecked vendors (the stamp carries their names since
-  2026-09-30, so "36 of 49" never reads as 13 vendors gone missing). It goes
-  overdue after three hours — a stale stamp is itself the alarm. The 2026-08-28 Google misreport (an open Chat incident rendered as
+  49 covered on 2026-09-05; **49 of 49** since 2026-09-30, and a test fails
+  if a configured vendor has no reader). The workflow then **stamps the
+  board**: "Double-checked ‹time› against 49 of 49 vendors' own status feeds
+  · no disagreements." If a vendor is ever uncovered again, the stamp adds
+  "The other N publish their status in formats this check can't read yet;
+  the board still reads them." with a collapsible "Which N?" list (the stamp
+  carries their names since 2026-09-30, so "36 of 49" never read as vendors
+  gone missing). It goes overdue after three hours — a stale stamp is itself the alarm. The 2026-08-28 Google misreport (an open Chat incident rendered as
   all healthy, PR #123) is the class of failure it exists to catch.
 
 ### Where the truth check runs
