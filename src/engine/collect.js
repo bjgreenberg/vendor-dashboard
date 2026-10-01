@@ -65,23 +65,23 @@ const DEFAULT_RETRY_BUDGET = 10;
 export const DEFAULT_SUBREQUEST_BUDGET = 40;
 
 /**
- * Deadline for the second pass (see `recheckTransient`).
+ * Deadline for the second look (see `fetchWithSecondLook`).
  *
  * Longer than the first pass on purpose. The failure it exists for is a feed
  * that accepts the request and then sends nothing for 15 s or more (measured
  * 2026-10-01 against Atlassian Statuspage: 0 bytes for 15 s, then 0.07 s on
  * the next request). Three 10 s tries all abort inside one such stall; one
  * patient try outlasts it. A scheduled Worker may run for 15 minutes of wall
- * time and waiting on a fetch costs no CPU, so the patience is free.
+ * time and waiting on a fetch costs no CPU, so the patience is cheap.
  */
 const DEFAULT_RECHECK_TIMEOUT_MS = 25_000;
 
 /**
- * Most vendors re-checked in one run. A shard holds about three vendors, so
- * five covers a whole shard failing; beyond that the cause is ours or the
- * network's, and asking everyone twice is a retry storm, not a second look.
+ * Most second looks in one run. A shard holds about three vendors, so five
+ * covers a whole shard stalling; beyond that the cause is ours or the
+ * network's, and asking everyone again is a retry storm, not a second look.
  */
-const RECHECK_MAX_VENDORS = 5;
+const RECHECK_MAX = 5;
 
 /** Marker so an exhausted budget is reported distinctly from a vendor outage. */
 export const BUDGET_EXHAUSTED = 'subrequest budget exhausted';
@@ -174,27 +174,80 @@ const MAX_ATTEMPTS = 3;
  *
  * @param {string[]} urls primary first, then fallbacks
  * @param {object} ctx
- * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string}>}
+ * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string, noAnswer: boolean}>}
  */
 async function fetchWithFallback(urls, ctx) {
   let lastReason = 'fetch failed';
-  let transient = false;
+  // True if ANY url went unanswered, not only the last one tried: a stalled
+  // primary behind a fallback that answers 404 is still a stall.
+  let noAnswer = false;
   for (const url of urls) {
     const attempt = await fetchWithRetry(url, ctx);
     if (attempt.ok) return attempt;
     lastReason = attempt.reason;
-    transient = attempt.transient;
+    noAnswer = noAnswer || attempt.noAnswer;
     // Only spend a fallback if the budget still allows it.
     if (ctx.budget.remaining <= 0) break;
   }
-  return { ok: false, reason: lastReason, transient };
+  return { ok: false, reason: lastReason, noAnswer };
 }
 
 /**
- * @param {string} url
+ * Fetch, and when the vendor never answered, look once more with patience.
+ *
+ * WHY: a status feed sometimes accepts the request and sends nothing (see
+ * DEFAULT_RECHECK_TIMEOUT_MS). Three quick tries all land inside one stall
+ * and the vendor read `unknown` for a 15-minute cycle: 250 of 283 unknown
+ * checks in the 14 days to 2026-10-01 were Statuspage vendors, and the one
+ * captured reason was a deadline abort.
+ *
+ * SCOPE: only a fetch that got NO ANSWER (a network error or a deadline)
+ * earns the second look. An HTTP status is an answer. The retryable ones have
+ * already had three tries with backoff; asking a fourth time, at once, a host
+ * that said 429 or 503 is not waiting anything out.
+ *
+ * This does not weaken the governing rule. The second look is a real fetch;
+ * its body goes through the same adapter; a vendor that fails it is `unknown`.
+ *
+ * Because it sits at the fetch, a composite vendor gets it per SOURCE: the
+ * sources that answered in the first place are never fetched again, so a
+ * verified outage on one source cannot be lost to a re-read of the whole row.
+ *
+ * Guards, so a second look cannot become a retry storm:
+ *   - never once the subrequest budget has denied a request — that run has
+ *     already stopped asking, and more requests deepen an operator fault;
+ *   - only with room in the budget for its own requests;
+ *   - at most RECHECK_MAX per run. Which ones is first come, first served.
+ * These bound what the second look itself spends. They do not make budget
+ * exhaustion impossible: a vendor that recovers goes on to fetch its other
+ * documents, as it would on any healthy run.
+ *
+ * @param {string[]} urls
  * @param {object} ctx
- * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string}>}
+ * @param {{vendor: string, source?: string}} label who this is, for the run log
+ * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string, noAnswer: boolean}>}
  */
+async function fetchWithSecondLook(urls, ctx, label) {
+  const first = await fetchWithFallback(urls, ctx);
+  const look = ctx.secondLook;
+  if (first.ok || !first.noAnswer || !look) return first;
+
+  const { meter } = look;
+  const entry = { ...label, reason: first.reason };
+  if (meter.denied > 0 || look.remaining <= 0 || meter.max - meter.spent < urls.length) {
+    look.log.push({ ...entry, outcome: 'skipped' });
+    return first;
+  }
+
+  look.remaining -= 1;
+  // One patient try per URL. The retry budget is the run's own, so a fallback
+  // URL is still tried while any of it is left.
+  const second = await fetchWithFallback(urls, { ...ctx, timeoutMs: look.timeoutMs, maxAttempts: 1 });
+  look.log.push({ ...entry, outcome: second.ok ? 'recovered' : 'failed_again' });
+  // The later reading stands either way: it is the most recent thing known.
+  return second;
+}
+
 /**
  * Decode a response body, honouring UTF-16.
  *
@@ -226,14 +279,17 @@ async function decodeBody(response) {
   return new TextDecoder(encoding).decode(buf);
 }
 
+/**
+ * @param {string} url
+ * @param {object} ctx
+ * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string, noAnswer: boolean}>}
+ */
 async function fetchWithRetry(url, ctx) {
   const { fetchFn, timeoutMs, retryDelayMs, budget, maxAttempts = MAX_ATTEMPTS } = ctx;
   let lastReason = 'fetch failed';
-  // TRANSIENT means "asking again later could plausibly succeed": a network
-  // error, a deadline, or a status from RETRYABLE_STATUS. It is what earns a
-  // vendor the second pass. A 404, a 401 or our own exhausted budget does not:
-  // none of them is waited out.
-  let transient = false;
+  // Did any try end with no answer at all (network error, deadline)? Our own
+  // exhausted budget is not the vendor failing to answer.
+  let noAnswer = false;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     if (attempt > 1) {
@@ -262,20 +318,19 @@ async function fetchWithRetry(url, ctx) {
 
       if (response && response.ok === false) {
         lastReason = `fetch returned HTTP ${response.status}`;
-        transient = RETRYABLE_STATUS.has(response.status);
-        if (transient) continue;
-        return { ok: false, reason: lastReason, transient };
+        if (RETRYABLE_STATUS.has(response.status)) continue;
+        return { ok: false, reason: lastReason, noAnswer };
       }
 
       return { ok: true, body: await decodeBody(response) };
     } catch (error) {
       // A network-level failure is transient by nature; retry it.
       lastReason = `fetch failed: ${error?.message ?? String(error)}`;
-      transient = error?.message !== BUDGET_EXHAUSTED;
+      if (error?.message !== BUDGET_EXHAUSTED) noAnswer = true;
     }
   }
 
-  return { ok: false, reason: lastReason, transient };
+  return { ok: false, reason: lastReason, noAnswer };
 }
 
 /**
@@ -410,13 +465,12 @@ async function collectOne(vendor, ctx) {
   }
 
   const urls = [vendor.url, ...(Array.isArray(vendor.fallbackUrls) ? vendor.fallbackUrls : [])];
-  const attempt = await fetchWithFallback(urls, ctx);
+  const attempt = await fetchWithSecondLook(
+    urls,
+    ctx,
+    vendor?.group ? { vendor: name, source: vendor.group } : { vendor: name },
+  );
   if (!attempt.ok) {
-    // First reason wins: a composite's sources share the vendor's name, and
-    // the run log should say why the vendor was re-checked, not list them all.
-    if (attempt.transient && ctx.transient && !ctx.transient.has(name)) {
-      ctx.transient.set(name, attempt.reason);
-    }
     return unknownRecord(name, attempt.reason, opts);
   }
   const body = attempt.body;
@@ -594,9 +648,9 @@ async function collectOne(vendor, ctx) {
  * @param {(url: string, init?: any) => Promise<any>} ctx.fetchFn
  * @param {() => Date} [ctx.now]
  * @param {number} [ctx.timeoutMs]
- * @param {boolean} [ctx.recheck] second pass for transient fetch failures (default on)
- * @param {number} [ctx.recheckTimeoutMs] deadline for each second-pass fetch
- * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[], rechecks: {vendor: string, reason: string, outcome: 'recovered'|'still_unknown'|'skipped'}[]}>}
+ * @param {boolean} [ctx.recheck] second look for fetches that got no answer (default on)
+ * @param {number} [ctx.recheckTimeoutMs] deadline for a second look; never shorter than timeoutMs
+ * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[], rechecks: {vendor: string, source?: string, reason: string, outcome: 'recovered'|'failed_again'|'skipped'}[]}>}
  */
 export async function collect(config, ctx) {
   const {
@@ -656,17 +710,17 @@ export async function collect(config, ctx) {
   // Shared, mutable retry budget. Bounds total subrequests for the whole run.
   const budget = { remaining: retryBudget };
 
-  // Vendor name -> the reason its required fetch failed in a way that waiting
-  // might fix. Filled by collectOne; read by the second pass below.
-  const transient = new Map();
-
-  const collectVendor = (v, passCtx) =>
-    v?.type === 'composite' ? collectComposite(v, passCtx) : collectOne(v, passCtx);
+  // Shared state for second looks (see fetchWithSecondLook). The patient
+  // deadline is never shorter than the first-pass one.
+  const secondLook = recheck
+    ? { remaining: RECHECK_MAX, meter, timeoutMs: Math.max(timeoutMs, recheckTimeoutMs), log: [] }
+    : null;
 
   const settled = await Promise.allSettled(
-    config.vendors.map((v) =>
-      collectVendor(v, { fetchFn: meteredFetch, now, timeoutMs, retryDelayMs, budget, transient }),
-    ),
+    config.vendors.map((v) => {
+      const ctx = { fetchFn: meteredFetch, now, timeoutMs, retryDelayMs, budget, secondLook };
+      return v?.type === 'composite' ? collectComposite(v, ctx) : collectOne(v, ctx);
+    }),
   );
 
   const records = settled.map((outcome, i) =>
@@ -674,70 +728,6 @@ export async function collect(config, ctx) {
       ? outcome.value
       : unknownRecord(config.vendors[i]?.name ?? 'unknown', `collector error: ${outcome.reason}`, { now }),
   );
-
-  // SECOND PASS. Ask each transiently-failed vendor once more, with a longer
-  // deadline, before anything is written — so a feed that stalled for a few
-  // seconds is read late instead of shown `unknown` for a 15-minute cycle.
-  //
-  // This does not weaken the governing rule. A row turns green here only
-  // because a real fetch returned a real payload that the adapter verified;
-  // a vendor that fails again stays `unknown`.
-  //
-  // Three guards keep a second look from becoming a retry storm:
-  //   - never after the budget ran out: that run already stopped asking, and
-  //     more requests would only deepen an operator fault;
-  //   - only with at least half the subrequest budget left, so the second
-  //     pass cannot be what trips the meter and makes a vendor stall read as
-  //     "subrequest budget exhausted";
-  //   - at most RECHECK_MAX_VENDORS vendors, in config order.
-  const rechecks = [];
-  if (recheck && transient.size > 0 && meter.denied === 0) {
-    const due = config.vendors
-      .map((v, i) => ({ v, i }))
-      .filter(({ v }) => transient.has(v?.name));
-    const headroom = meter.max - meter.spent >= meter.max / 2;
-    const chosen = headroom ? due.slice(0, RECHECK_MAX_VENDORS) : [];
-    for (const { v } of due.slice(chosen.length)) {
-      rechecks.push({ vendor: v.name, reason: transient.get(v.name), outcome: 'skipped' });
-    }
-
-    const again = await Promise.allSettled(
-      chosen.map(({ v }) => {
-        const failedAgain = new Map();
-        // One patient try per URL. The retry budget is the run's own, so a
-        // fallback URL is still tried while any of it is left.
-        return collectVendor(v, {
-          fetchFn: meteredFetch,
-          now,
-          timeoutMs: recheckTimeoutMs,
-          retryDelayMs,
-          budget,
-          maxAttempts: 1,
-          transient: failedAgain,
-        }).then((record) => ({ record, failedAgain: failedAgain.size > 0 }));
-      }),
-    );
-
-    again.forEach((outcome, n) => {
-      const { v, i } = chosen[n];
-      const reason = transient.get(v.name);
-      if (outcome.status !== 'fulfilled') {
-        // collectVendor never throws by contract; if it ever does, the
-        // first-pass record stands.
-        rechecks.push({ vendor: v.name, reason, outcome: 'still_unknown' });
-        return;
-      }
-      // The later reading replaces the earlier one either way: it is the
-      // most recent thing known about the vendor.
-      const { record, failedAgain } = outcome.value;
-      records[i] = record;
-      rechecks.push({
-        vendor: v.name,
-        reason,
-        outcome: failedAgain || record.severity === SEVERITY.UNKNOWN ? 'still_unknown' : 'recovered',
-      });
-    });
-  }
 
   records.sort(compareRecords);
 
@@ -768,7 +758,7 @@ export async function collect(config, ctx) {
     warnings,
     subrequests: meter.spent,
     budgetExhausted: meter.denied > 0,
-    rechecks,
+    rechecks: secondLook?.log ?? [],
   };
 }
 

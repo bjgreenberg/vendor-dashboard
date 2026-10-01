@@ -108,17 +108,22 @@ a future non-Cloudflare deployment possible.
 - **404 is NOT retried.** It was once (Microsoft's endpoint measured ~50%
   available on 2026-07-31), but that was a route being decommissioned. The
   retried set is `RETRYABLE_STATUS` in `src/engine/collect.js`.
-- **Transient fetch failures get ONE second pass before the write**
-  (2026-10-01, worklist #129). Statuspage's hosting sometimes sends 0 bytes
-  for 15 s or more, and three 10 s tries all abort inside one stall. After the
-  first pass, each vendor whose required fetch failed transiently (network
-  error, deadline, retryable status) is collected once more with a 25 s
-  deadline and one try per URL; the later record replaces the earlier one.
-  Guards: not after budget exhaustion, only with half the subrequest budget
-  left, at most five vendors. It never weakens the governing rule: green
-  still needs a real, verified payload. Each re-check logs `vendor_recheck`
-  (vendor, first-pass reason, outcome); a recovered vendor leaves no other
-  trace, so do not remove that line.
+- **A fetch that got NO ANSWER gets ONE second look before the write**
+  (2026-10-01, worklist #129; `fetchWithSecondLook` in `collect.js`).
+  Statuspage's hosting sometimes sends 0 bytes for 15 s or more, and three
+  10 s tries all abort inside one stall. A network error or deadline earns one
+  more try per URL with a 25 s deadline; the later reading stands. An HTTP
+  status is an answer and earns none (429/503 already had three tries).
+  It sits at the FETCH, so a composite gets it per source — never re-collect
+  a whole composite: the first design did, and a re-read could overwrite a
+  sibling source's verified outage with `unknown` (review finding, PR #158).
+  Guards: not after the budget denied a request, only with room for its own
+  requests, at most five per run. Green still needs a real, verified payload.
+  Each one logs `vendor_recheck` (vendor, source, first-pass reason, outcome);
+  a recovered vendor leaves no other trace, so do not remove that line.
+- **`run_meta.checked_at` is `MAX(existing, new)`.** Runs overlap now that a
+  stalled vendor can hold a shard for about a minute; the board clock must not
+  step back when an older run writes last.
 - **Retries share a run-wide budget** — the Workers *free* plan caps subrequests
   at 50 per invocation; 34 vendors retrying twice would be 102.
 - **Collection is SHARDED: 15 shards on a `* * * * *` (every-minute) cron**

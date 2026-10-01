@@ -139,6 +139,10 @@ export async function writeRun(db, run, options = {}) {
     // and every cron threw for 25 minutes; the unit test missed it because a
     // mock `batch()` never executes SQL. See test/worker/storage.test.js, which
     // now asserts against real SQLite.
+    // checked_at is MAX(existing, new), not a plain overwrite. Runs can
+    // overlap — a shard waiting on a stalled vendor can finish after the next
+    // minute's shard — and checked_at is each run's START time, so the board
+    // clock and /health must not step backwards when an older run writes last.
     db
       .prepare(
         `INSERT INTO run_meta (id, checked_at, total, impacted, unknown, warnings)
@@ -150,7 +154,7 @@ export async function writeRun(db, run, options = {}) {
            FROM snapshot
           WHERE true
          ON CONFLICT(id) DO UPDATE SET
-           checked_at = excluded.checked_at,
+           checked_at = MAX(run_meta.checked_at, excluded.checked_at),
            total      = excluded.total,
            impacted   = excluded.impacted,
            unknown    = excluded.unknown,
