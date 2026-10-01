@@ -292,6 +292,7 @@ export function renderDashboard({
 <meta name="description" content="Check whether a cloud or SaaS service is down. ${esc(records.length)} vendors re-checked every 15 minutes, each read from that vendor's own status page, never an aggregator.">
 <meta name="robots" content="${indexable ? 'index, follow' : 'noindex, nofollow'}">
 <link rel="canonical" href="https://briangreenberg.net/service-status">
+<link rel="alternate" type="text/markdown" href="https://briangreenberg.net/service-status/index.md" title="This board as Markdown">
 
 <!-- Social / GEO. The site's own pages get these from Eleventy; this page is a
      separate Worker, so they are emitted here. Absolute URLs are required:

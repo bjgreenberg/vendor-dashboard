@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-09-30 06:45 PM CDT
+Last updated: 2026-09-30 08:11 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -93,10 +93,25 @@ flowchart TB
     d1 --> render["render()<br/>escape on output"]
     render --> page["/service-status"]
     d1 --> api["/api/status<br/>unknownSince per failing vendor"]
+    d1 --> ai["/llms.txt + /index.md<br/>AI-tool views of the snapshot"]
     api --> wd["endpoint-rot watchdog<br/>GitHub Action · every 2 h"]
     wd --> issue["endpoint-rot issue<br/>diagnosis + fix playbook"]
     issue -.->|"secret set"| slack["webhook (Slack-compatible)"]
 ```
+
+### Endpoints
+
+| Path (under `/service-status`) | Type | What it is |
+|---|---|---|
+| `/` | HTML | The board |
+| `/api/status` | JSON | Every vendor record plus the truth-check stamp |
+| `/health` | JSON | Freshness probe; 503 once the snapshot is older than 45 minutes |
+| `/llms.txt` | text/plain | An [llms.txt](https://llmstxt.org) for this subpath: what the board is, how it decides, its endpoints, and every vendor with its live state and status page. Pure ASCII. (2026-09-30, worklist #127) |
+| `/index.md` | text/markdown | The llms.txt spec's clean-Markdown copy of the page: a status table. The HTML page links it with `<link rel="alternate" type="text/markdown">`. (2026-09-30) |
+| `/api/truth-check` | POST | The truth check's stamp (bearer token) |
+
+The two AI-tool views render from the same snapshot as the page (`src/worker/llms.js`), so their vendor list and counts
+cannot drift from the board.
 
 **Severity** is an ordered enum, not a boolean:
 
