@@ -117,3 +117,15 @@ describe('the same alarms as the HTML board (Copilot, PR #154)', () => {
     expect(renderLlmsTxt(opts)).not.toContain('WARNING');
   });
 });
+
+describe('inline Markdown in vendor text stays text (Copilot second pass, PR #154)', () => {
+  const v = [{ vendor: 'x ![p](https://tracker.example/pixel) [l](javascript:alert(1)) `c`', service: 'x', severity: 'degraded', incidentName: '', description: '', sourceUrl: '', checkedAt: '' }];
+  it('brackets and backticks are escaped in both views, so no image or link forms', () => {
+    for (const out of [renderMarkdown({ ...opts, records: v }), renderLlmsTxt({ ...opts, records: v })]) {
+      expect(out).not.toMatch(/!\[p\]\(/);
+      expect(out).not.toMatch(/(^|[^\\])\[l\]\(/);
+      expect(out).toContain('!\\[p\\]');
+      expect(out).toContain('\\`c\\`');
+    }
+  });
+});

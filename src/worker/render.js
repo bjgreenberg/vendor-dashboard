@@ -92,6 +92,11 @@ export function esc(value) {
     .replace(/'/g, '&#39;');
 }
 
+/** The snapshot is stale after two missed 15-minute cycles (the page's banner; llms.js says the same). */
+export const STALE_AFTER_MS = 2 * 15 * 60 * 1000;
+/** The truth-check stamp is overdue after three hours: one missed run plus slack. */
+export const TRUTH_STALE_AFTER_MS = 3 * 60 * 60 * 1000;
+
 /**
  * Validate a vendor-supplied URL before putting it in an `href`.
  *
@@ -104,11 +109,6 @@ export function esc(value) {
  * @param {unknown} url
  * @returns {string} a safe absolute URL, or '' if not usable
  */
-/** The snapshot is stale after two missed 15-minute cycles (the page's banner; llms.js says the same). */
-export const STALE_AFTER_MS = 2 * 15 * 60 * 1000;
-/** The truth-check stamp is overdue after three hours: one missed run plus slack. */
-export const TRUTH_STALE_AFTER_MS = 3 * 60 * 60 * 1000;
-
 export function safeUrl(url) {
   if (typeof url !== 'string' || url === '') return '';
   try {

@@ -29,11 +29,20 @@ const ascii = (s) => s.normalize('NFKD').replace(/[–—]/g, '-').replace(/[‘
 /**
  * Neutralise third-party text for Markdown: backslashes first (so an input
  * "a\\|b" cannot leave its pipe unescaped), then HTML metacharacters (so a
- * permissive renderer never sees vendor markup), then table pipes.
+ * permissive renderer never sees vendor markup), then link/image brackets and
+ * backticks, then table pipes.
  * @param {unknown} s @param {number} [max]
  */
 const md = (s, max = 300) =>
-  line(s, max).replace(/\\/g, '\\\\').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\|/g, '\\|');
+  line(s, max)
+    .replace(/\\/g, '\\\\')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    // Inline links/images and code spans (Copilot, PR #154): "![x](https://tracker)"
+    // must stay text, never become an image a renderer fetches.
+    .replace(/[[\]`]/g, (c) => `\\${c}`)
+    .replace(/\|/g, '\\|');
 
 /**
  * @typedef {{records?: any[], meta?: any, truthCheck?: any, origin: string, base: string, now?: () => Date}} ViewInput
