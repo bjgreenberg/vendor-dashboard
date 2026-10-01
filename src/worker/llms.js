@@ -23,8 +23,8 @@ const line = (s, max = 200) => {
   return t.length > max ? `${t.slice(0, max - 3)}...` : t;
 };
 
-/** ASCII-only: decompose accents, then drop anything still outside ASCII. @param {string} s */
-const ascii = (s) => s.normalize('NFKD').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/·/g, '-').replace(/[^\x20-\x7e\n]/g, '');
+/** ASCII-only: CANONICAL decomposition (NFD, not NFKD: compatibility mapping would turn full-width ＜ ！ ［ into the < ! [ that md() already escaped — Copilot, PR #154), then drop anything still outside ASCII. @param {string} s */
+const ascii = (s) => s.normalize('NFD').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/·/g, '-').replace(/[^\x20-\x7e\n]/g, '');
 
 /**
  * Neutralise third-party text for Markdown: backslashes first (so an input

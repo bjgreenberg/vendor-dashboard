@@ -129,3 +129,13 @@ describe('inline Markdown in vendor text stays text (Copilot second pass, PR #15
     }
   });
 });
+
+describe('ASCII folding cannot re-create markup (Copilot third pass, PR #154)', () => {
+  it('full-width look-alikes are dropped, not mapped to < ! [ (', () => {
+    const v = [{ vendor: 'v ＜img src=x＞ ！［p］（https://t.example） café', service: 'x', severity: 'degraded', incidentName: '', description: '', sourceUrl: '', checkedAt: '' }];
+    const txt = renderLlmsTxt({ ...opts, records: v });
+    expect(txt).not.toContain('<img');
+    expect(txt).not.toMatch(/!\[p\]\(/);
+    expect(txt).toContain('cafe'); // accents still fold to ASCII
+  });
+});
