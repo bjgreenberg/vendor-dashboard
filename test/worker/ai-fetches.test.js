@@ -7,10 +7,10 @@ import { resetSchemaFlag } from '../../src/worker/ai-fetches.js';
 // /service-status/index.md. Same counter as the three sites
 // (src/worker/ai-fetches.js), backed by the board's own D1 (migration 0004).
 const env = (db) => ({ DB: db, BASE_PATH: '/service-status' });
-const get = (db, path, ua) => {
+const get = (db, path, ua, method = 'GET') => {
   const pending = [];
   return worker
-    .fetch(new Request(`https://briangreenberg.net/service-status${path}`, { headers: ua ? { 'User-Agent': ua } : {} }), env(db), { waitUntil: (p) => pending.push(p) })
+    .fetch(new Request(`https://briangreenberg.net/service-status${path}`, { method, headers: ua ? { 'User-Agent': ua } : {} }), env(db), { waitUntil: (p) => pending.push(p) })
     .then(async (res) => { await Promise.all(pending); return res; });
 };
 
@@ -35,6 +35,14 @@ describe('AI-fetch counting on the dashboard', () => {
     await get(db, '/api/status', 'GPTBot/1.2');
     const n = db.sqlite.prepare('SELECT SUM(n) AS n FROM ai_fetches').get().n;
     expect(n).toBe(1);
+  });
+
+  it('counts GET and HEAD only, never other methods (Copilot, #156)', async () => {
+    const db = makeD1();
+    await get(db, '/llms.txt', 'GPTBot/1.2');
+    await get(db, '/llms.txt', 'GPTBot/1.2', 'POST');
+    await get(db, '/llms.txt', 'GPTBot/1.2', 'OPTIONS');
+    expect(db.sqlite.prepare('SELECT SUM(n) AS n FROM ai_fetches').get().n).toBe(1);
   });
 
   it('/ai-fetches.json reports the 30-day aggregates', async () => {

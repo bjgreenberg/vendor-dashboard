@@ -116,7 +116,8 @@ export async function countFetch(db, { kind, agent, day }) {
 export async function stats(db, { site, days = 30, now = new Date() }) {
   await ensureSchema(db);
   const dayOf = (i) => new Date(now.getTime() - i * 86_400_000).toISOString().slice(0, 10);
-  await db.prepare('DELETE FROM ai_fetches WHERE day < ?').bind(dayOf(RETAIN_DAYS)).run();
+  // Keep exactly RETAIN_DAYS day buckets, today included (Copilot, vendor-dashboard #156).
+  await db.prepare('DELETE FROM ai_fetches WHERE day < ?').bind(dayOf(RETAIN_DAYS - 1)).run();
   const { results = [] } = await db.prepare('SELECT day, kind, agent, n FROM ai_fetches WHERE day >= ? ORDER BY day DESC').bind(dayOf(days - 1)).all();
   const byDay = new Map();
   const totals = {};

@@ -187,6 +187,13 @@ async function handleFetch(request, env, ctx) {
     return handleTruthCheck(request, env);
   }
 
+  // AI-fetch stats need none of the snapshot: answer before reading it
+  // (Copilot, #156 — mission-control polls this).
+  if (path === '/ai-fetches.json') {
+    const body = await aiFetchStats(env.DB, { site: 'briangreenberg.net/service-status' });
+    return json(body, { 'Cache-Control': 'public, max-age=300' });
+  }
+
   const { records, meta, truthCheck } = await readSnapshot(env.DB);
 
   if (path === '/api/status') {
@@ -195,22 +202,20 @@ async function handleFetch(request, env, ctx) {
 
   // AI-tool views of the same snapshot (worklist #127): an llms.txt for this
   // subpath and the llmstxt.org clean-Markdown copy of the page.
-  if (path === '/ai-fetches.json') {
-    const body = await aiFetchStats(env.DB, { site: 'briangreenberg.net/service-status' });
-    return json(body, { 'Cache-Control': 'public, max-age=300' });
-  }
-
   if (path === '/llms.txt' || path === '/index.md') {
     const view = { records, meta, truthCheck, origin: url.origin, base };
     const llms = path === '/llms.txt';
     // Count who fetches the AI views (worklist #127), after the response.
-    const counted = countFetch(env.DB, {
-      kind: llms ? 'llms.txt' : 'markdown',
-      agent: agentOf(request.headers.get('User-Agent')),
-      day: new Date().toISOString().slice(0, 10),
-    });
-    if (ctx?.waitUntil) ctx.waitUntil(counted);
-    else await counted;
+    // GET/HEAD only, like the shared handler (Copilot, #156).
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      const counted = countFetch(env.DB, {
+        kind: llms ? 'llms.txt' : 'markdown',
+        agent: agentOf(request.headers.get('User-Agent')),
+        day: new Date().toISOString().slice(0, 10),
+      });
+      if (ctx?.waitUntil) ctx.waitUntil(counted);
+      else await counted;
+    }
     return new Response(llms ? renderLlmsTxt(view) : renderMarkdown(view), {
       headers: {
         'Content-Type': llms ? 'text/plain; charset=utf-8' : 'text/markdown; charset=utf-8',

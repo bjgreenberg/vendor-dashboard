@@ -79,6 +79,14 @@ test('stats sums the window into totals and prunes past 90 days', async () => {
   assert.equal(rows(d1).some((r) => r.day === '2026-01-01'), false);
 });
 
+test('retention keeps exactly 90 day buckets, today included (Copilot, vendor-dashboard #156)', async () => {
+  const d1 = memD1();
+  await countFetch(d1, { kind: 'markdown', agent: 'GPTBot', day: '2026-07-03' }); // today - 89: kept
+  await countFetch(d1, { kind: 'markdown', agent: 'GPTBot', day: '2026-07-02' }); // today - 90: pruned
+  await stats(d1, { site: 'x', now: new Date('2026-09-30T12:00:00Z') });
+  assert.deepEqual(rows(d1).map((r) => r.day), ['2026-07-03']);
+});
+
 test('serves a counted file with a UTF-8 charset and tallies it after the response', async () => {
   const d1 = memD1();
   const pending = [];
