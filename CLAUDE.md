@@ -105,8 +105,20 @@ a future non-Cloudflare deployment possible.
 - **Adapters return EVERY component, healthy included** — the dashboard decides
   what to show. Returning only unhealthy ones breaks the expand-all disclosure
   (fixed 2026-07-31; the healthy-path early return had omitted them).
-- **404 is retryable.** Unusual, but Microsoft's endpoint measured ~50%
-  available. Bounded by an attempt cap and a run-wide budget.
+- **404 is NOT retried.** It was once (Microsoft's endpoint measured ~50%
+  available on 2026-07-31), but that was a route being decommissioned. The
+  retried set is `RETRYABLE_STATUS` in `src/engine/collect.js`.
+- **Transient fetch failures get ONE second pass before the write**
+  (2026-10-01, worklist #129). Statuspage's hosting sometimes sends 0 bytes
+  for 15 s or more, and three 10 s tries all abort inside one stall. After the
+  first pass, each vendor whose required fetch failed transiently (network
+  error, deadline, retryable status) is collected once more with a 25 s
+  deadline and one try per URL; the later record replaces the earlier one.
+  Guards: not after budget exhaustion, only with half the subrequest budget
+  left, at most five vendors. It never weakens the governing rule: green
+  still needs a real, verified payload. Each re-check logs `vendor_recheck`
+  (vendor, first-pass reason, outcome); a recovered vendor leaves no other
+  trace, so do not remove that line.
 - **Retries share a run-wide budget** — the Workers *free* plan caps subrequests
   at 50 per invocation; 34 vendors retrying twice would be 102.
 - **Collection is SHARDED: 15 shards on a `* * * * *` (every-minute) cron**
@@ -182,7 +194,7 @@ To actually verify a collection:
 
 ```sh
 # 1. The collector's own verdict, unfiltered — NOT --status=error.
-npx wrangler tail --format=json | grep -E 'collection_(complete|alert)'
+npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|vendor_recheck'
 # 2. The board's aggregate state, over more than one cron cycle.
 curl -s https://briangreenberg.net/service-status/api/status \
   | python3 -c "import sys,json;from collections import Counter;d=json.load(sys.stdin);print(Counter(r['severity'] for r in d['records']))"

@@ -451,3 +451,253 @@ describe('collect — fallback URLs', () => {
     expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
   });
 });
+
+// A second pass for vendors whose REQUIRED fetch failed transiently.
+//
+// Found 2026-10-01 (worklist #129): Atlassian Statuspage's hosting sometimes
+// accepts a request and then sends nothing for 15 s or more. Three tries with
+// a 10 s deadline, under a second apart, all land inside the same stall, and
+// the vendor read `unknown` for a full 15-minute cycle. 250 of 283 unknown
+// checks in 14 days were Statuspage vendors. The second pass asks once more,
+// with a longer deadline, before anything is written.
+describe('collect — second pass for transient fetch failures', () => {
+  const GH = readFileSync(new URL('../fixtures/GitHub.json', import.meta.url), 'utf8');
+  const ok = () => ({ ok: true, status: 200, text: async () => GH });
+
+  /** Answers after `ms`, unless the caller's deadline aborts it first. */
+  const slowFetch = (ms, log = []) => (url, init) =>
+    new Promise((resolve, reject) => {
+      log.push(url);
+      const timer = setTimeout(() => resolve(ok()), ms);
+      init?.signal?.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(init.signal.reason ?? new Error('The operation was aborted due to timeout'));
+      });
+    });
+
+  it('a feed slower than the first-pass deadline is read on the re-check, not left unknown', async () => {
+    // The regression: the feed answers in 60 ms, the deadline is 20 ms, so all
+    // three first-pass tries abort. The re-check waits long enough.
+    const calls = [];
+    const res = await collect(cfg([{ name: 'Slow', type: 'statuspage', url: 'https://slow' }]), {
+      fetchFn: slowFetch(60, calls),
+      now,
+      timeoutMs: 20,
+      retryDelayMs: 0,
+      recheckTimeoutMs: 500,
+    });
+    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+    expect(res.unknown).toBe(0);
+    expect(calls).toHaveLength(4); // three first-pass tries, one re-check
+    expect(res.rechecks).toEqual([
+      { vendor: 'Slow', reason: expect.stringMatching(/^fetch failed/), outcome: 'recovered' },
+    ]);
+  });
+
+  it('a vendor still failing on the re-check stays UNKNOWN, never OPERATIONAL', async () => {
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      throw new Error('ECONNRESET');
+    };
+    const res = await collect(cfg([{ name: 'Down', type: 'statuspage', url: 'https://down' }]), {
+      fetchFn,
+      now,
+      retryDelayMs: 0,
+    });
+    expect(calls).toBe(4);
+    expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
+    expect(res.unknown).toBe(1);
+    expect(res.rechecks).toEqual([
+      { vendor: 'Down', reason: 'fetch failed: ECONNRESET', outcome: 'still_unknown' },
+    ]);
+  });
+
+  it('re-checks a retryable HTTP status that outlasted the first pass', async () => {
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      return calls <= 3 ? { ok: false, status: 503, text: async () => '' } : ok();
+    };
+    const res = await collect(cfg([{ name: 'Busy', type: 'statuspage', url: 'https://busy' }]), {
+      fetchFn,
+      now,
+      retryDelayMs: 0,
+    });
+    expect(calls).toBe(4);
+    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+    expect(res.rechecks[0]).toMatchObject({ vendor: 'Busy', reason: 'fetch returned HTTP 503', outcome: 'recovered' });
+  });
+
+  it('a re-check that fails for good is reported still unknown, not recovered', async () => {
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      return { ok: false, status: calls <= 3 ? 503 : 404, text: async () => '' };
+    };
+    const res = await collect(cfg([{ name: 'Retired', type: 'statuspage', url: 'https://retired' }]), {
+      fetchFn,
+      now,
+      retryDelayMs: 0,
+    });
+    expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
+    expect(res.records[0].warnings).toEqual(['fetch returned HTTP 404']); // the later reading stands
+    expect(res.rechecks[0].outcome).toBe('still_unknown');
+  });
+
+  it('does NOT re-check a failure that waiting cannot fix', async () => {
+    const seen = [];
+    const fetchFn = async (url) => {
+      seen.push(url);
+      if (url === 'https://gone') return { ok: false, status: 404, text: async () => '' };
+      return { ok: true, status: 200, text: async () => '<html>not json</html>' };
+    };
+    const res = await collect(
+      cfg([
+        { name: 'Gone', type: 'statuspage', url: 'https://gone' },
+        { name: 'Garbled', type: 'statuspage', url: 'https://garbled' },
+        { name: 'NoAdapter', type: 'nope', url: 'https://nope' },
+      ]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(seen.sort()).toEqual(['https://garbled', 'https://gone']); // one fetch each, no second pass
+    expect(res.unknown).toBe(3);
+    expect(res.rechecks).toEqual([]);
+  });
+
+  it('re-fetches only the vendors that failed, never the healthy ones', async () => {
+    const seen = [];
+    let flakyCalls = 0;
+    const fetchFn = async (url) => {
+      seen.push(url);
+      if (url === 'https://flaky') {
+        flakyCalls += 1;
+        if (flakyCalls <= 3) throw new Error('socket hang up');
+      }
+      return ok();
+    };
+    const res = await collect(
+      cfg([
+        { name: 'Fine', type: 'statuspage', url: 'https://fine' },
+        { name: 'Flaky', type: 'statuspage', url: 'https://flaky' },
+      ]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(seen.filter((u) => u === 'https://fine')).toHaveLength(1);
+    expect(seen.filter((u) => u === 'https://flaky')).toHaveLength(4);
+    expect(res.unknown).toBe(0);
+    expect(res.records).toHaveLength(2);
+  });
+
+  it('re-check fetches are metered like every other subrequest', async () => {
+    const fetchFn = async () => {
+      throw new Error('ECONNRESET');
+    };
+    const res = await collect(cfg([{ name: 'Down', type: 'statuspage', url: 'https://down' }]), {
+      fetchFn,
+      now,
+      retryDelayMs: 0,
+    });
+    expect(res.subrequests).toBe(4);
+  });
+
+  it('skips the re-check when the run has no headroom, and never reports that as a budget fault', async () => {
+    // 20 vendors each failing 503: the first pass spends 25 of the 40 budget.
+    // A second pass would need 20 more and trip the meter, which reads as an
+    // OPERATOR fault ("we stopped asking"). It must not start.
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      return { ok: false, status: 503, text: async () => '' };
+    };
+    const vendors = Array.from({ length: 20 }, (_, i) => ({ name: `V${i}`, type: 'statuspage', url: `https://v${i}` }));
+    const res = await collect(cfg(vendors), { fetchFn, now, retryDelayMs: 0, retryBudget: 5 });
+    expect(calls).toBe(25);
+    expect(res.budgetExhausted).toBe(false);
+    expect(res.unknown).toBe(20);
+    expect(res.rechecks).toHaveLength(20);
+    expect(new Set(res.rechecks.map((r) => r.outcome))).toEqual(new Set(['skipped']));
+  });
+
+  it('does not re-check after the subrequest budget ran out', async () => {
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      throw new Error('ECONNRESET');
+    };
+    const vendors = Array.from({ length: 6 }, (_, i) => ({ name: `V${i}`, type: 'statuspage', url: `https://v${i}` }));
+    const res = await collect(cfg(vendors), { fetchFn, now, retryDelayMs: 0, subrequestBudget: 4 });
+    expect(calls).toBe(4);
+    expect(res.budgetExhausted).toBe(true);
+  });
+
+  it('re-checks at most five vendors in one run', async () => {
+    const perUrl = {};
+    const fetchFn = async (url) => {
+      perUrl[url] = (perUrl[url] ?? 0) + 1;
+      throw new Error('ECONNRESET');
+    };
+    const vendors = Array.from({ length: 7 }, (_, i) => ({ name: `V${i}`, type: 'statuspage', url: `https://v${i}` }));
+    const res = await collect(cfg(vendors), {
+      fetchFn,
+      now,
+      retryDelayMs: 0,
+      retryBudget: 0,
+      subrequestBudget: 100,
+    });
+    const secondPass = Object.values(perUrl).filter((n) => n === 2).length;
+    expect(secondPass).toBe(5);
+    expect(res.rechecks.filter((r) => r.outcome === 'skipped')).toHaveLength(2);
+    expect(res.unknown).toBe(7);
+  });
+
+  it('re-checks a composite vendor whole when one of its sources failed', async () => {
+    let bCalls = 0;
+    const fetchFn = async (url) => {
+      if (url === 'https://b') {
+        bCalls += 1;
+        if (bCalls <= 3) throw new Error('ECONNRESET');
+      }
+      return ok();
+    };
+    const res = await collect(
+      cfg([
+        {
+          name: 'Multi',
+          type: 'composite',
+          sources: [
+            { group: 'A', type: 'statuspage', url: 'https://a' },
+            { group: 'B', type: 'statuspage', url: 'https://b' },
+          ],
+        },
+      ]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+    expect(res.rechecks).toEqual([{ vendor: 'Multi', reason: 'fetch failed: ECONNRESET', outcome: 'recovered' }]);
+  });
+
+  it('can be switched off', async () => {
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      throw new Error('ECONNRESET');
+    };
+    const res = await collect(cfg([{ name: 'Down', type: 'statuspage', url: 'https://down' }]), {
+      fetchFn,
+      now,
+      retryDelayMs: 0,
+      recheck: false,
+    });
+    expect(calls).toBe(3);
+    expect(res.rechecks).toEqual([]);
+  });
+
+  it('a healthy run reports no re-checks', async () => {
+    const res = await collect(cfg([{ name: 'Fine', type: 'statuspage', url: 'https://fine' }]), {
+      fetchFn: async () => ok(),
+      now,
+    });
+    expect(res.rechecks).toEqual([]);
+  });
+});

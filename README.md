@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-09-30 09:07 PM CDT
+Last updated: 2026-10-01 01:43 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -82,6 +82,8 @@ transactionally to D1, and serves a rendered dashboard.
 ```mermaid
 flowchart TB
     cron["Cron Trigger<br/>every minute · 1 of 15 shards"] --> collect["collect()<br/>concurrent + per-vendor deadline"]
+    collect -.->|"a fetch timed out or errored"| recheck["second pass<br/>one patient try, 25 s deadline"]
+    recheck -.-> adapters
     collect --> adapters{"dispatch by type"}
     adapters -->|"Statuspage v2"| a1["statuspage"]
     adapters -->|"Instatus"| a2["instatus"]
@@ -98,6 +100,60 @@ flowchart TB
     wd --> issue["endpoint-rot issue<br/>diagnosis + fix playbook"]
     issue -.->|"secret set"| slack["webhook (Slack-compatible)"]
 ```
+
+### When a status feed stalls
+
+A status feed sometimes accepts the request and then sends nothing. Measured on
+2026-10-01 against Atlassian Statuspage: 0 bytes for 15 seconds, then 0.07
+seconds on the next request. Three tries with a 10-second deadline, under a
+second apart, all land inside one such stall. Until 2026-10-01 that put the
+vendor on the board as `unknown` for a full 15-minute cycle: 250 of the 283
+`unknown` checks in the 14 days before were Statuspage vendors.
+
+So `collect()` takes a **second pass** before anything is written. Each vendor
+whose required fetch failed in a way that waiting might fix (a network error,
+a deadline, or a retryable HTTP status) is asked once more with a 25-second
+deadline. If the feed answers, the vendor is written with what it said. If it
+does not, the vendor is written `unknown`, exactly as before.
+
+> [!IMPORTANT]
+> The second pass never weakens the governing rule. A row is green only when a
+> real fetch returned a payload the adapter verified.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Cron (this minute's shard)
+    participant E as collect()
+    participant V as Vendor status feed
+    participant D as D1 snapshot
+    participant L as Workers Logs
+
+    C->>E: collect the shard's vendors
+    E->>V: try 1 (10 s deadline)
+    V--xE: no bytes, deadline aborts
+    E->>V: tries 2 and 3 (10 s each)
+    V--xE: still stalled
+    Note over E: first pass done, vendor marked for a second look
+    E->>V: second pass, one try (25 s deadline)
+    alt the feed answers
+        V-->>E: payload
+        E->>D: write the vendor's real status
+        E->>L: vendor_recheck, outcome recovered
+    else the feed is still down
+        V--xE: fails again
+        E->>D: write unknown, never green
+        E->>L: vendor_recheck, outcome still_unknown
+    end
+```
+
+Three guards keep a second look from turning into a retry storm. It never runs
+after the subrequest budget ran out. It runs only while at least half that
+budget is left, so it cannot be what trips the meter. It covers at most five
+vendors in one run; the rest are logged `skipped`.
+
+A failure that waiting cannot fix gets no second pass: a 404, a 401, a payload
+that does not parse, an unknown adapter type.
 
 ### Endpoints
 
@@ -258,7 +314,7 @@ emits a warning rather than silently ignoring it.
 | `src/engine/severity.js` | Ordered enum, vendor-vocabulary normalization |
 | `src/engine/scope.js` | Component/group allowlist + drift detection |
 | `src/engine/rollup.js` | Parent roll-up and progressive disclosure |
-| `src/engine/collect.js` | Orchestrator: concurrency, deadlines, bounded retry |
+| `src/engine/collect.js` | Orchestrator: concurrency, deadlines, bounded retry, second pass for stalled feeds |
 | `src/worker/` | Cloudflare bindings **only** — `scheduled()`, `fetch()`, D1, rendering |
 | `src/worker/site-assets.js` | Content-hashes the site's `site.css`, `theme.js` and `consent.js` (md5, first 10 hex, as the site's build does) so the page links the same `?v=` URLs as the site; 5-minute isolate cache, plain links as the fallback |
 | `config/` | Vendor configuration |
@@ -511,9 +567,14 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
   intervals, the page says so — the dead-man's switch for our own cron.
 - **Vendor content is untrusted input.** Every vendor feed is escaped on
   output; a strict CSP with a per-response nonce is the second line.
-- **404 is treated as retryable**, unusually. Microsoft's endpoint was measured
-  at ~50% availability; the cost of being wrong is bounded because the answer
-  after the cap is still `unknown`.
+- **404 is not retried.** It once was, because Microsoft's endpoint measured
+  ~50% availability on 2026-07-31. That was a route being decommissioned, not
+  flapping: retrying a retired route cannot succeed and only spends the budget.
+  Retried statuses are 408, 425, 429, 500, 502, 503 and 504.
+- **A transient fetch failure gets one second pass, with a longer deadline,
+  before the row is written** (2026-10-01). A stalled feed is read late rather
+  than shown `unknown` for 15 minutes; a vendor that fails again is still
+  `unknown`. See [When a status feed stalls](#when-a-status-feed-stalls).
 - **Retries share a run-wide budget** — originally because the free plan
   killed an invocation at 50 subrequests; kept on Workers Paid as a sanity
   bound that turns a retry storm into a loud, bounded failure.
@@ -560,6 +621,7 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
 | Paths 404 right after deploy | Propagation lag. Wait 20–30 s and retest before debugging |
 | Page layout lags a site CSS fix (e.g. header flush to the phone edge) | The page links the site's `/assets/site.css`, which the site serves `immutable` for a year. Since 2026-09-30 the Worker links it with the site's own `?v=<hash>`; if the served HTML shows a plain `/assets/site.css` link, the Worker could not fetch or hash the site's assets — check `wrangler tail` |
 | A vendor shows `unknown` | Read its `warnings` in `/service-status/api/status` — it names the HTTP status or parse failure |
+| A vendor flickers to `unknown` and back within one cycle | Its feed failed the second pass too. In Workers Logs, filter on `vendor_recheck`: each line names the vendor, the first-pass reason, and the outcome (`recovered`, `still_unknown`, `skipped`). Many `recovered` lines for one platform mean its hosting is stalling; many `still_unknown` across platforms in one minute mean the problem is on our side or the network's |
 | Board reads "No status data" | The cron has not run yet, or is failing. Check `wrangler tail` and `run_meta` in D1 |
 | Want to link to one service's row | Every card has a slug id: `/service-status#cloudflare`, `#1password`. There is no visible `#` glyph (removed 2026-08-03: it was reported twice as a rendering artifact, on touch and on hover) |
 | `fetch-logos.mjs` says REFUSING TO SHIP | The committed manifest lists a logo for a configured vendor and this clone has no file for it — a bot wall refused the download (LinkedIn, NetSuite, OpenAI, SendGrid, Tableau have all done it). A refused download is not vendor removal, so the build stops instead of shipping a shrunken manifest. Restore `assets/icons` from a clone that has the files (the row below), or declare `iconUrl` for that vendor, then re-run |
