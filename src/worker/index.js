@@ -11,6 +11,7 @@ import { collect, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
 import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
 import { writeRun, readSnapshot, readMeta, writeTruthCheck } from './storage.js';
 import { siteAssetVersions } from './site-assets.js';
+import { renderLlmsTxt, renderMarkdown } from './llms.js';
 import { renderDashboard, CANONICAL_HOST } from './render.js';
 import vendorConfig from '../../config/vendors.json';
 
@@ -189,6 +190,21 @@ async function handleFetch(request, env) {
 
   if (path === '/api/status') {
     return json({ meta, records, truthCheck }, { 'Cache-Control': 'public, max-age=60' });
+  }
+
+  // AI-tool views of the same snapshot (worklist #127): an llms.txt for this
+  // subpath and the llmstxt.org clean-Markdown copy of the page.
+  if (path === '/llms.txt' || path === '/index.md') {
+    const view = { records, meta, truthCheck, origin: url.origin, base };
+    const llms = path === '/llms.txt';
+    return new Response(llms ? renderLlmsTxt(view) : renderMarkdown(view), {
+      headers: {
+        'Content-Type': llms ? 'text/plain; charset=utf-8' : 'text/markdown; charset=utf-8',
+        'Cache-Control': 'public, max-age=60',
+        'X-Content-Type-Options': 'nosniff',
+        'Strict-Transport-Security': HSTS,
+      },
+    });
   }
 
   if (path === '/' || path === '/index.html') {

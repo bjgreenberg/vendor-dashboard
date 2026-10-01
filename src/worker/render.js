@@ -92,6 +92,11 @@ export function esc(value) {
     .replace(/'/g, '&#39;');
 }
 
+/** The snapshot is stale after two missed 15-minute cycles (the page's banner; llms.js says the same). */
+export const STALE_AFTER_MS = 2 * 15 * 60 * 1000;
+/** The truth-check stamp is overdue after three hours: one missed run plus slack. */
+export const TRUTH_STALE_AFTER_MS = 3 * 60 * 60 * 1000;
+
 /**
  * Validate a vendor-supplied URL before putting it in an `href`.
  *
@@ -218,7 +223,6 @@ export function renderDashboard({
 
   // Staleness is the dead-man's switch for our OWN collector: if the cron stops
   // firing, the last snapshot would otherwise keep rendering as current.
-  const STALE_AFTER_MS = 2 * 15 * 60 * 1000;
   const checkedAtMs = meta?.checked_at ? Date.parse(meta.checked_at) : NaN;
   const stale = !Number.isNaN(checkedAtMs) && now().getTime() - checkedAtMs > STALE_AFTER_MS;
 
@@ -245,7 +249,6 @@ export function renderDashboard({
   // the result here; a missing stamp says so, and a stale one is itself the
   // alarm (three hours = one missed run plus slack). Vendor names inside it
   // are vendor strings and render escaped like every other.
-  const TRUTH_STALE_AFTER_MS = 3 * 60 * 60 * 1000;
   // "36 of 49" alone reads as 13 vendors gone missing (Brian, 2026-09-30).
   // They are on the board; the second opinion just cannot read their feed
   // format yet. Say so, and name them when the runner sent the names.
@@ -292,6 +295,7 @@ export function renderDashboard({
 <meta name="description" content="Check whether a cloud or SaaS service is down. ${esc(records.length)} vendors re-checked every 15 minutes, each read from that vendor's own status page, never an aggregator.">
 <meta name="robots" content="${indexable ? 'index, follow' : 'noindex, nofollow'}">
 <link rel="canonical" href="https://briangreenberg.net/service-status">
+<link rel="alternate" type="text/markdown" href="https://briangreenberg.net/service-status/index.md" title="This board as Markdown">
 
 <!-- Social / GEO. The site's own pages get these from Eleventy; this page is a
      separate Worker, so they are emitted here. Absolute URLs are required:
