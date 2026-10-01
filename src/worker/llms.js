@@ -12,7 +12,7 @@
  * URLs passed through the page's own safeUrl (http/https only). llms.txt is
  * kept pure ASCII like the site's own; the Markdown copy keeps Unicode.
  */
-import { safeUrl } from './render.js';
+import { safeUrl, STALE_AFTER_MS, TRUTH_STALE_AFTER_MS } from './render.js';
 
 const SITE_NAME = 'briangreenberg.net';
 const REPO_URL = 'https://github.com/bjgreenberg/vendor-dashboard';
@@ -26,22 +26,41 @@ const line = (s, max = 200) => {
 /** ASCII-only: decompose accents, then drop anything still outside ASCII. @param {string} s */
 const ascii = (s) => s.normalize('NFKD').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/·/g, '-').replace(/[^\x20-\x7e\n]/g, '');
 
-/** A Markdown table cell: one line, pipes escaped. @param {unknown} s */
-const cell = (s) => line(s, 300).replace(/\|/g, '\\|');
+/**
+ * Neutralise third-party text for Markdown: backslashes first (so an input
+ * "a\\|b" cannot leave its pipe unescaped), then HTML metacharacters (so a
+ * permissive renderer never sees vendor markup), then table pipes.
+ * @param {unknown} s @param {number} [max]
+ */
+const md = (s, max = 300) =>
+  line(s, max).replace(/\\/g, '\\\\').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\|/g, '\\|');
 
 /**
- * @typedef {{records?: any[], meta?: any, truthCheck?: any, origin: string, base: string}} ViewInput
+ * @typedef {{records?: any[], meta?: any, truthCheck?: any, origin: string, base: string, now?: () => Date}} ViewInput
  */
 
 /** Shared facts both views state. @param {ViewInput} v */
-function facts({ records = [], meta, truthCheck, origin, base }) {
+function facts({ records = [], meta, truthCheck, origin, base, now = () => new Date() }) {
   const abs = (p) => `${origin}${base}${p}`;
   const impacted = records.filter((r) => !['operational', 'unknown'].includes(r.severity)).length;
   const unknown = records.filter((r) => r.severity === 'unknown').length;
-  const truth = truthCheck?.checkedAt
-    ? `Double-checked ${truthCheck.checkedAt} against ${truthCheck.covered} of ${truthCheck.total} vendors' own status feeds; ${truthCheck.disagreements} disagreement(s).`
-    : 'Not yet double-checked against the vendors\' own feeds.';
-  return { abs, impacted, unknown, truth, snapshot: meta?.checked_at ?? 'none yet', count: records.length };
+  const t = now().getTime();
+  // The same three alarms the HTML board raises (Copilot review, PR #154): an
+  // empty board, a stale snapshot, an overdue truth check. A machine reader
+  // must never get an unqualified "live" / "double-checked" from dead data.
+  const snapAt = meta?.checked_at ? Date.parse(meta.checked_at) : NaN;
+  const warnings = [];
+  if (records.length === 0) warnings.push('WARNING: no status data has been collected yet; nothing below is current.');
+  else if (Number.isNaN(snapAt) || t - snapAt > STALE_AFTER_MS)
+    warnings.push(`WARNING: this snapshot is stale (taken ${meta?.checked_at ?? 'at an unknown time'}); collection has stopped, so states below may be out of date.`);
+  const truthAt = truthCheck?.checkedAt ? Date.parse(truthCheck.checkedAt) : NaN;
+  let truth;
+  if (!truthCheck?.checkedAt) truth = "Not yet double-checked against the vendors' own feeds.";
+  else if (Number.isNaN(truthAt) || t - truthAt > TRUTH_STALE_AFTER_MS)
+    truth = `Truth check OVERDUE: last double-checked ${truthCheck.checkedAt}; treat the states below as unverified.`;
+  else
+    truth = `Double-checked ${truthCheck.checkedAt} against ${truthCheck.covered} of ${truthCheck.total} vendors' own status feeds; ${truthCheck.disagreements} disagreement(s).`;
+  return { abs, impacted, unknown, truth, warnings, snapshot: meta?.checked_at ?? 'none yet', count: records.length };
 }
 
 /**
@@ -56,6 +75,7 @@ export function renderLlmsTxt(v) {
     '',
     `> Live operational status for ${f.count} SaaS and cloud vendors, read directly from each vendor's own status page every 15 minutes, from a US vantage point. Part of ${SITE_NAME}.`,
     '',
+    ...f.warnings,
     `Snapshot: ${f.snapshot}. ${f.impacted} impacted, ${f.unknown} unknown.`,
     f.truth,
     '',
@@ -78,8 +98,8 @@ export function renderLlmsTxt(v) {
     '',
     ...(v.records ?? []).map((r) => {
       const src = safeUrl(r.sourceUrl);
-      const incident = r.incidentName ? ` - ${line(r.incidentName, 120)}` : '';
-      return `- ${line(r.vendor, 80)}: ${line(r.severity, 20)}${incident}${src ? ` (${src})` : ''}`;
+      const incident = r.incidentName ? ` - ${md(r.incidentName, 120)}` : '';
+      return `- ${md(r.vendor, 80)}: ${md(r.severity, 20)}${incident}${src ? ` (${src})` : ''}`;
     }),
     '',
   ];
@@ -94,14 +114,15 @@ export function renderLlmsTxt(v) {
 export function renderMarkdown(v) {
   const f = facts(v);
   const rows = (v.records ?? []).map((r) => {
-    const detail = [r.incidentName, r.description].filter(Boolean).map((x) => line(x, 200)).join(': ');
-    return `| ${cell(r.vendor)} | ${cell(r.severity)} | ${cell(detail)} | ${safeUrl(r.sourceUrl) || ''} |`;
+    const detail = [r.incidentName, r.description].filter(Boolean).map((x) => line(x, 200)).join(': '); // md() below escapes
+    return `| ${md(r.vendor)} | ${md(r.severity)} | ${md(detail)} | ${safeUrl(r.sourceUrl) || ''} |`;
   });
   return [
     '# Service Status',
     '',
     `Live operational status for ${f.count} SaaS and cloud vendors on ${SITE_NAME}, read from each vendor's own status page every 15 minutes (US vantage point). A failed check reads "unknown", never green.`,
     '',
+    ...f.warnings.map((w) => `> **${w}**\n`),
     `- Snapshot: ${f.snapshot} (${f.impacted} impacted, ${f.unknown} unknown)`,
     `- ${f.truth}`,
     `- HTML: ${f.abs('')} - JSON: ${f.abs('/api/status')} - guide for AI tools: ${f.abs('/llms.txt')}`,

@@ -15,7 +15,8 @@ const records = [
 ];
 const meta = { checked_at: '2026-09-30T22:01:00Z', total: 3, impacted: 1, unknown: 1 };
 const truthCheck = { checkedAt: '2026-09-30T22:11:00Z', covered: 3, total: 3, agreed: 3, disagreements: 0, falseGreen: [], uncovered: [] };
-const opts = { records, meta, truthCheck, origin: 'https://briangreenberg.net', base: '/service-status' };
+const NOW = () => new Date('2026-09-30T22:20:00Z'); // snapshot 19 min old, truth check 9 min old
+const opts = { records, meta, truthCheck, origin: 'https://briangreenberg.net', base: '/service-status', now: NOW };
 
 describe('renderLlmsTxt — /service-status/llms.txt', () => {
   const txt = renderLlmsTxt(opts);
@@ -77,5 +78,42 @@ describe('the Worker serves both, with the right types', () => {
 describe('the HTML board points AI tools at its Markdown copy', () => {
   it('carries <link rel="alternate" type="text/markdown"> to index.md', () => {
     expect(renderDashboard({})).toContain('<link rel="alternate" type="text/markdown" href="https://briangreenberg.net/service-status/index.md"');
+  });
+});
+
+describe('untrusted vendor text is neutralised for Markdown (Copilot + CodeQL, PR #154)', () => {
+  const nasty = [{ vendor: 'a\\|b <img src=x onerror=alert(1)> & c', service: 'x', severity: 'degraded', incidentName: '<b>bold</b>', description: 'd', sourceUrl: 'https://x.example', checkedAt: '' }];
+  const md = renderMarkdown({ ...opts, records: nasty });
+  const txt = renderLlmsTxt({ ...opts, records: nasty });
+  it('escapes a backslash before a pipe, so the pipe stays escaped', () => {
+    expect(md).toContain('a\\\\\\|b');
+  });
+  it('encodes HTML so no vendor markup reaches a renderer', () => {
+    for (const out of [md, txt]) {
+      expect(out).not.toContain('<img');
+      expect(out).not.toContain('<b>');
+    }
+    expect(md).toContain('&lt;img src=x onerror=alert(1)&gt; &amp; c');
+  });
+});
+
+describe('the same alarms as the HTML board (Copilot, PR #154)', () => {
+  it('a snapshot older than 30 minutes is called stale, in both views', () => {
+    const late = { ...opts, now: () => new Date('2026-09-30T22:40:00Z') };
+    expect(renderLlmsTxt(late)).toContain('WARNING: this snapshot is stale (taken 2026-09-30T22:01:00Z)');
+    expect(renderMarkdown(late)).toContain('**WARNING: this snapshot is stale');
+  });
+  it('a truth check older than three hours is OVERDUE, never "Double-checked"', () => {
+    const v = { ...opts, meta: { ...meta, checked_at: '2026-10-01T01:30:00Z' }, now: () => new Date('2026-10-01T01:40:00Z') };
+    const txt = renderLlmsTxt(v);
+    expect(txt).toContain('Truth check OVERDUE: last double-checked 2026-09-30T22:11:00Z');
+    expect(txt).not.toContain('Double-checked 2026-09-30');
+    expect(txt).not.toContain('WARNING: this snapshot is stale');
+  });
+  it('an empty board says no data has been collected', () => {
+    expect(renderLlmsTxt({ ...opts, records: [] })).toContain('WARNING: no status data has been collected yet');
+  });
+  it('fresh data carries no warning', () => {
+    expect(renderLlmsTxt(opts)).not.toContain('WARNING');
   });
 });

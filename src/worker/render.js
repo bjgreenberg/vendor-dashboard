@@ -104,6 +104,11 @@ export function esc(value) {
  * @param {unknown} url
  * @returns {string} a safe absolute URL, or '' if not usable
  */
+/** The snapshot is stale after two missed 15-minute cycles (the page's banner; llms.js says the same). */
+export const STALE_AFTER_MS = 2 * 15 * 60 * 1000;
+/** The truth-check stamp is overdue after three hours: one missed run plus slack. */
+export const TRUTH_STALE_AFTER_MS = 3 * 60 * 60 * 1000;
+
 export function safeUrl(url) {
   if (typeof url !== 'string' || url === '') return '';
   try {
@@ -218,7 +223,6 @@ export function renderDashboard({
 
   // Staleness is the dead-man's switch for our OWN collector: if the cron stops
   // firing, the last snapshot would otherwise keep rendering as current.
-  const STALE_AFTER_MS = 2 * 15 * 60 * 1000;
   const checkedAtMs = meta?.checked_at ? Date.parse(meta.checked_at) : NaN;
   const stale = !Number.isNaN(checkedAtMs) && now().getTime() - checkedAtMs > STALE_AFTER_MS;
 
@@ -245,7 +249,6 @@ export function renderDashboard({
   // the result here; a missing stamp says so, and a stale one is itself the
   // alarm (three hours = one missed run plus slack). Vendor names inside it
   // are vendor strings and render escaped like every other.
-  const TRUTH_STALE_AFTER_MS = 3 * 60 * 60 * 1000;
   // "36 of 49" alone reads as 13 vendors gone missing (Brian, 2026-09-30).
   // They are on the board; the second opinion just cannot read their feed
   // format yet. Say so, and name them when the runner sent the names.
