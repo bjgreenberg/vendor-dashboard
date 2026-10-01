@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-09-30 08:11 PM CDT
+Last updated: 2026-09-30 09:07 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -108,6 +108,7 @@ flowchart TB
 | `/health` | JSON | Freshness probe; 503 once the snapshot is older than 45 minutes |
 | `/llms.txt` | text/plain | An [llms.txt](https://llmstxt.org) for this subpath: what the board is, how it decides, its endpoints, and every vendor with its live state and status page. Pure ASCII. (2026-09-30, worklist #127) |
 | `/index.md` | text/markdown | The llms.txt spec's clean-Markdown copy of the page: a status table. The HTML page links it with `<link rel="alternate" type="text/markdown">`. (2026-09-30) |
+| `/ai-fetches.json` | JSON | Who fetched `/llms.txt` and `/index.md`: per-day counts by crawler (GPTBot, ClaudeBot, PerplexityBot, ... or browser/other) for the last 30 days, aggregates only. Counted by `src/worker/ai-fetches.js` (shared with the three sites) into table `ai_fetches` (migration 0004), one atomic UPSERT per fetch, 90-day retention. (2026-09-30, worklist #127) |
 | `/api/truth-check` | POST | The truth check's stamp (bearer token) |
 
 The two AI-tool views render from the same snapshot as the page (`src/worker/llms.js`), so their vendor list and counts

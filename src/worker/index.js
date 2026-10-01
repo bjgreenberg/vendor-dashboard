@@ -12,6 +12,7 @@ import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
 import { writeRun, readSnapshot, readMeta, writeTruthCheck } from './storage.js';
 import { siteAssetVersions } from './site-assets.js';
 import { renderLlmsTxt, renderMarkdown } from './llms.js';
+import { agentOf, countFetch, stats as aiFetchStats } from './ai-fetches.js';
 import { renderDashboard, CANONICAL_HOST } from './render.js';
 import vendorConfig from '../../config/vendors.json';
 
@@ -139,7 +140,7 @@ async function scheduled(controller, env) {
  * @param {Request} request
  * @param {{DB: D1Database, BASE_PATH?: string}} env
  */
-async function handleFetch(request, env) {
+async function handleFetch(request, env, ctx) {
   const url = new URL(request.url);
   const base = env.BASE_PATH ?? '';
   const path = url.pathname.startsWith(base) ? url.pathname.slice(base.length) || '/' : url.pathname;
@@ -194,9 +195,22 @@ async function handleFetch(request, env) {
 
   // AI-tool views of the same snapshot (worklist #127): an llms.txt for this
   // subpath and the llmstxt.org clean-Markdown copy of the page.
+  if (path === '/ai-fetches.json') {
+    const body = await aiFetchStats(env.DB, { site: 'briangreenberg.net/service-status' });
+    return json(body, { 'Cache-Control': 'public, max-age=300' });
+  }
+
   if (path === '/llms.txt' || path === '/index.md') {
     const view = { records, meta, truthCheck, origin: url.origin, base };
     const llms = path === '/llms.txt';
+    // Count who fetches the AI views (worklist #127), after the response.
+    const counted = countFetch(env.DB, {
+      kind: llms ? 'llms.txt' : 'markdown',
+      agent: agentOf(request.headers.get('User-Agent')),
+      day: new Date().toISOString().slice(0, 10),
+    });
+    if (ctx?.waitUntil) ctx.waitUntil(counted);
+    else await counted;
     return new Response(llms ? renderLlmsTxt(view) : renderMarkdown(view), {
       headers: {
         'Content-Type': llms ? 'text/plain; charset=utf-8' : 'text/markdown; charset=utf-8',
