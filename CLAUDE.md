@@ -109,15 +109,19 @@ a future non-Cloudflare deployment possible.
   available on 2026-07-31), but that was a route being decommissioned. The
   retried set is `RETRYABLE_STATUS` in `src/engine/collect.js`.
 - **The LAST try waits longer: deadlines are 10 s, 10 s, 25 s** (2026-10-01,
-  worklist #129; `DEFAULT_LAST_ATTEMPT_TIMEOUT_MS`). Statuspage's hosting
-  sometimes accepts a request and sends 0 bytes; all three 10 s tries aborted
-  and vendors read `unknown` for a cycle. Same three tries, same budgets, no
-  extra request. Do NOT rebuild this as a "second pass" or a fourth request:
-  PR #158 tried both (re-collect the vendor; a second look at the fetch) and
-  two review passes found a lost composite outage, budget and cap problems,
-  and misleading outcome logs, for no more patience than this gives.
-  `retried_ok` on `collection_complete` counts fetches that needed a retry;
-  a recovered stall leaves no other trace, so keep it.
+  worklist #129; `LAST_ATTEMPT_PATIENCE = 2.5` x `timeoutMs`). Statuspage's
+  hosting sometimes accepts a request and sends 0 bytes; all three 10 s tries
+  aborted and vendors read `unknown` for a cycle. Same three tries. Do NOT
+  rebuild this as a "second pass" or a fourth request: PR #158 tried both
+  (re-collect the vendor; a second look at the fetch) and review found a lost
+  composite outage, budget and cap problems, and misleading outcome logs, for
+  no more patience than this gives. Each fetch that answered after a failed
+  try logs `fetch_retried_ok` (url, attempt, ms) BEFORE the D1 write; a
+  recovered stall leaves no other trace and those `ms` values are the only
+  evidence of how long stalls last, so keep the line and its position.
+- **The retry budget is 20, not 10** (same date). Shards 7 and 9 hold seven
+  and eight feeds and Statuspage stalls are correlated; at 10 the second
+  tries ate the budget and most feeds never reached the patient third try.
 - **Retries share a run-wide budget** — the Workers *free* plan caps subrequests
   at 50 per invocation; 34 vendors retrying twice would be 102.
 - **Collection is SHARDED: 15 shards on a `* * * * *` (every-minute) cron**
@@ -193,7 +197,7 @@ To actually verify a collection:
 
 ```sh
 # 1. The collector's own verdict, unfiltered — NOT --status=error.
-npx wrangler tail --format=json | grep -E 'collection_(complete|alert)'
+npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|fetch_retried_ok'
 # 2. The board's aggregate state, over more than one cron cycle.
 curl -s https://briangreenberg.net/service-status/api/status \
   | python3 -c "import sys,json;from collections import Counter;d=json.load(sys.stdin);print(Counter(r['severity'] for r in d['records']))"

@@ -36,11 +36,11 @@ import { parseSignal } from './adapters/signal.js';
 import { parseZscaler } from './adapters/zscaler.js';
 import { parseDocusign } from './adapters/docusign.js';
 
-/** Default per-vendor deadline. A hung status page must not stall the run. */
+/** Deadline for every try at a URL but the last. A hung status page must not stall the run. */
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 /**
- * Deadline for the LAST try at a URL. Longer than the others on purpose.
+ * How much longer the LAST try at a URL waits: 2.5x, so 10 s, 10 s, 25 s.
  *
  * A status feed sometimes accepts the request and then sends nothing. One
  * stall was measured on 2026-10-01 against Atlassian Statuspage: 0 bytes for
@@ -51,14 +51,20 @@ const DEFAULT_TIMEOUT_MS = 10_000;
  * WHY all three tries failed is NOT established. Either a stall outlasts the
  * ~31 s the three tries span, or each request waits on a slow origin of its
  * own and 10 s is never enough. A patient last try covers both, up to about
- * 46 s from the first request, without sending anything extra: same three
- * tries, same retry budget, same subrequest count.
+ * 46 s from the first request, without sending anything extra. `retried` in
+ * the run result (attempt and elapsed ms per recovered fetch) is how the
+ * number gets checked against production.
  *
- * It costs wall time only. A scheduled Worker may run for 15 minutes and
- * waiting on a fetch uses no CPU; a dead vendor now holds its shard's write
- * for up to ~46 s instead of ~31 s, still inside the one-minute cron.
+ * A multiple of `timeoutMs`, not a second absolute number, so `timeoutMs`
+ * stays the one knob that bounds a fetch: a caller who sets 2 s gets 2, 2, 5.
+ *
+ * It costs wall time only (a scheduled Worker may run 15 minutes; waiting on
+ * a fetch uses no CPU). A dead single-document vendor now holds its shard's
+ * write for ~46 s instead of ~31 s. That is inside the one-minute cron; a
+ * vendor with a fallback URL or many secondary documents (Zscaler, Concur)
+ * could already run past a minute and now runs 15 s longer per URL.
  */
-const DEFAULT_LAST_ATTEMPT_TIMEOUT_MS = 25_000;
+const LAST_ATTEMPT_PATIENCE = 2.5;
 
 /** Base backoff between retries; multiplied by attempt number and jittered. */
 const DEFAULT_RETRY_DELAY_MS = 250;
@@ -68,8 +74,14 @@ const DEFAULT_RETRY_DELAY_MS = 250;
  *
  * This bounds RETRIES only. It is not, and never was, a bound on the run's
  * total subrequests — see DEFAULT_SUBREQUEST_BUDGET, which is.
+ *
+ * 20, raised from 10 on 2026-10-01. The largest shards hold seven and eight
+ * feeds, and Statuspage stalls are correlated: with 10, the second tries of
+ * eight stalled feeds used the whole budget and six of them never reached
+ * the patient third try. 20 gives every feed in the largest shard both
+ * retries (8 + 16 = 24 requests), still under the subrequest budget of 40.
  */
-const DEFAULT_RETRY_BUDGET = 10;
+const DEFAULT_RETRY_BUDGET = 20;
 
 /**
  * Sanity ceiling on subrequests for one invocation.
@@ -227,7 +239,7 @@ async function decodeBody(response) {
 }
 
 async function fetchWithRetry(url, ctx) {
-  const { fetchFn, timeoutMs, lastTimeoutMs = timeoutMs, retryDelayMs, budget } = ctx;
+  const { fetchFn, now, timeoutMs, lastAttemptTimeoutMs, retryDelayMs, budget, retried } = ctx;
   let lastReason = 'fetch failed';
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
@@ -245,8 +257,9 @@ async function fetchWithRetry(url, ctx) {
     try {
       // AbortSignal.timeout exists in Workers and modern Node. Guard anyway so
       // an environment lacking it degrades to "no deadline" rather than crashing.
-      // The last try waits longer (see DEFAULT_LAST_ATTEMPT_TIMEOUT_MS).
-      const deadlineMs = attempt === MAX_ATTEMPTS ? lastTimeoutMs : timeoutMs;
+      // The last try waits longer (see LAST_ATTEMPT_PATIENCE).
+      const deadlineMs = attempt === MAX_ATTEMPTS ? lastAttemptTimeoutMs : timeoutMs;
+      const startedAt = now().getTime();
       const signal =
         typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
           ? AbortSignal.timeout(deadlineMs)
@@ -264,11 +277,13 @@ async function fetchWithRetry(url, ctx) {
       }
 
       const body = await decodeBody(response);
-      // Count a fetch that needed a retry. A vendor that recovers this way
-      // leaves no other trace: its row is green and the failed tries' reasons
-      // are gone. The run log carries the count so a feed that starts
-      // stalling every hour is visible before the day it stops recovering.
-      if (attempt > 1) budget.retriedOk += 1;
+      // Record a fetch that needed a retry: which try answered and how long
+      // that try took. A vendor that recovers this way leaves no other trace
+      // (its row is green, the failed tries' reasons are gone), and
+      // `attempt: 3` with a long `ms` is the only evidence of how long real
+      // stalls last. The url is ours, from config; nothing of the vendor's
+      // payload is recorded.
+      if (attempt > 1) retried.push({ url, attempt, ms: now().getTime() - startedAt });
       return { ok: true, body };
     } catch (error) {
       // A network-level failure is transient by nature; retry it.
@@ -590,8 +605,8 @@ async function collectOne(vendor, ctx) {
  * @param {(url: string, init?: any) => Promise<any>} ctx.fetchFn
  * @param {() => Date} [ctx.now]
  * @param {number} [ctx.timeoutMs] deadline for each try but the last
- * @param {number} [ctx.lastAttemptTimeoutMs] deadline for the last try; never shorter than timeoutMs
- * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[], retriedOk: number}>}
+ * @param {number} [ctx.lastAttemptTimeoutMs] deadline for the last try; default 2.5x timeoutMs, never shorter than it
+ * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[], retried: {url: string, attempt: number, ms: number}[], retriedOk: number}>}
  */
 export async function collect(config, ctx) {
   const {
@@ -601,8 +616,12 @@ export async function collect(config, ctx) {
     retryDelayMs = DEFAULT_RETRY_DELAY_MS,
     retryBudget = DEFAULT_RETRY_BUDGET,
     subrequestBudget = DEFAULT_SUBREQUEST_BUDGET,
-    lastAttemptTimeoutMs = DEFAULT_LAST_ATTEMPT_TIMEOUT_MS,
   } = ctx ?? {};
+  // Never shorter than the normal deadline, whatever a caller passes.
+  const lastAttemptTimeoutMs = Math.max(
+    timeoutMs,
+    ctx?.lastAttemptTimeoutMs ?? timeoutMs * LAST_ATTEMPT_PATIENCE,
+  );
 
   if (!config || !Array.isArray(config.vendors)) {
     throw new Error('collect: config.vendors must be an array');
@@ -648,13 +667,13 @@ export async function collect(config, ctx) {
   // Concurrent by design (finding M5). allSettled is belt-and-braces: collectOne
   // already swallows its own failures, but a bug there must still not lose rows.
   // Shared, mutable retry budget. Bounds total subrequests for the whole run.
-  const budget = { remaining: retryBudget, retriedOk: 0 };
-  // The patient deadline is never shorter than the normal one.
-  const lastTimeoutMs = Math.max(timeoutMs, lastAttemptTimeoutMs);
+  const budget = { remaining: retryBudget };
+  // One entry per fetch that failed at least once and then answered.
+  const retried = [];
 
   const settled = await Promise.allSettled(
     config.vendors.map((v) => {
-      const ctx = { fetchFn: meteredFetch, now, timeoutMs, lastTimeoutMs, retryDelayMs, budget };
+      const ctx = { fetchFn: meteredFetch, now, timeoutMs, lastAttemptTimeoutMs, retryDelayMs, budget, retried };
       return v?.type === 'composite' ? collectComposite(v, ctx) : collectOne(v, ctx);
     }),
   );
@@ -694,7 +713,8 @@ export async function collect(config, ctx) {
     warnings,
     subrequests: meter.spent,
     budgetExhausted: meter.denied > 0,
-    retriedOk: budget.retriedOk,
+    retried,
+    retriedOk: retried.length,
   };
 }
 
