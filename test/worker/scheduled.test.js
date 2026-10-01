@@ -70,6 +70,61 @@ describe('scheduled() — one shard collected, written, self-monitored', () => {
     expect(errors).not.toHaveBeenCalled();
   });
 
+  it('a vendor that fails twice and answers the third try is written green, and the run log counts it', async () => {
+    // Worklist #129. Chosen by predicate, not position, so a config change
+    // that reorders the shard cannot break this test.
+    const stalled = shardVendors.find((v) => v.type === 'statuspage' && typeof v.url === 'string');
+    expect(stalled).toBeDefined();
+    const tries = {};
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      tries[url] = (tries[url] ?? 0) + 1;
+      if (url === stalled.url && tries[url] <= 2) throw new Error('The operation was aborted due to timeout');
+      return { ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => GREEN_STATUSPAGE };
+    }));
+
+    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
+
+    const rows = (await db.prepare('SELECT * FROM snapshot').all()).results;
+    for (const r of rows) expect(r.severity).toBe('operational');
+    expect((await db.prepare('SELECT * FROM vendor_health').all()).results).toEqual([]);
+
+    const events = logs.mock.calls.map(([line]) => JSON.parse(line));
+    expect(events.find((e) => e.event === 'collection_complete')).toMatchObject({ unknown: 0, retried_ok: 1 });
+    expect(events.filter((e) => e.event === 'fetch_retried_ok')).toEqual([
+      { event: 'fetch_retried_ok', shard: SHARD, url: stalled.url, attempt: 3, ms: expect.any(Number) },
+    ]);
+    expect(errors).not.toHaveBeenCalled();
+  });
+
+  it('the Worker runs with the production deadlines: the third try gets 25 s', async () => {
+    const spy = vi.spyOn(AbortSignal, 'timeout');
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('network down');
+    }));
+    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
+    const deadlines = spy.mock.calls.map(([ms]) => ms);
+    expect(deadlines).toContain(25_000);
+    expect(new Set(deadlines)).toEqual(new Set([10_000, 25_000]));
+  });
+
+  it('still logs a recovered fetch when the D1 write then fails', async () => {
+    // The recovered-fetch line is the only trace of a stall. A run that waits
+    // out a stall and then loses its write must not lose that line too.
+    const stalled = shardVendors.find((v) => v.type === 'statuspage' && typeof v.url === 'string');
+    const tries = {};
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      tries[url] = (tries[url] ?? 0) + 1;
+      if (url === stalled.url && tries[url] <= 2) throw new Error('The operation was aborted due to timeout');
+      return { ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => GREEN_STATUSPAGE };
+    }));
+    const broken = { ...db, batch: async () => { throw new Error('D1 is down'); } };
+
+    await expect(worker.scheduled({ scheduledTime: AT_MS }, { DB: broken })).rejects.toThrow('D1 is down');
+
+    const events = logs.mock.calls.map(([line]) => JSON.parse(line));
+    expect(events.some((e) => e.event === 'fetch_retried_ok' && e.url === stalled.url)).toBe(true);
+  });
+
   it('raises unknown_rate_high at ERROR when the whole shard fails — infrastructure, not coincidence', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => {
       throw new Error('network down');

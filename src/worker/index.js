@@ -62,6 +62,14 @@ async function scheduled(controller, env) {
 
   const run = await collect({ ...vendorConfig, vendors }, { fetchFn: fetch.bind(globalThis) });
 
+  // One line per fetch that failed at least once and then answered: which try
+  // and how long it took. Logged BEFORE the write on purpose. This is the only
+  // trace a recovered stall leaves, and a run that waited one out and then
+  // lost its D1 write must not lose the evidence too.
+  for (const r of run.retried) {
+    console.log(JSON.stringify({ event: 'fetch_retried_ok', shard, ...r }));
+  }
+
   // Pass the FULL configured vendor list, not the shard: it is what lets
   // storage prune rows for vendors that have been removed from config
   // entirely, which a shard-scoped delete can never reach.
@@ -82,6 +90,9 @@ async function scheduled(controller, env) {
       unknown: run.unknown,
       subrequests: run.subrequests,
       subrequest_budget: DEFAULT_SUBREQUEST_BUDGET,
+      // Fetches that failed at least once and then answered (detail is in
+      // the fetch_retried_ok lines above).
+      retried_ok: run.retriedOk,
       duration_ms: Date.now() - started,
     }),
   );

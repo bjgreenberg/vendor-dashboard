@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { collect } from '../../src/engine/collect.js';
 import { SEVERITY } from '../../src/engine/severity.js';
@@ -449,5 +449,196 @@ describe('collect — fallback URLs', () => {
       { fetchFn, now, retryDelayMs: 0 },
     );
     expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
+  });
+});
+
+// The last try at a URL waits longer than the others.
+//
+// Found 2026-10-01 (worklist #129): Atlassian Statuspage's hosting sometimes
+// accepts a request and then sends nothing. One measured stall: 0 bytes for
+// 15 s, then 0.07 s on the next request. In production all three 10 s tries
+// aborted and the vendor read `unknown` for a 15-minute cycle; 250 of 283
+// unknown checks in 14 days were Statuspage vendors.
+describe('collect — the last try is patient', () => {
+  const GH = readFileSync(new URL('../fixtures/GitHub.json', import.meta.url), 'utf8');
+  const ok = () => ({ ok: true, status: 200, text: async () => GH });
+
+  /** Answers after `ms`, unless the caller's deadline aborts it first. */
+  const slowFetch = (ms, log = []) => (url, init) =>
+    new Promise((resolve, reject) => {
+      log.push(url);
+      const timer = setTimeout(() => resolve(ok()), ms);
+      init?.signal?.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(init.signal.reason ?? new Error('The operation was aborted due to timeout'));
+      });
+    });
+
+  it('a feed slower than the normal deadline is read on the last try, not left unknown', async () => {
+    // The regression: the feed needs 60 ms and the deadline is 20 ms, so tries
+    // one and two abort. The third waits long enough.
+    const calls = [];
+    const res = await collect(cfg([{ name: 'Slow', type: 'statuspage', url: 'https://slow' }]), {
+      fetchFn: slowFetch(60, calls),
+      now,
+      timeoutMs: 20,
+      lastAttemptTimeoutMs: 500,
+      retryDelayMs: 0,
+    });
+    expect(calls).toHaveLength(3); // no extra request: the third try is the patient one
+    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+    expect(res.unknown).toBe(0);
+    expect(res.retriedOk).toBe(1);
+  });
+
+  it('only the last try is patient: the first two keep the normal deadline', async () => {
+    // With no retry budget there is one try, and it must still abort at 20 ms
+    // rather than wait the patient 500.
+    const calls = [];
+    const res = await collect(cfg([{ name: 'Slow', type: 'statuspage', url: 'https://slow' }]), {
+      fetchFn: slowFetch(60, calls),
+      now,
+      timeoutMs: 20,
+      lastAttemptTimeoutMs: 500,
+      retryDelayMs: 0,
+      retryBudget: 0,
+    });
+    expect(calls).toHaveLength(1);
+    expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
+    expect(res.retriedOk).toBe(0);
+  });
+
+  it('the last try is never LESS patient than the others', async () => {
+    // A caller with a long normal deadline must not get a shorter last try.
+    let calls = 0;
+    const slow = slowFetch(60);
+    const fetchFn = (url, init) => {
+      calls += 1;
+      if (calls <= 2) return Promise.reject(new Error('ECONNRESET'));
+      return slow(url, init);
+    };
+    const res = await collect(cfg([{ name: 'Slow', type: 'statuspage', url: 'https://slow' }]), {
+      fetchFn,
+      now,
+      timeoutMs: 200,
+      lastAttemptTimeoutMs: 20,
+      retryDelayMs: 0,
+    });
+    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('a feed that outlasts even the last try is UNKNOWN, never OPERATIONAL', async () => {
+    const calls = [];
+    const res = await collect(cfg([{ name: 'Stuck', type: 'statuspage', url: 'https://stuck' }]), {
+      fetchFn: slowFetch(200, calls),
+      now,
+      timeoutMs: 10,
+      lastAttemptTimeoutMs: 40,
+      retryDelayMs: 0,
+    });
+    expect(calls).toHaveLength(3);
+    expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
+    expect(res.records[0].warnings[0]).toMatch(/^fetch failed/);
+    expect(res.retriedOk).toBe(0);
+  });
+
+  it('the production deadlines are 10 s, 10 s, 25 s when the caller overrides nothing', async () => {
+    // Every other test here sets its own deadlines. This one pins the numbers
+    // the Worker actually runs with, so a changed default cannot pass unseen.
+    const spy = vi.spyOn(AbortSignal, 'timeout');
+    try {
+      await collect(cfg([{ name: 'Down', type: 'statuspage', url: 'https://down' }]), {
+        fetchFn: async () => {
+          throw new Error('ECONNRESET');
+        },
+        now,
+        retryDelayMs: 0,
+      });
+      expect(spy.mock.calls.map(([ms]) => ms)).toEqual([10_000, 10_000, 25_000]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('a caller that tightens timeoutMs tightens the last try with it (2.5x)', async () => {
+    // timeoutMs must stay the one knob that bounds a fetch: 20 ms means a
+    // 50 ms last try, so a 40 ms feed is read and a 120 ms feed is not.
+    const read = await collect(cfg([{ name: 'S', type: 'statuspage', url: 'https://s' }]), {
+      fetchFn: slowFetch(40),
+      now,
+      timeoutMs: 20,
+      retryDelayMs: 0,
+    });
+    expect(read.records[0].severity).toBe(SEVERITY.OPERATIONAL);
+    const notRead = await collect(cfg([{ name: 'S', type: 'statuspage', url: 'https://s' }]), {
+      fetchFn: slowFetch(120),
+      now,
+      timeoutMs: 20,
+      retryDelayMs: 0,
+    });
+    expect(notRead.records[0].severity).toBe(SEVERITY.UNKNOWN);
+  });
+
+  it('a whole shard stalling together still reaches the patient try: eight feeds, default budgets', async () => {
+    // The largest shards hold seven and eight feeds. With the old retry
+    // budget of 10, the second tries used it up and most feeds never got a
+    // third. Statuspage stalls are correlated, so this is the case that counts.
+    const vendors = Array.from({ length: 8 }, (_, i) => ({ name: `V${i}`, type: 'statuspage', url: `https://v${i}` }));
+    const res = await collect(cfg(vendors), {
+      fetchFn: slowFetch(60),
+      now,
+      timeoutMs: 20,
+      lastAttemptTimeoutMs: 500,
+      retryDelayMs: 0,
+    });
+    expect(res.unknown).toBe(0);
+    expect(res.retriedOk).toBe(8);
+    expect(res.budgetExhausted).toBe(false);
+  });
+
+  it('records which try answered and how long it took, for each fetch that needed a retry', async () => {
+    // The run log is the only place a recovered stall shows. `attempt: 3`
+    // with a long `ms` is the patient try doing its job; `attempt: 2` is an
+    // ordinary retry. Without both, the 25 s figure could never be checked.
+    let t = 0;
+    const clock = () => new Date(1_000_000 + t);
+    let calls = 0;
+    const fetchFn = async () => {
+      calls += 1;
+      if (calls <= 2) throw new Error('ECONNRESET');
+      t += 17_000; // the answering try took 17 s by the injected clock
+      return ok();
+    };
+    const res = await collect(cfg([{ name: 'Slow', type: 'statuspage', url: 'https://slow' }]), {
+      fetchFn,
+      now: clock,
+      retryDelayMs: 0,
+    });
+    expect(res.retried).toEqual([{ url: 'https://slow', attempt: 3, ms: 17_000 }]);
+    expect(res.retriedOk).toBe(1);
+  });
+
+  it('counts each fetch that needed a retry to succeed, and none on a healthy run', async () => {
+    let flaky = 0;
+    const fetchFn = async (url) => {
+      if (url === 'https://flaky') {
+        flaky += 1;
+        if (flaky === 1) throw new Error('ECONNRESET');
+      }
+      return ok();
+    };
+    const res = await collect(
+      cfg([
+        { name: 'Fine', type: 'statuspage', url: 'https://fine' },
+        { name: 'Flaky', type: 'statuspage', url: 'https://flaky' },
+      ]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(res.retriedOk).toBe(1);
+    const healthy = await collect(cfg([{ name: 'Fine', type: 'statuspage', url: 'https://fine' }]), {
+      fetchFn: async () => ok(),
+      now,
+    });
+    expect(healthy.retriedOk).toBe(0);
   });
 });
