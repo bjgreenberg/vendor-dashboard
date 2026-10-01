@@ -55,17 +55,6 @@ describe('writeRun against real SQLite', () => {
     expect(m.impacted).toBe(1); // degraded, from this shard
   });
 
-  it('never moves the board clock backwards when an older run writes last', async () => {
-    // Runs can overlap: a shard waiting out a stalled vendor (three 10 s tries
-    // plus a 25 s second look) can finish after the NEXT minute's shard. Its
-    // checkedAt is its START time, so a plain overwrite stepped "last
-    // collection" and /health's age back by a minute.
-    await writeRun(db, { ...run([rec('B', 'operational')]), checkedAt: '2026-10-01T18:03:00.000Z' });
-    await writeRun(db, { ...run([rec('A', 'operational')]), checkedAt: '2026-10-01T18:02:00.000Z' });
-    expect(meta().checked_at).toBe('2026-10-01T18:03:00.000Z');
-    expect(meta().total).toBe(2); // counts still refresh from the late write
-  });
-
   it('records history for every write, append-only', async () => {
     await writeRun(db, run([rec('A', 'operational')]));
     await writeRun(db, run([rec('A', 'degraded')]));

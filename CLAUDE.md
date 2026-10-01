@@ -108,22 +108,16 @@ a future non-Cloudflare deployment possible.
 - **404 is NOT retried.** It was once (Microsoft's endpoint measured ~50%
   available on 2026-07-31), but that was a route being decommissioned. The
   retried set is `RETRYABLE_STATUS` in `src/engine/collect.js`.
-- **A fetch that got NO ANSWER gets ONE second look before the write**
-  (2026-10-01, worklist #129; `fetchWithSecondLook` in `collect.js`).
-  Statuspage's hosting sometimes sends 0 bytes for 15 s or more, and three
-  10 s tries all abort inside one stall. A network error or deadline earns one
-  more try per URL with a 25 s deadline; the later reading stands. An HTTP
-  status is an answer and earns none (429/503 already had three tries).
-  It sits at the FETCH, so a composite gets it per source — never re-collect
-  a whole composite: the first design did, and a re-read could overwrite a
-  sibling source's verified outage with `unknown` (review finding, PR #158).
-  Guards: not after the budget denied a request, only with room for its own
-  requests, at most five per run. Green still needs a real, verified payload.
-  Each one logs `vendor_recheck` (vendor, source, first-pass reason, outcome);
-  a recovered vendor leaves no other trace, so do not remove that line.
-- **`run_meta.checked_at` is `MAX(existing, new)`.** Runs overlap now that a
-  stalled vendor can hold a shard for about a minute; the board clock must not
-  step back when an older run writes last.
+- **The LAST try waits longer: deadlines are 10 s, 10 s, 25 s** (2026-10-01,
+  worklist #129; `DEFAULT_LAST_ATTEMPT_TIMEOUT_MS`). Statuspage's hosting
+  sometimes accepts a request and sends 0 bytes; all three 10 s tries aborted
+  and vendors read `unknown` for a cycle. Same three tries, same budgets, no
+  extra request. Do NOT rebuild this as a "second pass" or a fourth request:
+  PR #158 tried both (re-collect the vendor; a second look at the fetch) and
+  two review passes found a lost composite outage, budget and cap problems,
+  and misleading outcome logs, for no more patience than this gives.
+  `retried_ok` on `collection_complete` counts fetches that needed a retry;
+  a recovered stall leaves no other trace, so keep it.
 - **Retries share a run-wide budget** — the Workers *free* plan caps subrequests
   at 50 per invocation; 34 vendors retrying twice would be 102.
 - **Collection is SHARDED: 15 shards on a `* * * * *` (every-minute) cron**
@@ -199,7 +193,7 @@ To actually verify a collection:
 
 ```sh
 # 1. The collector's own verdict, unfiltered — NOT --status=error.
-npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|vendor_recheck'
+npx wrangler tail --format=json | grep -E 'collection_(complete|alert)'
 # 2. The board's aggregate state, over more than one cron cycle.
 curl -s https://briangreenberg.net/service-status/api/status \
   | python3 -c "import sys,json;from collections import Counter;d=json.load(sys.stdin);print(Counter(r['severity'] for r in d['records']))"

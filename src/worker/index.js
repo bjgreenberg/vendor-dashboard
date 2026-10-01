@@ -82,21 +82,12 @@ async function scheduled(controller, env) {
       unknown: run.unknown,
       subrequests: run.subrequests,
       subrequest_budget: DEFAULT_SUBREQUEST_BUDGET,
-      rechecked: run.rechecks.filter((r) => r.outcome !== 'skipped').length,
-      recovered: run.rechecks.filter((r) => r.outcome === 'recovered').length,
+      // Fetches that failed at least once and then answered. The only trace a
+      // recovered stall leaves: watch this number, not just `unknown`.
+      retried_ok: run.retriedOk,
       duration_ms: Date.now() - started,
     }),
   );
-
-  // One line per vendor that needed the second pass. A recovered vendor leaves
-  // no trace anywhere else: its row is green and its first-pass reason is gone
-  // from the snapshot. Without this line a feed that stalls every hour would
-  // look perfectly healthy, and the day it stops recovering would arrive with
-  // no history. The reason is the collector's own string (an error message or
-  // an HTTP status), never vendor content.
-  for (const r of run.rechecks) {
-    console.log(JSON.stringify({ event: 'vendor_recheck', shard, ...r }));
-  }
 
   // SELF-MONITORING.
   //

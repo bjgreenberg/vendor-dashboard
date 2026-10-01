@@ -452,22 +452,16 @@ describe('collect — fallback URLs', () => {
   });
 });
 
-// A second look for a fetch that got no answer.
+// The last try at a URL waits longer than the others.
 //
 // Found 2026-10-01 (worklist #129): Atlassian Statuspage's hosting sometimes
-// accepts a request and then sends nothing for 15 s or more. Three tries with
-// a 10 s deadline, under a second apart, all land inside the same stall, and
-// the vendor read `unknown` for a full 15-minute cycle. 250 of 283 unknown
-// checks in 14 days were Statuspage vendors. The second look asks once more,
-// with a longer deadline, before anything is written.
-describe('collect — second look for a fetch that got no answer', () => {
+// accepts a request and then sends nothing. One measured stall: 0 bytes for
+// 15 s, then 0.07 s on the next request. In production all three 10 s tries
+// aborted and the vendor read `unknown` for a 15-minute cycle; 250 of 283
+// unknown checks in 14 days were Statuspage vendors.
+describe('collect — the last try is patient', () => {
   const GH = readFileSync(new URL('../fixtures/GitHub.json', import.meta.url), 'utf8');
-  const ok = (body = GH) => ({ ok: true, status: 200, text: async () => body });
-  const OUTAGE = JSON.stringify({
-    page: { url: 'https://status.example.com' },
-    status: { indicator: 'critical', description: 'Major System Outage' },
-    components: [{ id: 'c1', name: 'API', status: 'major_outage' }],
-  });
+  const ok = () => ({ ok: true, status: 200, text: async () => GH });
 
   /** Answers after `ms`, unless the caller's deadline aborts it first. */
   const slowFetch = (ms, log = []) => (url, init) =>
@@ -480,306 +474,95 @@ describe('collect — second look for a fetch that got no answer', () => {
       });
     });
 
-  /** Throws for the first `n` calls to `url`, then answers. */
-  const failsThenAnswers = (failing, n, seen = []) => {
-    const count = {};
-    return async (url) => {
-      seen.push(url);
-      count[url] = (count[url] ?? 0) + 1;
-      if (url === failing && count[url] <= n) throw new Error('ECONNRESET');
-      return ok();
-    };
-  };
-
-  it('a feed slower than the first-pass deadline is read on the second look, not left unknown', async () => {
-    // The regression: the feed answers in 60 ms, the deadline is 20 ms, so all
-    // three first-pass tries abort. The second look waits long enough.
+  it('a feed slower than the normal deadline is read on the last try, not left unknown', async () => {
+    // The regression: the feed needs 60 ms and the deadline is 20 ms, so tries
+    // one and two abort. The third waits long enough.
     const calls = [];
     const res = await collect(cfg([{ name: 'Slow', type: 'statuspage', url: 'https://slow' }]), {
       fetchFn: slowFetch(60, calls),
       now,
       timeoutMs: 20,
+      lastAttemptTimeoutMs: 500,
       retryDelayMs: 0,
-      recheckTimeoutMs: 500,
     });
+    expect(calls).toHaveLength(3); // no extra request: the third try is the patient one
     expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
     expect(res.unknown).toBe(0);
-    expect(calls).toHaveLength(4); // three first-pass tries, one second look
-    expect(res.rechecks).toEqual([
-      { vendor: 'Slow', reason: expect.stringMatching(/^fetch failed/), outcome: 'recovered' },
-    ]);
+    expect(res.retriedOk).toBe(1);
   });
 
-  it('the second look is never less patient than the first pass', async () => {
-    // A caller with a long first-pass deadline must not get a SHORTER second
-    // look. Three resets, then a feed that needs 60 ms: with timeoutMs 200 and
-    // a recheck setting of 20, the second look must still wait 200.
+  it('only the last try is patient: the first two keep the normal deadline', async () => {
+    // With no retry budget there is one try, and it must still abort at 20 ms
+    // rather than wait the patient 500.
+    const calls = [];
+    const res = await collect(cfg([{ name: 'Slow', type: 'statuspage', url: 'https://slow' }]), {
+      fetchFn: slowFetch(60, calls),
+      now,
+      timeoutMs: 20,
+      lastAttemptTimeoutMs: 500,
+      retryDelayMs: 0,
+      retryBudget: 0,
+    });
+    expect(calls).toHaveLength(1);
+    expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
+    expect(res.retriedOk).toBe(0);
+  });
+
+  it('the last try is never LESS patient than the others', async () => {
+    // A caller with a long normal deadline must not get a shorter last try.
     let calls = 0;
     const slow = slowFetch(60);
     const fetchFn = (url, init) => {
       calls += 1;
-      if (calls <= 3) return Promise.reject(new Error('ECONNRESET'));
+      if (calls <= 2) return Promise.reject(new Error('ECONNRESET'));
       return slow(url, init);
     };
     const res = await collect(cfg([{ name: 'Slow', type: 'statuspage', url: 'https://slow' }]), {
       fetchFn,
       now,
       timeoutMs: 200,
+      lastAttemptTimeoutMs: 20,
       retryDelayMs: 0,
-      recheckTimeoutMs: 20,
     });
     expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
-    expect(res.rechecks[0].outcome).toBe('recovered');
   });
 
-  it('a vendor still unanswered on the second look stays UNKNOWN, never OPERATIONAL', async () => {
-    let calls = 0;
-    const fetchFn = async () => {
-      calls += 1;
-      throw new Error('ECONNRESET');
-    };
-    const res = await collect(cfg([{ name: 'Down', type: 'statuspage', url: 'https://down' }]), {
-      fetchFn,
+  it('a feed that outlasts even the last try is UNKNOWN, never OPERATIONAL', async () => {
+    const calls = [];
+    const res = await collect(cfg([{ name: 'Stuck', type: 'statuspage', url: 'https://stuck' }]), {
+      fetchFn: slowFetch(200, calls),
       now,
+      timeoutMs: 10,
+      lastAttemptTimeoutMs: 40,
       retryDelayMs: 0,
     });
-    expect(calls).toBe(4);
+    expect(calls).toHaveLength(3);
     expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
-    expect(res.unknown).toBe(1);
-    expect(res.rechecks).toEqual([
-      { vendor: 'Down', reason: 'fetch failed: ECONNRESET', outcome: 'failed_again' },
-    ]);
+    expect(res.records[0].warnings[0]).toMatch(/^fetch failed/);
+    expect(res.retriedOk).toBe(0);
   });
 
-  it('the later reading stands: a second look that gets a 404 reports the 404', async () => {
-    let calls = 0;
-    const fetchFn = async () => {
-      calls += 1;
-      if (calls <= 3) throw new Error('ECONNRESET');
-      return { ok: false, status: 404, text: async () => '' };
-    };
-    const res = await collect(cfg([{ name: 'Retired', type: 'statuspage', url: 'https://retired' }]), {
-      fetchFn,
-      now,
-      retryDelayMs: 0,
-    });
-    expect(res.records[0].severity).toBe(SEVERITY.UNKNOWN);
-    expect(res.records[0].warnings).toEqual(['fetch returned HTTP 404']);
-    expect(res.rechecks[0].outcome).toBe('failed_again');
-  });
-
-  it('an HTTP status is an answer: 503 and 429 get their three tries and no second look', async () => {
-    const seen = [];
+  it('counts each fetch that needed a retry to succeed, and none on a healthy run', async () => {
+    let flaky = 0;
     const fetchFn = async (url) => {
-      seen.push(url);
-      return { ok: false, status: url === 'https://busy' ? 503 : 429, text: async () => '' };
+      if (url === 'https://flaky') {
+        flaky += 1;
+        if (flaky === 1) throw new Error('ECONNRESET');
+      }
+      return ok();
     };
-    const res = await collect(
-      cfg([
-        { name: 'Busy', type: 'statuspage', url: 'https://busy' },
-        { name: 'Limited', type: 'statuspage', url: 'https://limited' },
-      ]),
-      { fetchFn, now, retryDelayMs: 0 },
-    );
-    expect(seen.filter((u) => u === 'https://busy')).toHaveLength(3);
-    expect(seen.filter((u) => u === 'https://limited')).toHaveLength(3);
-    expect(res.unknown).toBe(2);
-    expect(res.rechecks).toEqual([]);
-  });
-
-  it('gives no second look to a failure that waiting cannot fix', async () => {
-    const seen = [];
-    const fetchFn = async (url) => {
-      seen.push(url);
-      if (url === 'https://gone') return { ok: false, status: 404, text: async () => '' };
-      return { ok: true, status: 200, text: async () => '<html>not json</html>' };
-    };
-    const res = await collect(
-      cfg([
-        { name: 'Gone', type: 'statuspage', url: 'https://gone' },
-        { name: 'Garbled', type: 'statuspage', url: 'https://garbled' },
-        { name: 'NoAdapter', type: 'nope', url: 'https://nope' },
-      ]),
-      { fetchFn, now, retryDelayMs: 0 },
-    );
-    expect(seen.sort()).toEqual(['https://garbled', 'https://gone']); // one fetch each
-    expect(res.unknown).toBe(3);
-    expect(res.rechecks).toEqual([]);
-  });
-
-  it('re-fetches only the vendor that went unanswered, never a healthy one', async () => {
-    const seen = [];
     const res = await collect(
       cfg([
         { name: 'Fine', type: 'statuspage', url: 'https://fine' },
         { name: 'Flaky', type: 'statuspage', url: 'https://flaky' },
       ]),
-      { fetchFn: failsThenAnswers('https://flaky', 3, seen), now, retryDelayMs: 0 },
-    );
-    expect(seen.filter((u) => u === 'https://fine')).toHaveLength(1);
-    expect(seen.filter((u) => u === 'https://flaky')).toHaveLength(4);
-    expect(res.unknown).toBe(0);
-    expect(res.records).toHaveLength(2);
-  });
-
-  it('a stalled primary still earns the second look when its fallback answers 404', async () => {
-    // The last URL tried is not the whole story: OR the no-answer flag across
-    // URLs, or a dead fallback route hides the stall it sits behind.
-    const seen = [];
-    const count = {};
-    const fetchFn = async (url) => {
-      seen.push(url);
-      count[url] = (count[url] ?? 0) + 1;
-      if (url === 'https://primary') {
-        if (count[url] <= 3) throw new Error('The operation was aborted due to timeout');
-        return ok();
-      }
-      return { ok: false, status: 404, text: async () => '' };
-    };
-    const res = await collect(
-      cfg([{ name: 'V', type: 'statuspage', url: 'https://primary', fallbackUrls: ['https://backup'] }]),
       { fetchFn, now, retryDelayMs: 0 },
     );
-    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
-    expect(seen).toEqual([
-      'https://primary', 'https://primary', 'https://primary', 'https://backup', 'https://primary',
-    ]);
-    expect(res.rechecks[0]).toMatchObject({ vendor: 'V', outcome: 'recovered' });
-  });
-
-  it('second-look fetches are metered like every other subrequest', async () => {
-    const fetchFn = async () => {
-      throw new Error('ECONNRESET');
-    };
-    const res = await collect(cfg([{ name: 'Down', type: 'statuspage', url: 'https://down' }]), {
-      fetchFn,
-      now,
-      retryDelayMs: 0,
-    });
-    expect(res.subrequests).toBe(4);
-  });
-
-  it('skips the second look when the budget has no room for it, and that is not a budget fault', async () => {
-    let calls = 0;
-    const fetchFn = async () => {
-      calls += 1;
-      throw new Error('ECONNRESET');
-    };
-    const vendors = [
-      { name: 'A', type: 'statuspage', url: 'https://a' },
-      { name: 'B', type: 'statuspage', url: 'https://b' },
-    ];
-    const res = await collect(cfg(vendors), { fetchFn, now, retryDelayMs: 0, retryBudget: 0, subrequestBudget: 2 });
-    expect(calls).toBe(2); // the budget is spent exactly; nothing is asked twice
-    expect(res.budgetExhausted).toBe(false);
-    expect(res.rechecks.map((r) => r.outcome)).toEqual(['skipped', 'skipped']);
-  });
-
-  it('gives no second look once the subrequest budget has denied a request', async () => {
-    let calls = 0;
-    const fetchFn = async () => {
-      calls += 1;
-      throw new Error('ECONNRESET');
-    };
-    const vendors = Array.from({ length: 6 }, (_, i) => ({ name: `V${i}`, type: 'statuspage', url: `https://v${i}` }));
-    const res = await collect(cfg(vendors), { fetchFn, now, retryDelayMs: 0, subrequestBudget: 4 });
-    expect(calls).toBe(4);
-    expect(res.budgetExhausted).toBe(true);
-    expect(res.rechecks.every((r) => r.outcome === 'skipped')).toBe(true);
-  });
-
-  it('gives at most five second looks in one run', async () => {
-    const perUrl = {};
-    const fetchFn = async (url) => {
-      perUrl[url] = (perUrl[url] ?? 0) + 1;
-      throw new Error('ECONNRESET');
-    };
-    const vendors = Array.from({ length: 7 }, (_, i) => ({ name: `V${i}`, type: 'statuspage', url: `https://v${i}` }));
-    const res = await collect(cfg(vendors), {
-      fetchFn,
-      now,
-      retryDelayMs: 0,
-      retryBudget: 0,
-      subrequestBudget: 100,
-    });
-    expect(Object.values(perUrl).filter((n) => n === 2)).toHaveLength(5);
-    expect(res.rechecks.filter((r) => r.outcome === 'skipped')).toHaveLength(2);
-    expect(res.unknown).toBe(7);
-  });
-
-  it('a composite vendor gets the second look for the failed source only', async () => {
-    const seen = [];
-    const res = await collect(
-      cfg([
-        {
-          name: 'Multi',
-          type: 'composite',
-          sources: [
-            { group: 'A', type: 'statuspage', url: 'https://a' },
-            { group: 'B', type: 'statuspage', url: 'https://b' },
-          ],
-        },
-      ]),
-      { fetchFn: failsThenAnswers('https://b', 3, seen), now, retryDelayMs: 0 },
-    );
-    expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
-    expect(seen.filter((u) => u === 'https://a')).toHaveLength(1);
-    expect(res.rechecks).toEqual([
-      { vendor: 'Multi', source: 'B', reason: 'fetch failed: ECONNRESET', outcome: 'recovered' },
-    ]);
-  });
-
-  it("a second look never costs a composite a sibling source's verified outage", async () => {
-    // Source A reports a real outage on its one and only fetch. Source B goes
-    // unanswered, then fails its second look too. A must be read once and its
-    // outage must still be the row's verdict.
-    const seen = [];
-    const fetchFn = async (url) => {
-      seen.push(url);
-      if (url === 'https://a') return ok(OUTAGE);
-      throw new Error('ECONNRESET');
-    };
-    const res = await collect(
-      cfg([
-        {
-          name: 'Multi',
-          type: 'composite',
-          sources: [
-            { group: 'A', type: 'statuspage', url: 'https://a' },
-            { group: 'B', type: 'statuspage', url: 'https://b' },
-          ],
-        },
-      ]),
-      { fetchFn, now, retryDelayMs: 0 },
-    );
-    expect(seen.filter((u) => u === 'https://a')).toHaveLength(1);
-    expect(res.records[0].severity).toBe(SEVERITY.MAJOR_OUTAGE);
-    expect(res.rechecks).toEqual([
-      { vendor: 'Multi', source: 'B', reason: 'fetch failed: ECONNRESET', outcome: 'failed_again' },
-    ]);
-  });
-
-  it('can be switched off', async () => {
-    let calls = 0;
-    const fetchFn = async () => {
-      calls += 1;
-      throw new Error('ECONNRESET');
-    };
-    const res = await collect(cfg([{ name: 'Down', type: 'statuspage', url: 'https://down' }]), {
-      fetchFn,
-      now,
-      retryDelayMs: 0,
-      recheck: false,
-    });
-    expect(calls).toBe(3);
-    expect(res.rechecks).toEqual([]);
-  });
-
-  it('a healthy run reports no second looks', async () => {
-    const res = await collect(cfg([{ name: 'Fine', type: 'statuspage', url: 'https://fine' }]), {
+    expect(res.retriedOk).toBe(1);
+    const healthy = await collect(cfg([{ name: 'Fine', type: 'statuspage', url: 'https://fine' }]), {
       fetchFn: async () => ok(),
       now,
     });
-    expect(res.rechecks).toEqual([]);
+    expect(healthy.retriedOk).toBe(0);
   });
 });

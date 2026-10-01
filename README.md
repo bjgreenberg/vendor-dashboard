@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-10-01 02:06 PM CDT
+Last updated: 2026-10-01 02:15 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -81,9 +81,7 @@ transactionally to D1, and serves a rendered dashboard.
 
 ```mermaid
 flowchart TB
-    cron["Cron Trigger<br/>every minute · 1 of 15 shards"] --> collect["collect()<br/>concurrent + per-vendor deadline"]
-    collect -.->|"a fetch got no answer"| recheck["second look<br/>one patient try, 25 s deadline"]
-    recheck -.-> adapters
+    cron["Cron Trigger<br/>every minute · 1 of 15 shards"] --> collect["collect()<br/>concurrent · 3 tries per feed<br/>deadlines 10 s, 10 s, 25 s"]
     collect --> adapters{"dispatch by type"}
     adapters -->|"Statuspage v2"| a1["statuspage"]
     adapters -->|"Instatus"| a2["instatus"]
@@ -103,21 +101,21 @@ flowchart TB
 
 ### When a status feed stalls
 
-A status feed sometimes accepts the request and then sends nothing. Measured on
-2026-10-01 against Atlassian Statuspage: 0 bytes for 15 seconds, then 0.07
-seconds on the next request. Three tries with a 10-second deadline, under a
-second apart, all land inside one such stall. Until 2026-10-01 that put the
-vendor on the board as `unknown` for a full 15-minute cycle: 250 of the 283
-`unknown` checks in the 14 days before were Statuspage vendors.
+A status feed sometimes accepts the request and then sends nothing. One stall
+was measured on 2026-10-01 against Atlassian Statuspage: 0 bytes for 15
+seconds, then 0.07 seconds on the next request. In production all three
+10-second tries aborted, and the vendor sat on the board as `unknown` for a
+full 15-minute cycle. In the 14 days before, 250 of the 283 `unknown` checks
+were Statuspage vendors.
 
-So `collect()` takes a **second look** before anything is written. A fetch
-that got **no answer** (a network error or a deadline) is tried once more with
-a 25-second deadline. If the feed answers, the vendor is written with what it
-said. If it does not, the vendor is written `unknown`, exactly as before.
+So the **last of the three tries waits 25 seconds** instead of 10. Nothing
+extra is sent: the same three tries, the same retry budget, the same number
+of requests.
 
 > [!IMPORTANT]
-> The second look never weakens the governing rule. A row is green only when a
-> real fetch returned a payload the adapter verified.
+> This does not weaken the governing rule. A row is green only when a real
+> fetch returned a payload the adapter verified. A feed that outlasts the last
+> try is still written `unknown`.
 
 ```mermaid
 sequenceDiagram
@@ -131,47 +129,42 @@ sequenceDiagram
     C->>E: collect the shard's vendors
     E->>V: try 1 (10 s deadline)
     V--xE: no bytes, deadline aborts
-    E->>V: tries 2 and 3 (10 s each)
-    V--xE: still stalled
-    Note over E: no answer three times, so look once more
-    E->>V: second look, one try (25 s deadline)
+    E->>V: try 2 (10 s deadline)
+    V--xE: still nothing
+    E->>V: try 3, the patient one (25 s deadline)
     alt the feed answers
         V-->>E: payload
         E->>D: write the vendor's real status
-        E->>L: vendor_recheck, outcome recovered
+        E->>L: collection_complete, retried_ok counts it
     else the feed is still silent
-        V--xE: no answer again
+        V--xE: deadline aborts again
         E->>D: write unknown, never green
-        E->>L: vendor_recheck, outcome failed_again
+        E->>L: collection_complete, unknown counts it
     end
 ```
 
-What gets a second look, and what does not:
-
-| First-pass result | Second look? | Why |
+| What | Before 2026-10-01 | Now |
 |---|---|---|
-| Network error or deadline on every try | Yes | Nothing came back; a stall can be waited out |
-| HTTP 408, 425, 429, 500, 502, 503, 504 | No | That is an answer. It already had three tries with backoff, and a host that said 429 should not be asked a fourth time at once |
-| HTTP 404, 401 or another client error | No | Waiting cannot fix a retired or closed route |
-| Payload that does not parse, unknown adapter type | No | Not a fetch failure |
+| Tries per feed | 3 | 3 |
+| Deadlines | 10 s, 10 s, 10 s | 10 s, 10 s, 25 s |
+| Longest wait on one dead feed | about 31 s | about 46 s |
+| Requests sent | unchanged | unchanged |
 
-It works at the fetch, so a vendor built from several feeds (Microsoft, US
-Government) gets the second look **per feed**. The feeds that answered are
-never fetched again, so an outage one feed reported cannot be lost.
+> [!NOTE]
+> Why all three 10-second tries failed is not established. Either a stall
+> outlasts the 31 seconds the tries span, or each request waits on a slow
+> origin of its own. A patient last try covers both, up to about 46 seconds
+> from the first request. A first design added a fourth request after the
+> three; two review passes on PR #158 showed it was more machinery for the
+> same patience, and it was dropped.
 
-Three guards keep it from turning into a retry storm: no second look once the
-subrequest budget has denied a request, none without room in the budget for
-it, and at most five in one run (the rest are logged `skipped`). These bound
-what the second look itself spends. A vendor that recovers still fetches its
-other documents, as on any healthy run.
+`retried_ok` in the `collection_complete` log line counts fetches that failed
+at least once and then answered. A stall that recovers leaves no other trace,
+so that number is the history of how often feeds stall.
 
 Known gap: the extra documents some vendors need after the first one (Concur's
 per-data-centre files, Zscaler's per-cloud files) are fetched once each with
-the 10-second deadline and get no second look.
-
-A stalled vendor now holds its shard's write for up to about a minute. Runs
-can therefore overlap, so `run_meta.checked_at` keeps the latest start time
-rather than whichever run wrote last.
+the 10-second deadline.
 
 ### Endpoints
 
@@ -332,7 +325,7 @@ emits a warning rather than silently ignoring it.
 | `src/engine/severity.js` | Ordered enum, vendor-vocabulary normalization |
 | `src/engine/scope.js` | Component/group allowlist + drift detection |
 | `src/engine/rollup.js` | Parent roll-up and progressive disclosure |
-| `src/engine/collect.js` | Orchestrator: concurrency, deadlines, bounded retry, second look for stalled feeds |
+| `src/engine/collect.js` | Orchestrator: concurrency, deadlines (the last try is patient), bounded retry |
 | `src/worker/` | Cloudflare bindings **only** — `scheduled()`, `fetch()`, D1, rendering |
 | `src/worker/site-assets.js` | Content-hashes the site's `site.css`, `theme.js` and `consent.js` (md5, first 10 hex, as the site's build does) so the page links the same `?v=` URLs as the site; 5-minute isolate cache, plain links as the fallback |
 | `config/` | Vendor configuration |
@@ -589,10 +582,9 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
   ~50% availability on 2026-07-31. That was a route being decommissioned, not
   flapping: retrying a retired route cannot succeed and only spends the budget.
   Retried statuses are 408, 425, 429, 500, 502, 503 and 504.
-- **A fetch that got no answer gets one second look, with a longer deadline,
-  before the row is written** (2026-10-01). A stalled feed is read late rather
-  than shown `unknown` for 15 minutes; a vendor that fails again is still
-  `unknown`. See [When a status feed stalls](#when-a-status-feed-stalls).
+- **The last try waits longer** (10 s, 10 s, then 25 s; 2026-10-01). A stalled
+  feed is read late rather than shown `unknown` for 15 minutes, at no extra
+  requests. See [When a status feed stalls](#when-a-status-feed-stalls).
 - **Retries share a run-wide budget** — originally because the free plan
   killed an invocation at 50 subrequests; kept on Workers Paid as a sanity
   bound that turns a retry storm into a loud, bounded failure.
@@ -639,7 +631,7 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
 | Paths 404 right after deploy | Propagation lag. Wait 20–30 s and retest before debugging |
 | Page layout lags a site CSS fix (e.g. header flush to the phone edge) | The page links the site's `/assets/site.css`, which the site serves `immutable` for a year. Since 2026-09-30 the Worker links it with the site's own `?v=<hash>`; if the served HTML shows a plain `/assets/site.css` link, the Worker could not fetch or hash the site's assets — check `wrangler tail` |
 | A vendor shows `unknown` | Read its `warnings` in `/service-status/api/status` — it names the HTTP status or parse failure |
-| A vendor flickers to `unknown` and back within one cycle | Its feed failed the second look too, or answered with an error status. In Workers Logs, filter on `vendor_recheck`: each line names the vendor (and `source` for a multi-feed vendor), the first-pass reason, and the outcome (`recovered`, `failed_again`, `skipped`). Many `recovered` lines for one platform mean its hosting is stalling; many `failed_again` across platforms in one minute mean the problem is on our side or the network's |
+| A vendor flickers to `unknown` for one cycle with `fetch failed: The operation was aborted due to timeout` | Its feed sent nothing for longer than all three tries, the 25-second last one included. In Workers Logs, compare `unknown` with `retried_ok` on the `collection_complete` lines: a rising `retried_ok` with few unknowns means feeds are stalling and the patient try is catching them; many unknowns across platforms in the same minute mean the problem is on our side or the network's |
 | Board reads "No status data" | The cron has not run yet, or is failing. Check `wrangler tail` and `run_meta` in D1 |
 | Want to link to one service's row | Every card has a slug id: `/service-status#cloudflare`, `#1password`. There is no visible `#` glyph (removed 2026-08-03: it was reported twice as a rendering artifact, on touch and on hover) |
 | `fetch-logos.mjs` says REFUSING TO SHIP | The committed manifest lists a logo for a configured vendor and this clone has no file for it — a bot wall refused the download (LinkedIn, NetSuite, OpenAI, SendGrid, Tableau have all done it). A refused download is not vendor removal, so the build stops instead of shipping a shrunken manifest. Restore `assets/icons` from a clone that has the files (the row below), or declare `iconUrl` for that vendor, then re-run |
