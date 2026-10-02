@@ -110,6 +110,14 @@ describe('parseConcurStatus — fail-closed paths', () => {
 // Worklist #132. The collector tells the adapter which data centres it could
 // not read; the adapter shows them, keeps them out of the vote, and refuses to
 // judge the row at all when a required one is missing.
+describe('parseConcurStatus — a status word it does not know', () => {
+  it('fails closed AND says so, so an Unknown card is never unexplained', () => {
+    const r = parseConcurStatus([doc({ Expense: 'wobbly', Travel: 'normal' })], { vendor: 'Concur', now });
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.warnings).toEqual(['unrecognised status "wobbly" on "Expense"']);
+  });
+});
+
 describe('parseConcurStatus — data centres that could not be read', () => {
   it('shows each as an unknown component, after the services, and does not let it vote', () => {
     const r = parseConcurStatus([doc({ Expense: 'normal', Travel: 'normal' })], {
@@ -154,10 +162,30 @@ describe('parseConcurStatus — data centres that could not be read', () => {
     expect(r.warnings).toEqual([]); // the row has a status; the collector's note names US2
   });
 
-  it('a required data centre unread and maintenance elsewhere: unknown outranks maintenance', () => {
+  it('a required data centre unread and maintenance elsewhere: unknown outranks maintenance, and the row says only that', () => {
     const r = parseConcurStatus([doc({ Expense: 'maintenance' })], { vendor: 'Concur', dataCenters: ['US2'], unreadDataCenters: ['US2'], now });
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
     expect(r.warnings).toHaveLength(1);
+    // Not "Service issue / Affected: Expense." under an Unknown badge.
+    expect(r.incidentName).toBe('');
+    expect(r.description).toBe('Status could not be determined.');
+    expect(r.components.find((c) => c.name === 'Expense').severity).toBe(SEVERITY.MAINTENANCE); // still listed
+  });
+
+  it("a required data centre unread and the banner displayed: degraded, in the banner's words", () => {
+    const r = parseConcurStatus([doc({ Expense: 'normal' })], {
+      vendor: 'Concur', dataCenters: ['US2'], unreadDataCenters: ['US2'], banner: { data: { display: true, text: { en: 'Issue Alert' } } }, now,
+    });
+    expect(r.severity).toBe(SEVERITY.DEGRADED);
+    expect(r.incidentName).toBe('Status banner displayed');
+    expect(r.description).toBe('Issue Alert');
+    expect(r.warnings).toEqual([]);
+  });
+
+  it('documents that hold no service, with a required data centre unread, say which', () => {
+    const r = parseConcurStatus([{ data: {} }], { vendor: 'Concur', dataCenters: ['US2'], unreadDataCenters: ['US2'], now });
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.warnings).toEqual(["Concur's US2 data centre could not be read, so its status is not shown."]);
   });
 
   it('two required data centres unread are both named', () => {
@@ -217,6 +245,26 @@ describe('parseConcurStatus — banner floor', () => {
     });
     expect(r.severity).toBe(SEVERITY.DEGRADED);
     expect(r.description).toBe('Issue Alert – We are investigating an issue.');
+  });
+
+  it('trouble in a service and a displayed banner: the card names both', () => {
+    // Maintenance plus a banner reads Degraded. Without the banner's text
+    // nothing on the card would say why.
+    const r = parseConcurStatus([doc({ Expense: 'maintenance' })], {
+      vendor: 'Concur', banner: { data: { display: true, text: { en: 'Issue Alert' } } }, now,
+    });
+    expect(r.severity).toBe(SEVERITY.DEGRADED);
+    expect(r.incidentName).toBe('Service issue');
+    expect(r.description).toBe('Affected: Expense. Issue Alert');
+  });
+
+  it('a very long banner is cut, and a pathological one costs nothing', () => {
+    const long = parseConcurStatus([doc({ Expense: 'normal' })], { vendor: 'Concur', banner: { data: { display: true, text: { en: 'word '.repeat(2000) } } }, now });
+    expect(long.description.length).toBeLessThanOrEqual(300);
+    const started = Date.now();
+    const odd = parseConcurStatus([doc({ Expense: 'normal' })], { vendor: 'Concur', banner: { data: { display: true, text: { en: '<'.repeat(60_000) } } }, now });
+    expect(Date.now() - started).toBeLessThan(100);
+    expect(odd.severity).toBe(SEVERITY.DEGRADED);
   });
 
   it.each([

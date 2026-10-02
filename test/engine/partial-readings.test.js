@@ -5,10 +5,11 @@ import { SEVERITY } from '../../src/engine/severity.js';
 
 // Worklist #132, decided 2026-10-02: when part of a vendor could not be read,
 // the row keeps the status that WAS verified, the card says what is missing,
-// and each missing data centre or cloud shows as an unknown component. The row
-// is `unknown` when a data centre the config names as required is the one
-// missing. Before this, Concur read operational with three of its four data
-// centres unread and nothing on the card said so.
+// and each missing data centre or cloud shows as an unknown component. A data
+// centre the config names as required, when it is the one missing, counts as
+// an unknown vote: never green from the others, and trouble verified
+// elsewhere still shows. Before this, Concur read operational with three of
+// its four data centres unread and nothing on the card said so.
 
 const now = () => new Date('2026-10-02T12:00:00Z');
 const fixture = (name) => readFileSync(new URL(`../fixtures/${name}`, import.meta.url), 'utf8');
@@ -226,15 +227,54 @@ describe('vendors with one extra document', () => {
     });
   }
 
-  it.each([
-    ['Coalition (Control)', 'Coalition-instatus.json', '{"components":[{"name":"Group","isParent":true}]}', 'The component list', 'only group headers, which the adapter does not count'],
-    ['Iorad', 'Iorad-sorryapp.json', '[{"id":1,"state":"degraded"},{"id":2}]', 'The component list', 'entries with no name, which the adapter drops'],
-    ['Docusign', 'Docusign-components.json', '{"incidents":[{"title":"x","impact":"service_disruption"}]}', 'The incident list', 'an incident with no status, which the adapter skips'],
-  ])('%s: an extra document the adapter would ignore is not a reading (%s ... %s)', async (name, primaryFixture, body, what) => {
-    const v = vendor(name);
-    const { res, row } = await one(v, fetchBy({ [v.componentsUrl ?? v.incidentsUrl]: body }, fixture(primaryFixture)));
-    expect(row.warnings[0]).toBe(NOTE(what));
-    expect(res.incomplete).toEqual([name]);
+  it('Coalition: a component list holding only group headers, which the adapter does not count, is not a reading', async () => {
+    const v = vendor('Coalition (Control)');
+    const { res, row } = await one(v, fetchBy({ [v.componentsUrl]: '{"components":[{"name":"Group","isParent":true}]}' }, fixture('Coalition-instatus.json')));
+    expect(row.warnings[0]).toBe(NOTE('The component list'));
+    expect(res.incomplete).toEqual([v.name]);
+  });
+
+  // One bad entry must not cost the whole document. A check that refused the
+  // list ("every entry must be well formed") threw away the good entries with
+  // the bad one, and with them a verified outage. So the list is read, and
+  // the ADAPTER fails the bad entry closed: it votes unknown, or shows under
+  // a stand-in name, and what was verified beside it still counts.
+  it('Docusign: an incident with no status beside an active disruption does not hide the disruption', async () => {
+    const v = vendor('Docusign');
+    const incidents = JSON.stringify({
+      incidents: [
+        { id: 'a', title: 'eSignature down', status: 'investigating', impact: 'service_disruption', events: [] },
+        { id: 'b', title: 'Old one', status: null, impact: 'available' },
+      ],
+    });
+    const { row } = await one(v, fetchBy({ [v.incidentsUrl]: incidents }, fixture('Docusign-components.json')));
+    expect(row.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(row.incidentName).toBe('eSignature down');
+    expect(row.warnings.join(' | ')).toMatch(/incident "Old one" carries no status/);
+    expect(row.warnings.join(' | ')).not.toMatch(/could not be read/);
+  });
+
+  it('Docusign: an incident with no status and nothing else wrong is uncertainty, not health', async () => {
+    const v = vendor('Docusign');
+    const incidents = '{"incidents":[{"title":"x","impact":"service_disruption"}]}';
+    const { row } = await one(v, fetchBy({ [v.incidentsUrl]: incidents }, fixture('Docusign-components.json')));
+    expect(row.severity).toBe(SEVERITY.UNKNOWN);
+    expect(row.warnings).toEqual(['incident "x" carries no status']);
+  });
+
+  it('Iorad: a component with a state and no name still shows and still votes, under a stand-in name', async () => {
+    const v = vendor('Iorad');
+    const { res, row } = await one(v, fetchBy({ [v.componentsUrl]: '[{"id":1,"state":"degraded_performance"},{"name":"App","state":"operational"}]' }, fixture('Iorad-sorryapp.json')));
+    expect(row.severity).toBe(SEVERITY.DEGRADED);
+    expect(row.components).toContainEqual({ name: 'Unnamed component', severity: SEVERITY.DEGRADED, description: '' });
+    expect(row.warnings).toEqual([]);
+    expect(res.incomplete).toEqual([]);
+  });
+
+  it('Iorad: entries that are not components at all are uncertainty, not a green row', async () => {
+    const v = vendor('Iorad');
+    const { row } = await one(v, fetchBy({ [v.componentsUrl]: '[1,2]' }, fixture('Iorad-sorryapp.json')));
+    expect(row.severity).toBe(SEVERITY.UNKNOWN);
   });
 
   it('Stormboard: a sections fragment that lists a service is a reading, and carries no note', async () => {

@@ -211,28 +211,42 @@ a future non-Cloudflare deployment possible.
     component that does NOT vote. For Concur the collector passes
     `unreadDataCenters` and the adapter appends them after the severity is
     decided.
-  - **A data centre in config `dataCenters` that is missing is an `unknown`
-    VOTE** (Concur: US2, the US vantage point; `dataCenters` means "must be
-    read" for `concur-status`). The row cannot read green or maintenance
-    from the others. It is NOT a veto: trouble verified in another data
-    centre outranks unknown and shows, with the collector's note naming US2.
-    The first draft forced the row to `unknown` and dropped the components;
-    review showed that hid a verified EU outage. Worst wins, as it does for
-    a vendor of several feeds.
+  - **A data centre in config `dataCenters` that holds no reading is an
+    `unknown` VOTE** (Concur: US2, the US vantage point; `dataCenters` means
+    "must be read" for `concur-status`). The row cannot read green or
+    maintenance from the others. It is NOT a veto: anything worse that was
+    verified (trouble in another data centre, a displayed banner) outranks
+    unknown and shows, with the collector's note naming US2. The first draft
+    forced the row to `unknown` and dropped the components; review showed
+    that hid a verified EU outage. Worst wins, as it does for a vendor of
+    several feeds. When the row IS unknown for this reason the card says
+    only that (no "Affected: ..." line under an Unknown badge).
+    **This covers US2 answering 200 with nothing in it. US2 is also the
+    first document: if its fetch fails outright the row is `unknown` and no
+    other data centre is asked**, exactly as for any vendor's first
+    document. That is fail-closed and was left alone.
   - **`usable` is REQUIRED on every `readExtra` call and has no default.** A
     document that answers 200 and is empty is the failure nobody notices
-    (`{"success":true}`, `{"components":[]}`). A predicate must reject what
-    its adapter would silently skip: Instatus group headers, SorryApp entries
-    with no name, a Docusign incident with no status. `isReadableZscalerCloud`
-    is the same function the Zscaler adapter uses; `isReadableConcurDoc`
-    lives beside the Concur adapter, which shows whatever the collector
-    tells it was unread, so the card's count and the unknown components
-    cannot disagree.
+    (`{"success":true}`, `{"components":[]}`, Instatus group headers only).
+    **`usable` judges the DOCUMENT, never each entry.** PR #163 tried
+    `incidents.every(has a status)` for Docusign; review showed one bad old
+    incident then threw away the whole list, an active outage with it. A bad
+    ENTRY is the adapter's job, and it fails that entry closed while keeping
+    the rest: a Docusign incident with no status is an `unknown` vote plus a
+    warning; a SorryApp component with no name shows as `Unnamed component`
+    and still votes; a Concur status word nobody knows is `unknown` plus a
+    warning. `isReadableZscalerCloud` is the same function the Zscaler
+    adapter uses; `isReadableConcurDoc` lives beside the Concur adapter,
+    which shows whatever the collector tells it was unread, so the card's
+    count and the unknown components cannot disagree.
   - Google's product list only supplies names (`part` is `null`): recorded
     in `incomplete`, no note on the card.
   - **Concur's banner is fetched for `concur-status`** and a displayed banner
-    floors a row that has a status at `degraded` (maintenance included); the
-    card shows the banner's English text. Before this it was fetched only
+    floors the row at `degraded` (maintenance included, and a row that would
+    be unknown only for an empty US2); the card shows the banner's English
+    text after any affected services, cut to 300 characters (cut to 1,000
+    BEFORE `toPlainText`, which is quadratic on runs of `<`). Before this it
+    was fetched only
     for the retired `concur` type, so the floor never fired in production.
     The predicate is `typeof data.display === 'boolean'` because the adapter
     tests `=== true`: a string `"true"` must count as unread, not as "off".

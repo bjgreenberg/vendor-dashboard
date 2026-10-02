@@ -161,6 +161,7 @@ export function parseDocusign(payload, options) {
   let incidentName = '';
   let description = '';
   let incidentSeverity = SEVERITY.OPERATIONAL;
+  let malformedIncident = SEVERITY.OPERATIONAL;
   const incidentList = incidents?.incidents;
   if (!Array.isArray(incidentList)) {
     warnings.push('incidents.json unavailable; judged on components alone');
@@ -168,6 +169,16 @@ export function parseDocusign(payload, options) {
     const active = incidentList.filter(
       (i) => i && typeof i === 'object' && typeof i.status === 'string' && i.status.toLowerCase() !== 'resolved',
     );
+    // An incident with no status cannot be told from an active one. It is an
+    // unknown vote and a warning, and the incidents beside it still count:
+    // refusing the whole list over one bad entry would hide a verified
+    // outage (found in review of PR #163).
+    for (const i of incidentList) {
+      if (i && typeof i === 'object' && typeof i.status === 'string') continue;
+      const label = toPlainText(String(i?.title ?? i?.id ?? 'unnamed')).slice(0, 80) || 'unnamed';
+      warnings.push(`incident "${label}" carries no status`);
+      malformedIncident = SEVERITY.UNKNOWN;
+    }
     let lead = null;
     for (const i of active) {
       let sev = mapWord(i.impact);
@@ -190,7 +201,7 @@ export function parseDocusign(payload, options) {
 
   return {
     ...base,
-    severity: worst([...components.map((c) => c.severity), incidentSeverity]),
+    severity: worst([...components.map((c) => c.severity), incidentSeverity, malformedIncident]),
     incidentName,
     description,
     components,

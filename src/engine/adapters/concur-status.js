@@ -113,12 +113,18 @@ export function parseConcurStatus(payloads, options) {
 
   /** @type {Map<string, {severity: string, bad: string[]}>} */
   const services = new Map();
+  // A status word this adapter does not know fails closed, and says so: an
+  // Unknown card with no line under it explains nothing.
+  const unrecognised = new Set();
   for (const doc of docs) {
     for (const [name, entry] of Object.entries(doc.data)) {
       const current = entry?.['Current Status'];
       if (!current) continue;
       const severity = concurSeverityOf(current.status);
       const clean = toPlainText(entry?.Service ?? name);
+      if (severity === SEVERITY.UNKNOWN) {
+        unrecognised.add(`unrecognised status "${String(current.status).slice(0, 40)}" on "${clean}"`);
+      }
       const prev = services.get(clean) ?? { severity: SEVERITY.OPERATIONAL, bad: [] };
       if (rank(severity) > rank(prev.severity)) prev.severity = severity;
       if (severity !== SEVERITY.OPERATIONAL) prev.bad.push(String(current.status ?? ''));
@@ -147,19 +153,35 @@ export function parseConcurStatus(payloads, options) {
     requiredReason ? SEVERITY.UNKNOWN : SEVERITY.OPERATIONAL,
   ]);
 
+  // The row is unknown BECAUSE a required data centre was not read. Then the
+  // card says that and nothing else: "Affected: Expense." under an Unknown
+  // badge would read as a verdict. What was read is still in the components.
+  const undetermined = Boolean(requiredReason) && severity === SEVERITY.UNKNOWN;
+
+  // Concur's own words when it sends them, cut to a card's length before and
+  // after cleaning (the cleaner is slow on pathological input). The render
+  // layer escapes.
+  const en = banner?.data?.text?.en;
+  const bannerText =
+    (typeof en === 'string' ? toPlainText(en.slice(0, 1000)).slice(0, 300) : '') || 'Concur is displaying a status banner.';
+
+  // Both, when both apply: maintenance plus a displayed banner reads
+  // Degraded, and only the banner's text says why.
+  const said = [
+    ...(unhealthy.length ? [`Affected: ${unhealthy.map((c) => c.name).join(', ')}.`] : []),
+    ...(bannerActive ? [bannerText] : []),
+  ];
+
   return makeRecord({
     vendor,
     service: SERVICE_LABEL,
     severity,
-    incidentName: unhealthy.length ? 'Service issue' : bannerActive ? 'Status banner displayed' : '',
-    description: unhealthy.length
-      ? `Affected: ${unhealthy.map((c) => c.name).join(', ')}.`
-      : bannerActive
-        ? // Concur's own words when it sends them; the render layer escapes.
-          toPlainText(banner?.data?.text?.en) || 'Concur is displaying a status banner.'
-        : requiredReason
-          ? 'Status could not be determined.'
-          : `All ${components.length} services report normal.`,
+    incidentName: undetermined ? '' : unhealthy.length ? 'Service issue' : bannerActive ? 'Status banner displayed' : '',
+    description: undetermined
+      ? 'Status could not be determined.'
+      : said.length
+        ? said.join(' ')
+        : `All ${components.length} services report normal.`,
     sourceUrl: SOURCE_URL,
     // After the services, and after the severity above was decided: a data
     // centre that could not be read is shown. Only a REQUIRED one votes, and
@@ -170,7 +192,7 @@ export function parseConcurStatus(payloads, options) {
     ],
     // When trouble verified elsewhere outranks the unknown, the row has a
     // status and the collector's note names what is missing instead.
-    warnings: requiredReason && severity === SEVERITY.UNKNOWN ? [requiredReason] : [],
+    warnings: [...(undetermined ? [requiredReason] : []), ...unrecognised],
     now,
   });
 }

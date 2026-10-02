@@ -644,12 +644,13 @@ async function collectOne(vendor, ctx) {
     if (vendor.type === 'docusign' && vendor.incidentsUrl) {
       // If it fails, parseDocusign warns and judges on components alone. An
       // empty list is a reading (no incidents); a document with no list is
-      // not, and neither is one holding an incident with no status, which
-      // the parser would skip without a word.
+      // not. A list with a bad entry in it IS read: the parser fails that
+      // entry closed and keeps the rest. Refusing the whole list here would
+      // throw away an active incident standing next to the bad one.
       const incidents = await readExtra(
         vendor.incidentsUrl,
         { what: 'the incident list' },
-        (doc) => Array.isArray(doc?.incidents) && doc.incidents.every((i) => typeof i?.status === 'string'),
+        (doc) => Array.isArray(doc?.incidents),
       );
       if (incidents !== undefined) opts.incidents = incidents;
     }
@@ -671,14 +672,14 @@ async function collectOne(vendor, ctx) {
     // page-level status and NOTHING underneath, so a reader cannot see what the
     // vendor even covers -- the same gap found on Oracle, IBM and Seismic.
     if (vendor.type === 'sorryapp' && vendor.componentsUrl) {
-      // If it fails, the page state still decides, on its own. A list with
-      // no component the parser would keep (it drops nameless entries) is not
-      // a reading.
+      // If it fails, the page state still decides, on its own. An empty list
+      // is not a reading. A list with odd entries is read: the parser keeps
+      // every entry (a nameless one under a stand-in name) so none is lost.
       const listOf = (doc) => (Array.isArray(doc) ? doc : doc?.components);
       const extra = await readExtra(
         vendor.componentsUrl,
         { what: 'the component list' },
-        (doc) => Array.isArray(listOf(doc)) && listOf(doc).some((c) => typeof c?.name === 'string' && c.name.trim() !== ''),
+        (doc) => Array.isArray(listOf(doc)) && listOf(doc).length > 0,
       );
       if (extra !== undefined) payload.components = listOf(extra);
     }
@@ -696,8 +697,8 @@ async function collectOne(vendor, ctx) {
     //
     // A data centre that could not be read does not sink the others, and is
     // not dropped in silence either: it is named to the adapter (which shows
-    // it as an unknown component, and makes the row unknown when it is one
-    // the config requires) and on the card.
+    // it as an unknown component, and counts it as an unknown vote when it
+    // is one the config requires) and on the card.
     if (vendor.type === 'concur-status' && Array.isArray(vendor.statusUrls)) {
       units = { noun: 'data centre', total: vendor.statusUrls.length };
       const docs = [];

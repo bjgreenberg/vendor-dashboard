@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-10-02 12:06 PM CDT
+Last updated: 2026-10-02 12:27 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -311,12 +311,17 @@ answer and hold nothing.
 > The row keeps the status that **was** verified, and the card says what is
 > missing. A data centre or cloud that could not be read shows as an `unknown`
 > component and does not vote. Two exceptions, where the status cannot be
-> judged without the missing part. If the first document fails, the row is
-> `unknown`. If a data centre the config names as required is unread
-> (`dataCenters`; for Concur, US2, because the board judges from the United
-> States), it counts as an `unknown` vote: the row cannot read green from the
-> others, and it is `unknown` unless trouble verified in another data centre
-> is worse, in which case that trouble shows.
+> judged without the missing part:
+>
+> 1. **The first document does not answer** (three tries). The row is
+>    `unknown` and nothing else is asked, as for every vendor. Concur's first
+>    document is US2.
+> 2. **A data centre the config names as required answers but holds no
+>    reading** (`dataCenters`; for Concur, US2, because the board judges from
+>    the United States). It counts as an `unknown` vote: the row cannot read
+>    green or maintenance from the others, and it is `unknown` unless
+>    something worse was verified (trouble in another data centre, or a
+>    displayed banner), which then shows.
 
 Before 2026-10-02 a missing Concur data centre or a missing component list
 was dropped without a word (Zscaler and Docusign did warn). Concur read plain
@@ -326,37 +331,43 @@ card said so.
 ```mermaid
 flowchart TD
     first["First document<br/>3 tries: 10 s, 10 s, 25 s"] -->|"no answer"| unk["Row: unknown"]
-    first -->|"answers"| extra["Each extra document<br/>1 try, 10 s"]
-    extra --> q{"Did it answer,<br/>and does it hold a reading?"}
-    q -->|"yes, all of them"| whole["Row: the verified status<br/>no note"]
-    q -->|"no"| req{"Is it a data centre<br/>the config requires?"}
+    first -->|"answers"| extra["Every further document<br/>1 try, 10 s"]
+    extra --> q{"Does every document,<br/>the first included,<br/>hold a reading?"}
+    q -->|"yes"| whole["Row: the verified status<br/>no note"]
+    q -->|"no"| req{"Is the one without a reading<br/>a required data centre?"}
     req -->|"no"| part["Row: the verified status<br/>Card: what could not be read<br/>Missing data centre or cloud: unknown component"]
-    req -->|"yes (Concur US2)"| worse{"Trouble verified<br/>in another data centre?"}
+    req -->|"yes: Concur US2<br/>answered, but empty"| worse{"Anything worse verified?<br/>trouble elsewhere, or the banner"}
     worse -->|"no"| unk
     worse -->|"yes"| part
 ```
 
 | Vendor | Extra documents | What the card says when one is missing |
 |---|---|---|
-| Concur | One per data centre (US2, EU2, APJ1, USG), and its issue banner | `1 of 4 data centres could not be read (EU2). The status shown is from the other 3.` plus an unknown `Data centre EU2` component. US2 missing: the row is `unknown`, unless another data centre reports trouble, which then shows with the same kind of note. Banner missing: `The issue banner could not be read. The status shown does not include it.` |
+| Concur | One per data centre (US2, EU2, APJ1, USG), and its issue banner | `1 of 4 data centres could not be read (EU2). The status shown is from the other 3.` plus an unknown `Data centre EU2` component. US2 answers with nothing in it: the row is `unknown`, unless another data centre reports trouble or the banner is displayed, which then shows with the same kind of note. US2 does not answer at all: `unknown`, and the others are not asked. Banner missing: `The issue banner could not be read. The status shown does not include it.` |
 | Zscaler | One per cloud (8) | `7 of 8 clouds could not be read (… and 3 more). The status shown is from the other 1.` Each unread cloud is an unknown component |
 | Coalition, Iorad | The component list | `The component list could not be read. The status shown does not include it.` |
 | Stormboard | The list of monitored services | The same, naming that list |
-| Docusign | The incident list (an active incident votes) | `The incident list could not be read. The status shown does not include it.` |
+| Docusign | The incident list (an active incident votes) | `The incident list could not be read. The status shown does not include it.` An incident in the list with no status is a different thing: the list was read, and that incident counts as an `unknown` vote |
 | Google | The product list | Nothing. That list only supplies names; incidents decide the status |
 
 "Holds a reading" is checked for every extra document, not only "answered and
-parsed": a data centre with no service status in it, a component list with
-nothing the adapter would count (no entries, only group headers, entries with
-no name), an incident with no status, a cloud document with no legend or no
-services. Each call site has
-to say what a reading looks like (`usable` in `readExtra`,
-`src/engine/collect.js`); there is no default, so a new extra document cannot
-skip the question.
+parsed": a data centre with no service status in it, a component list with no
+entries or only group headers, a document with no incident list, a cloud
+document with no legend or no services. Each call site has to say what a
+reading looks like (`usable` in `readExtra`, `src/engine/collect.js`); there
+is no default, so a new extra document cannot skip the question.
+
+The check is about the document, not each entry in it. One bad entry never
+costs the rest: the adapter reads the list and fails that entry closed. A
+Docusign incident with no status is an `unknown` vote with a warning, and an
+Iorad component with no name shows as `Unnamed component` and still votes. An
+earlier draft refused the whole list instead, which would have thrown away an
+active incident standing next to the bad one.
 
 Concur's issue banner is its own "something is wrong" flag. A displayed banner
-is a floor: a row that has a status reads at least `degraded` (it lifts
-`maintenance` too), and the card shows the banner's own English text. Until
+is a floor: the row reads at least `degraded` (it lifts `maintenance`, and a
+row that would be `unknown` only because US2 was empty), and the card shows
+the banner's own English text, after any affected services. Until
 2026-10-02 the banner was never fetched for the configured vendor, so that
 floor did not exist in production. Concur words the banner as an alert under
 investigation, so this can show `degraded` for something Concur has not yet
@@ -512,7 +523,7 @@ codebase serve different deployments with different configs.
 | `scope` | Optional. Restrict which components count, by `groups` or exact `components` names |
 | `scope.regionGroups` | Optional. `{ "GroupName": ["US East", …] }` — for a group whose leaves are geographies, only the listed ones vote on severity. The rest display (prefixed with the group name) but do not vote, per the US vantage point |
 | `statusUrls` | Concur only — one status document per data centre; the first is also `url` |
-| `dataCenters` | Concur only — the data centres that **must** be read. If one of them cannot be, the row is `unknown` unless another data centre reports verified trouble; any other missing data centre leaves the verified status in place with a note on the card |
+| `dataCenters` | Concur only — the data centres that **must** be read. If one of them holds no reading, the row is `unknown` unless something worse was verified; any other missing data centre leaves the verified status in place with a note on the card |
 | `bannerUrl` | Concur only — its "something is wrong" banner. A displayed banner floors the row at `degraded`; an unreadable one is noted on the card |
 | `clouds` | Zscaler only — one `{label, url}` per cloud; the first is also `url` |
 | `incidentsUrl` | Docusign only — health.docusign.com keeps its incident list on a second document; advisory, an active incident votes and supplies the card text |
