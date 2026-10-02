@@ -7,7 +7,7 @@
  * or a Worker runtime.
  */
 
-import { collect, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
+import { collect, readsSeveralVotingDocuments, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
 import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
 import { writeRun, readSnapshot, readMeta, writeTruthCheck, readNewStreaks } from './storage.js';
 import { siteAssetVersions } from './site-assets.js';
@@ -46,8 +46,7 @@ async function scheduled(controller, env) {
   // The batch, then another look at whichever of its vendors failed in a way
   // a minute might fix. If the batch throws, that error escapes and there is
   // no re-look: the note above on why a thrown run must be visible applies.
-  const waitable = new Set(await collectBatch(env, shard, vendors));
-  await lookAgain(env, shard, vendors.filter((v) => waitable.has(v.name)));
+  await lookAgain(env, shard, await collectBatch(env, shard, vendors));
 }
 
 /**
@@ -172,10 +171,13 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
  * A vendor leaves the list when it recovers, or when its failure is no longer
  * one that waiting fixes (a stall that has become a 404).
  *
- * It NEVER rejects: a re-look is a bonus. A failure in it is logged at ERROR,
- * with the vendors and the look, and ends the re-looks for this run. So does
- * a re-look that runs out of subrequest budget: it could not ask everyone, so
- * nothing it read is written and no further look is taken.
+ * It NEVER rejects: a re-look is a bonus. A failure in one look is logged at
+ * ERROR, with the vendors and the look, and the next look (if one is left)
+ * tries again. A re-look that runs out of subrequest budget ends them: it
+ * could not ask everyone, so nothing it read is written.
+ *
+ * NOT for vendors whose status comes from several voting documents (Concur,
+ * Zscaler, Docusign): see readsSeveralVotingDocuments in the engine.
  *
  * Known cost: the invocation stays open, so its log lines (the batch's
  * included) reach Workers Logs when the re-looks finish, not when the batch
@@ -186,21 +188,41 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
  * @param {object[]} vendors the batch's vendors that collect() marked waitable
  */
 async function lookAgain(env, shard, vendors) {
-  let pending = [];
-  let look = 0;
+  const names = (list) => list.map((v) => v.name).sort();
+  const failed = (look, pending, error) =>
+    console.error(
+      JSON.stringify({
+        event: 'collection_alert',
+        shard,
+        relook: true,
+        look,
+        alert: 'relook_failed',
+        vendors: names(pending),
+        detail: String(error?.message ?? error),
+      }),
+    );
+
+  // A vendor whose status comes from several voting documents is left alone:
+  // a partial reading of it cannot yet be told from a full one (#132).
+  const eligible = vendors.filter((v) => !readsSeveralVotingDocuments(v));
+  let pending;
   try {
     // Only vendors whose outage has just begun.
-    const fresh = new Set(await readNewStreaks(env.DB, vendors.map((v) => v.name)));
-    pending = vendors.filter((v) => fresh.has(v.name));
+    const fresh = new Set(await readNewStreaks(env.DB, eligible.map((v) => v.name)));
+    pending = eligible.filter((v) => fresh.has(v.name));
+  } catch (error) {
+    failed(0, eligible, error);
+    return;
+  }
 
-    for (look = 1; look <= RELOOKS && pending.length > 0; look += 1) {
-      const tag = { relook: true, look };
+  for (let look = 1; look <= RELOOKS && pending.length > 0; look += 1) {
+    const tag = { relook: true, look };
+    try {
       await new Promise((resolve) => setTimeout(resolve, RELOOK_DELAY_MS));
       const started = Date.now();
       const run = await collectLogged(pending, shard, tag);
       selfMonitor(run, shard, { unknownRate: false, tag });
 
-      const names = (list) => list.map((v) => v.name).sort();
       if (run.budgetExhausted) {
         // It could not ask everyone, so nothing it read is written and no
         // further look is taken. selfMonitor has raised the alert; this line
@@ -236,19 +258,12 @@ async function lookAgain(env, shard, vendors) {
           duration_ms: Date.now() - started,
         }),
       );
+    } catch (error) {
+      // This look is lost; the vendors keep their place and the next look,
+      // if one is left, tries again. A write that failed on a D1 hiccup
+      // should not cost a vendor that had just been read its recovery.
+      failed(look, pending, error);
     }
-  } catch (error) {
-    console.error(
-      JSON.stringify({
-        event: 'collection_alert',
-        shard,
-        relook: true,
-        look,
-        alert: 'relook_failed',
-        vendors: (pending.length > 0 ? pending : vendors).map((v) => v.name).sort(),
-        detail: String(error?.message ?? error),
-      }),
-    );
   }
 }
 
@@ -258,7 +273,7 @@ async function lookAgain(env, shard, vendors) {
  * @param {{DB: D1Database}} env
  * @param {number} shard
  * @param {object[]} vendors
- * @returns {Promise<string[]>} names of the vendors worth another look
+ * @returns {Promise<object[]>} the batch's vendors that are worth another look
  */
 async function collectBatch(env, shard, vendors) {
   const started = Date.now();
@@ -315,17 +330,12 @@ async function collectBatch(env, shard, vendors) {
 
   selfMonitor(run, shard, { unknownRate: true });
 
-  // Who is worth another look? Nobody, when the trouble is ours:
-  //   - a batch that ran out of subrequest budget is an operator fault, and
-  //     it starts no streaks, so "a streak one check old" would be read from
-  //     an earlier cycle;
-  //   - a batch of two or more in which EVERY vendor failed is our egress or
-  //     DNS, not that many vendors at once. Collecting them all again twice
-  //     would triple the load in the very incident, and hold this run's
-  //     alert lines back for minutes.
+  // Who is worth another look? Nobody, when the batch ran out of subrequest
+  // budget: that is an operator fault, and such a batch starts no streaks, so
+  // "a streak one check old" would be read from an earlier cycle.
   if (run.budgetExhausted) return [];
-  if (run.total >= 2 && run.unknown === run.total) return [];
-  return run.waitable;
+  const waitable = new Set(run.waitable);
+  return vendors.filter((v) => waitable.has(v.name));
 }
 
 /**

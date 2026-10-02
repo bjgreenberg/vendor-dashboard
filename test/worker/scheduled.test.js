@@ -158,20 +158,22 @@ describe('scheduled() — one shard collected, written, self-monitored', () => {
     expect(alerts.some((a) => a.alert === 'unknown_rate_high')).toBe(true);
   });
 
-  it('takes no re-look when every vendor in the batch failed: that is our network, not theirs', async () => {
-    // Re-collecting the whole batch twice would triple the load in the very
-    // incident, and hold this run's alert lines back for minutes.
+  it('a whole batch stalling together still gets its re-looks: feeds on one host stall together', async () => {
+    // Statuspage stalls are correlated, and two batches hold nothing but
+    // Statuspage vendors. Skipping re-looks when "everyone failed" would skip
+    // them in exactly the case they exist for. An outage on OUR side costs
+    // each batch its two re-looks once, and no more (the streak cap).
     const fetched = [];
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       fetched.push(url);
-      throw new Error('network down');
+      throw new Error('The operation was aborted due to timeout');
     }));
 
     await settle(worker.scheduled({ scheduledTime: AT_MS }, { DB: db }));
 
-    for (const v of shardVendors) expect(fetched.filter((u) => u === v.url).length).toBeLessThanOrEqual(3); // one set of tries each
+    for (const v of shardVendors) expect(fetched.filter((u) => u === v.url)).toHaveLength(9); // the batch, then two re-looks
     const events = logs.mock.calls.map(([line]) => JSON.parse(line));
-    expect(events.some((e) => e.event === 'relook_complete')).toBe(false);
+    expect(events.filter((e) => e.event === 'relook_complete').map((e) => e.look)).toEqual([1, 2]);
   });
 });
 
@@ -429,6 +431,52 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
         detail: expect.stringContaining('D1 hiccup'),
       }),
     ]);
+    // The lost look does not end the re-looks: the second reads the vendor
+    // again and its write goes through.
+    expect((await snap(own.name)).severity).toBe('operational');
+    expect(relooks().map(outcome)).toEqual([[2, [own.name], [], []]]);
+  });
+
+  it('a re-look that cannot read the streaks is loud and takes no look', async () => {
+    const calls = stubOwn(() => 'stall');
+    const broken = {
+      ...db,
+      prepare: (sql) => {
+        if (/FROM vendor_health\s+WHERE failures = 1/.test(sql)) throw new Error('D1 read failed');
+        return db.prepare(sql);
+      },
+    };
+
+    await run({ DB: broken });
+
+    expect(calls.own).toBe(3);
+    expect(alerts()).toEqual([
+      expect.objectContaining({ alert: 'relook_failed', look: 0, vendors: [own.name], detail: expect.stringContaining('D1 read failed') }),
+    ]);
+  });
+
+  it('leaves alone a vendor whose status comes from several voting documents', async () => {
+    // Zscaler reads one document per cloud and keeps going when one is
+    // missing, so a partial reading of it looks like a full one (worklist
+    // #132). A re-look that wrote it could turn a row green on a part of the
+    // truth. Until the adapters can say "partial", it gets no re-look.
+    const zscaler = vendorConfig.vendors.find((v) => v.name === 'Zscaler');
+    const shardZ = [...Array(SHARD_COUNT).keys()].find((i) => selectShard(vendorConfig.vendors, i, SHARD_COUNT).includes(zscaler));
+    let primary = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url === zscaler.url) {
+        primary += 1;
+        throw new Error('The operation was aborted due to timeout');
+      }
+      return OK();
+    }));
+
+    await run({ DB: db }, (SHARD_COUNT + shardZ) * 60_000);
+
+    expect((await snap(zscaler.name)).severity).toBe('unknown');
+    expect(await health()).toContainEqual({ vendor: zscaler.name, failures: 1 }); // a fresh streak, and still no re-look
+    expect(primary).toBe(3);
+    expect(relooks().flatMap((e) => [...e.recovered, ...e.still_failing, ...e.gave_up])).not.toContain(zscaler.name);
   });
 
   it('a batch whose own write fails takes no re-look: its error escapes as before', async () => {

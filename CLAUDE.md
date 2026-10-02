@@ -130,13 +130,19 @@ a future non-Cloudflare deployment possible.
     old (`readNewStreaks`). The streak condition is the cap: an outage gets
     its re-looks once, at its start. Without it a dead vendor is collected
     three times a cycle for hours. **Nobody** when the batch ran out of
-    budget, or when every vendor in a batch of two or more failed: that is
-    our fault or our network (`collectBatch` returns `[]`).
+    budget (`collectBatch` returns `[]`). Do NOT add "skip when the whole
+    batch failed": Statuspage stalls are correlated and two shards are all
+    Statuspage, so that guard skips the case re-looks exist for.
+  - **Never Concur, Zscaler or Docusign** (`readsSeveralVotingDocuments` in
+    the engine). Their adapters keep going when a document is missing and do
+    not report it, so `incomplete` cannot be trusted for them and a re-look
+    could write a partial reading as green. Remove this exclusion only when
+    worklist #132 gives the adapters a "partial" signal; an engine test pins
+    the gap and will fail when it is fixed.
   - **A re-look only improves a row.** It writes a vendor only when
-    `run.incomplete` does not list it: every source verified, and for
-    multi-document vendors (concur-status, zscaler) every document read. It
-    never writes `unknown`, and a composite that answered in part is not
-    written, whether the missing source failed waitably or not.
+    `run.incomplete` does not list it (every source verified). It never
+    writes `unknown`, and a composite that answered in part is not written,
+    whether the missing source failed waitably or not.
   - **State stays in the run's memory.** Do NOT rebuild this as a queue in D1
     read by later runs: PR #160 tried that (candidate rows, a claim counter,
     a migration) and three review passes found a lost update, a double claim
@@ -149,9 +155,10 @@ a future non-Cloudflare deployment possible.
     deploy has changed.
   - **Shared `collectLogged` and `selfMonitor`** keep the batch and the
     re-looks from drifting; re-looks pass `unknownRate: false`.
-  - It never rejects (`relook_failed` at ERROR, with vendors and look); a
-    batch that throws takes no re-look; a budget-exhausted re-look writes
-    nothing, logs the vendors as `not_checked` and ends the re-looks.
+  - It never rejects. A look that throws logs `relook_failed` at ERROR
+    (vendors and look) and the next look tries again; a batch that throws
+    takes no re-look; a budget-exhausted re-look writes nothing, logs the
+    vendors as `not_checked` and ends the re-looks.
   One word everywhere: `lookAgain`, `RELOOKS`, `relook_complete`,
   `relook_failed`, `relook: true`. A run with re-looks lasts up to ~4 min
   (~8 for Zscaler; 15 min is the platform limit), and its logs arrive when it

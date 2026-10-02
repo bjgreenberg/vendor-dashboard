@@ -98,6 +98,32 @@ const DEFAULT_RETRY_BUDGET = 20;
  */
 export const DEFAULT_SUBREQUEST_BUDGET = 40;
 
+/**
+ * Does this vendor's status come from SEVERAL documents that each have a say?
+ *
+ * Concur (one document per data centre, plus a banner), Zscaler (one per
+ * cloud) and Docusign (components plus incidents) do. collectOne keeps going
+ * when one of those documents is missing or unusable, and the adapters do not
+ * yet report that the reading was partial, so their row can say `operational`
+ * with a document unread (worklist #132). Until they do, nothing downstream
+ * can tell a full reading of such a vendor from a partial one, and `incomplete`
+ * must not be trusted for them. The Worker's re-look leaves them alone.
+ *
+ * The conditions are the ones collectOne itself fetches on. Documents that are
+ * only advisory (a component list that never votes) do not count.
+ *
+ * @param {object} vendor a config entry
+ * @returns {boolean}
+ */
+export function readsSeveralVotingDocuments(vendor) {
+  return (
+    (vendor?.type === 'concur-status' && Array.isArray(vendor.statusUrls)) ||
+    (vendor?.type === 'zscaler' && Array.isArray(vendor.clouds)) ||
+    (vendor?.type === 'docusign' && Boolean(vendor.incidentsUrl)) ||
+    (vendor?.type === 'concur' && Boolean(vendor.bannerUrl))
+  );
+}
+
 /** Marker so an exhausted budget is reported distinctly from a vendor outage. */
 export const BUDGET_EXHAUSTED = 'subrequest budget exhausted';
 
@@ -564,9 +590,7 @@ async function collectOne(vendor, ctx) {
           });
           docs.push(JSON.parse(await res.text()));
         } catch {
-          // A missing data centre must not sink the others. But the vendor was
-          // not read in full, and a re-look must not write it as if it were.
-          ctx.incomplete.add(name);
+          /* a missing data centre must not sink the others */
         }
       }
       payload = docs;
@@ -593,7 +617,6 @@ async function collectOne(vendor, ctx) {
           docs.push({ label: cloud?.label, data: JSON.parse(await res.text()) });
         } catch {
           docs.push({ label: cloud?.label, data: null });
-          ctx.incomplete.add(name); // not read in full (see concur-status above)
         }
       }
       payload = docs;
@@ -650,9 +673,8 @@ async function collectOne(vendor, ctx) {
  *   asking again a minute later could fix (see fetchWithRetry). A composite is
  *   listed when any one of its sources is, whatever its row's severity.
  *   `incomplete`: names of the vendors that were NOT read in full — the row
- *   is unknown, or a composite has an unverified source, or a multi-document
- *   vendor (Concur's data centres, Zscaler's clouds) is missing a document.
- *   A vendor absent from this list was read in full.
+ *   is unknown, or a composite has an unverified source. It says nothing
+ *   reliable about a vendor for which readsSeveralVotingDocuments() is true.
  */
 export async function collect(config, ctx) {
   const {
@@ -719,8 +741,7 @@ export async function collect(config, ctx) {
   // Vendors whose required fetch failed in a way worth another look.
   const waitable = new Set();
   // Vendors that were not read in full: a composite with an unverified
-  // source, a multi-document vendor with a document missing, and (added
-  // below) any vendor whose row is unknown.
+  // source, and (added below) any vendor whose row is unknown.
   const incomplete = new Set();
 
   const settled = await Promise.allSettled(
