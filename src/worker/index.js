@@ -9,7 +9,7 @@
 
 import { collect, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
 import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
-import { writeRun, readSnapshot, readMeta, writeTruthCheck, readRecheckDue } from './storage.js';
+import { writeRun, readSnapshot, readMeta, writeTruthCheck, readRecheckDue, bumpFailures } from './storage.js';
 import { siteAssetVersions } from './site-assets.js';
 import { renderLlmsTxt, renderMarkdown } from './llms.js';
 import { agentOf, countFetch, stats as aiFetchStats } from './ai-fetches.js';
@@ -19,97 +19,16 @@ import vendorConfig from '../../config/vendors.json';
 /** Must match `triggers.crons` in wrangler.jsonc; shard rotation is derived from it. */
 const CRON_EVERY_MINUTES = 1;
 
+/** Every configured vendor's name: what lets storage prune rows for removed vendors. */
+const KNOWN_VENDOR_NAMES = vendorConfig.vendors.map((v) => v.name);
+const VENDOR_BY_NAME = new Map(vendorConfig.vendors.map((v) => [v.name, v]));
+
 /**
  * A vendor is re-checked by the next minutes' runs while its unknown streak
  * is this short. Its own batch records failure 1; two re-checks may record 2
  * and 3; after that it waits for its normal 15-minute turn.
  */
 const RECHECK_WHILE_FAILURES_AT_MOST = 2;
-
-/** Most vendors re-checked in one run, longest-failing first. */
-const RECHECK_MAX_VENDORS = 3;
-
-/**
- * Look again at vendors that have just gone unknown.
- *
- * WHY: the patient last try (10 s, 10 s, 25 s) cut unknown checks from 0.41%
- * to 0.06% in its first 16 hours, but a feed that stalls for longer than
- * ~46 s is still written `unknown`, and stayed on the board that way until
- * its batch came round again 15 minutes later. NetSuite and Dropbox both did
- * on 2026-10-02. Their feeds were answering again within a minute or two.
- *
- * So each run also collects the vendors whose streak has only just begun,
- * whichever batch they belong to. A vendor that answers is written with what
- * it said and its streak ends. One that fails again stays `unknown`. Nothing
- * here can turn a row green without a real fetch and a verified payload.
- *
- * It is its OWN collect() and its OWN write, run AFTER the batch's, so that:
- *   - a still-stalled vendor cannot hold back the batch's write for 46 s;
- *   - it has its own subrequest and retry budgets;
- *   - the batch's `unknown_rate_high` alert still means "this batch failed";
- *   - it never competes with the batch for connections. A Worker may hold six
- *     outgoing connections at once and further fetches queue behind them with
- *     their deadlines already running, so a stalled re-check run BESIDE the
- *     batch could have made healthy feeds time out.
- * The price of "after" is that two minutes' re-checks of the same vendor can
- * overlap when a batch was itself slow. That is harmless: both are real
- * checks, the streak count still ends them, and neither can write green
- * without a verified payload.
- *
- * It NEVER rejects: a re-check is a bonus, and a failure in it must not cost
- * the batch its run. It logs the failure at ERROR instead.
- *
- * @param {D1Database} db
- * @param {object[]} batch this minute's own vendors, which are not re-checked
- * @param {number} shard
- */
-async function recheckUnknown(db, batch, shard) {
-  const started = Date.now();
-  try {
-    const inBatch = new Set(batch.map((v) => v.name));
-    const byName = new Map(vendorConfig.vendors.map((v) => [v.name, v]));
-    // Ask for enough rows that dropping this batch's own vendors (and any
-    // name no longer in config) still leaves a full set.
-    const due = await readRecheckDue(
-      db,
-      RECHECK_WHILE_FAILURES_AT_MOST,
-      RECHECK_MAX_VENDORS + inBatch.size + 5,
-    );
-    const vendors = due
-      .filter((name) => byName.has(name) && !inBatch.has(name))
-      .slice(0, RECHECK_MAX_VENDORS)
-      .map((name) => byName.get(name));
-    if (vendors.length === 0) return;
-
-    const run = await collect({ ...vendorConfig, vendors }, { fetchFn: fetch.bind(globalThis) });
-    for (const r of run.retried) {
-      console.log(JSON.stringify({ event: 'fetch_retried_ok', shard, recheck: true, ...r }));
-    }
-    await writeRun(db, run, { knownVendors: vendorConfig.vendors.map((v) => v.name) });
-
-    const names = (wanted) => run.records.filter(wanted).map((r) => r.vendor).sort();
-    console.log(
-      JSON.stringify({
-        event: 'recheck_complete',
-        shard,
-        recovered: names((r) => r.severity !== 'unknown'),
-        still_unknown: names((r) => r.severity === 'unknown'),
-        subrequests: run.subrequests,
-        budget_exhausted: run.budgetExhausted,
-        duration_ms: Date.now() - started,
-      }),
-    );
-  } catch (error) {
-    console.error(
-      JSON.stringify({
-        event: 'collection_alert',
-        shard,
-        alert: 'recheck_failed',
-        detail: String(error?.message ?? error),
-      }),
-    );
-  }
-}
 
 /**
  * Scheduled collection.
@@ -136,6 +55,179 @@ async function scheduled(controller, env) {
     await collectBatch(env, shard, vendors);
   } finally {
     await recheckUnknown(env.DB, vendors, shard);
+  }
+}
+
+/**
+ * collect(), plus the one log line that must not be lost.
+ *
+ * Shared by the batch and the re-check so the two cannot drift apart: each
+ * fetch that failed at least once and then answered logs which try and how
+ * long it took, BEFORE any D1 write. That line is the only trace a recovered
+ * stall leaves, and a run that waited one out and then lost its write must
+ * not lose the evidence too.
+ *
+ * @param {object[]} vendors
+ * @param {number} shard
+ * @param {object} [tag] extra fields for the log line, e.g. {recheck: true}
+ */
+async function collectLogged(vendors, shard, tag = {}) {
+  const run = await collect({ ...vendorConfig, vendors }, { fetchFn: fetch.bind(globalThis) });
+  for (const r of run.retried) {
+    console.log(JSON.stringify({ event: 'fetch_retried_ok', shard, ...tag, ...r }));
+  }
+  return run;
+}
+
+/**
+ * SELF-MONITORING, shared by the batch and the re-check.
+ *
+ * The 2026-07-31 incident was not a gap in logging -- `collection_complete`
+ * had been emitting `unknown: 17` every run for hours. The gap was that
+ * nothing ever compared that number against a threshold, so the only detector
+ * in the system was a human noticing orange boxes on his phone. These checks
+ * are that comparison. They log at ERROR so they are separable from routine
+ * output by severity alone (`wrangler tail --status=error` shows only
+ * exceptions, so a plain console.warn here would have stayed invisible).
+ *
+ * @param {object} run a collect() result
+ * @param {number} shard
+ * @param {{unknownRate: boolean, tag?: object}} opts `unknownRate` is for the
+ *   batch only: one failing re-checked vendor is 1 of 1, and must not read as
+ *   "the whole batch failed".
+ */
+function selfMonitor(run, shard, { unknownRate, tag = {} }) {
+  const alerts = [];
+
+  if (run.budgetExhausted) {
+    alerts.push({
+      alert: 'subrequest_budget_exhausted',
+      detail: `${run.subrequests} subrequests spent; some vendors were never checked`,
+    });
+  }
+
+  // A whole shard failing is infrastructure (budget, DNS, egress), not 14
+  // vendors coincidentally breaking at once.
+  if (unknownRate && run.total > 0 && run.unknown / run.total >= 0.5) {
+    alerts.push({
+      alert: 'unknown_rate_high',
+      detail: `${run.unknown}/${run.total} vendors unresolved in shard ${shard}`,
+    });
+  }
+
+  // Approaching the collector's own budget is the leading indicator — it is
+  // what a run looks like the day before something starts truncating. The
+  // plan ceiling is 1,000 (Workers Paid); the budget below is our own sanity
+  // bound, so the alert fires with headroom left to act.
+  if (run.subrequests >= DEFAULT_SUBREQUEST_BUDGET * 0.75) {
+    alerts.push({
+      alert: 'subrequest_headroom_low',
+      detail: `${run.subrequests} of the collector's ${DEFAULT_SUBREQUEST_BUDGET} budget; a shard should cost ~5 — look for a retry storm or config mistake`,
+    });
+  }
+
+  for (const a of alerts) {
+    console.error(JSON.stringify({ event: 'collection_alert', shard, ...tag, ...a }));
+  }
+
+  // Surface config drift and staleness rather than letting it accumulate silently.
+  for (const warning of run.warnings) {
+    console.warn(JSON.stringify({ event: 'collection_warning', ...tag, detail: warning }));
+  }
+}
+
+/**
+ * Look again at ONE vendor that has just gone unknown.
+ *
+ * WHY: the patient last try (10 s, 10 s, 25 s) cut unknown checks from 0.41%
+ * to 0.06% in its first 16 hours, but a feed that stalls for longer than
+ * ~46 s is still written `unknown`, and stayed on the board that way until
+ * its batch came round again 15 minutes later. NetSuite and Dropbox both did
+ * on 2026-10-02. Their feeds were answering again within a minute or two.
+ *
+ * So each run, after its own batch, collects one vendor whose streak has
+ * only just begun (see readRecheckDue for exactly which).
+ *
+ * THE RULE THAT MAKES IT SAFE: a re-check may only IMPROVE a row.
+ *   - The vendor answers  -> a normal writeRun: its real status, streak ended.
+ *   - It fails again      -> one more failure on the streak and nothing else.
+ *     The snapshot and the history are not touched. `unknown` is never
+ *     written here, so a slow failing re-check cannot overwrite the green
+ *     that a quicker one (or the vendor's own batch) wrote in the meantime.
+ * Nothing here can turn a row green without a real fetch and a payload the
+ * adapter verified.
+ *
+ * Why ONE vendor, in its OWN collect(), AFTER the batch:
+ *   - one vendor has the whole subrequest and retry budget to itself, so a
+ *     re-check cannot run out because of who it was grouped with;
+ *   - a Worker holds six outgoing connections at once and further fetches
+ *     queue with their deadlines already running. Two composite vendors
+ *     together, or a stalled re-check beside the batch, would starve healthy
+ *     feeds into timing out;
+ *   - a still-stalled vendor cannot hold back the batch's write;
+ *   - the batch's `unknown_rate_high` keeps meaning "this batch failed".
+ * When several vendors go unknown together they are served one a minute,
+ * each getting its first extra look before any gets its second.
+ *
+ * It NEVER rejects: a re-check is a bonus, and a failure in it must not cost
+ * the batch its run. It logs the failure at ERROR instead.
+ *
+ * @param {D1Database} db
+ * @param {object[]} batch this minute's own vendors, which are not re-checked
+ * @param {number} shard
+ */
+async function recheckUnknown(db, batch, shard) {
+  const started = Date.now();
+  try {
+    // A few candidates, so one name that has left the config (its rows are
+    // pruned by the next successful batch write) cannot block the queue.
+    const due = await readRecheckDue(db, {
+      maxFailures: RECHECK_WHILE_FAILURES_AT_MOST,
+      exclude: batch.map((v) => v.name),
+      limit: 5,
+    });
+    const vendor = VENDOR_BY_NAME.get(due.find((name) => VENDOR_BY_NAME.has(name)));
+    if (!vendor) return;
+
+    const tag = { recheck: true };
+    const run = await collectLogged([vendor], shard, tag);
+    const record = run.records[0];
+
+    let outcome;
+    if (record.severity !== 'unknown') {
+      await writeRun(db, run, { knownVendors: KNOWN_VENDOR_NAMES });
+      outcome = 'recovered';
+    } else if (run.budgetExhausted) {
+      // Our fault, not the vendor's: no failure is counted (the same rule
+      // writeRun applies to streaks), and selfMonitor says so at ERROR.
+      outcome = 'not_checked';
+    } else {
+      await bumpFailures(db, vendor.name);
+      outcome = 'still_unknown';
+    }
+
+    console.log(
+      JSON.stringify({
+        event: 'recheck_complete',
+        shard,
+        vendor: vendor.name,
+        outcome,
+        severity: record.severity,
+        subrequests: run.subrequests,
+        duration_ms: Date.now() - started,
+      }),
+    );
+    selfMonitor(run, shard, { unknownRate: false, tag });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: 'collection_alert',
+        shard,
+        recheck: true,
+        alert: 'recheck_failed',
+        detail: String(error?.message ?? error),
+      }),
+    );
   }
 }
 
@@ -172,22 +264,12 @@ async function collectBatch(env, shard, vendors) {
     return;
   }
 
-  const run = await collect({ ...vendorConfig, vendors }, { fetchFn: fetch.bind(globalThis) });
-
-  // One line per fetch that failed at least once and then answered: which try
-  // and how long it took. Logged BEFORE the write on purpose. This is the only
-  // trace a recovered stall leaves, and a run that waited one out and then
-  // lost its D1 write must not lose the evidence too.
-  for (const r of run.retried) {
-    console.log(JSON.stringify({ event: 'fetch_retried_ok', shard, ...r }));
-  }
+  const run = await collectLogged(vendors, shard);
 
   // Pass the FULL configured vendor list, not the shard: it is what lets
   // storage prune rows for vendors that have been removed from config
   // entirely, which a shard-scoped delete can never reach.
-  await writeRun(env.DB, run, {
-    knownVendors: vendorConfig.vendors.map((v) => v.name),
-  });
+  await writeRun(env.DB, run, { knownVendors: KNOWN_VENDOR_NAMES });
 
   // Structured, one event per line, machine-parseable. No vendor content is
   // logged beyond names and severities.
@@ -209,52 +291,7 @@ async function collectBatch(env, shard, vendors) {
     }),
   );
 
-  // SELF-MONITORING.
-  //
-  // The 2026-07-31 incident was not a gap in logging -- `collection_complete`
-  // had been emitting `unknown: 17` every run for hours. The gap was that
-  // nothing ever compared that number against a threshold, so the only detector
-  // in the system was a human noticing orange boxes on his phone. These checks
-  // are that comparison. They log at ERROR so they are separable from routine
-  // output by severity alone (`wrangler tail --status=error` shows only
-  // exceptions, so a plain console.warn here would have stayed invisible).
-  const alerts = [];
-
-  if (run.budgetExhausted) {
-    alerts.push({
-      alert: 'subrequest_budget_exhausted',
-      detail: `${run.subrequests} subrequests spent; some vendors were never checked`,
-    });
-  }
-
-  // A whole shard failing is infrastructure (budget, DNS, egress), not 14
-  // vendors coincidentally breaking at once.
-  if (run.total > 0 && run.unknown / run.total >= 0.5) {
-    alerts.push({
-      alert: 'unknown_rate_high',
-      detail: `${run.unknown}/${run.total} vendors unresolved in shard ${shard}`,
-    });
-  }
-
-  // Approaching the collector's own budget is the leading indicator — it is
-  // what a run looks like the day before something starts truncating. The
-  // plan ceiling is 1,000 (Workers Paid); the budget below is our own sanity
-  // bound, so the alert fires with headroom left to act.
-  if (run.subrequests >= DEFAULT_SUBREQUEST_BUDGET * 0.75) {
-    alerts.push({
-      alert: 'subrequest_headroom_low',
-      detail: `${run.subrequests} of the collector's ${DEFAULT_SUBREQUEST_BUDGET} budget; a shard should cost ~5 — look for a retry storm or config mistake`,
-    });
-  }
-
-  for (const a of alerts) {
-    console.error(JSON.stringify({ event: 'collection_alert', shard, ...a }));
-  }
-
-  // Surface config drift and staleness rather than letting it accumulate silently.
-  for (const warning of run.warnings) {
-    console.warn(JSON.stringify({ event: 'collection_warning', detail: warning }));
-  }
+  selfMonitor(run, shard, { unknownRate: true });
 }
 
 /**

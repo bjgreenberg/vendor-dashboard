@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { writeRun, readSnapshot, readRecheckDue } from '../../src/worker/storage.js';
+import { writeRun, readSnapshot, readRecheckDue, bumpFailures } from '../../src/worker/storage.js';
 import { makeD1, record as rec, runOf as run } from '../helpers/d1.js';
 
 // These tests execute the REAL SQL against REAL SQLite.
@@ -345,23 +345,63 @@ describe('vendor_health — endpoint-rot streak tracking', () => {
 });
 
 describe('readRecheckDue — vendors whose unknown streak has only just begun', () => {
-  const unknownAt = (vendor, at) => writeRun(db, run([rec(vendor, 'unknown', { checkedAt: at })], { checkedAt: at }));
+  const TIMEOUT = 'fetch failed: The operation was aborted due to timeout';
+  const unknownAt = (vendor, at, reason = TIMEOUT) =>
+    writeRun(db, run([rec(vendor, 'unknown', { checkedAt: at, warnings: [reason] })], { checkedAt: at }));
+  const due = (over = {}) => readRecheckDue(db, { maxFailures: 2, exclude: [], limit: 10, ...over });
 
-  it('returns streaks of up to maxFailures, longest-failing first, and no more than the limit', async () => {
+  it('orders by fewest failures, then longest-failing, and honours maxFailures and limit', async () => {
     await unknownAt('Newest', '2026-10-02T12:53:00.000Z');
     await unknownAt('Oldest', '2026-10-02T12:51:00.000Z');
     await unknownAt('Middle', '2026-10-02T12:52:00.000Z');
+    await unknownAt('Looked', '2026-10-02T12:40:00.000Z');
+    await unknownAt('Looked', '2026-10-02T12:41:00.000Z'); // failures 2
     for (let i = 0; i < 3; i += 1) await unknownAt('Stuck', '2026-10-02T06:00:00.000Z');
 
-    expect(await readRecheckDue(db, 2, 10)).toEqual(['Oldest', 'Middle', 'Newest']); // Stuck has 3 failures
-    expect(await readRecheckDue(db, 2, 2)).toEqual(['Oldest', 'Middle']);
-    expect(await readRecheckDue(db, 3, 10)).toEqual(['Stuck', 'Oldest', 'Middle', 'Newest']);
+    expect(await due()).toEqual(['Oldest', 'Middle', 'Newest', 'Looked']); // Stuck has 3 failures
+    expect(await due({ limit: 2 })).toEqual(['Oldest', 'Middle']);
+    expect(await due({ maxFailures: 3 })).toEqual(['Oldest', 'Middle', 'Newest', 'Looked', 'Stuck']);
+  });
+
+  it('leaves out the excluded vendors', async () => {
+    await unknownAt('A', '2026-10-02T12:51:00.000Z');
+    await unknownAt('B', '2026-10-02T12:52:00.000Z');
+    expect(await due({ exclude: ['A'] })).toEqual(['B']);
+    expect(await due({ exclude: ['A', 'B'] })).toEqual([]);
+  });
+
+  it('returns only vendors whose fetch got no answer', async () => {
+    await unknownAt('Stalled', '2026-10-02T12:51:00.000Z');
+    await unknownAt('CompositeStalled', '2026-10-02T12:51:30.000Z', 'Azure: fetch failed: socket hang up');
+    await unknownAt('Limited', '2026-10-02T12:52:00.000Z', 'fetch returned HTTP 429');
+    await unknownAt('Garbled', '2026-10-02T12:53:00.000Z', 'response was not valid JSON');
+    await unknownAt('Starved', '2026-10-02T12:54:00.000Z', 'fetch failed: subrequest budget exhausted');
+    expect(await due()).toEqual(['Stalled', 'CompositeStalled']);
   });
 
   it('returns nothing on a healthy board, and nothing once a vendor recovers', async () => {
-    expect(await readRecheckDue(db, 2, 10)).toEqual([]);
+    expect(await due()).toEqual([]);
     await unknownAt('A', '2026-10-02T12:51:00.000Z');
     await writeRun(db, run([rec('A', 'operational')]));
-    expect(await readRecheckDue(db, 2, 10)).toEqual([]);
+    expect(await due()).toEqual([]);
+  });
+});
+
+describe('bumpFailures — a failed re-check counts, and does nothing else', () => {
+  const health = () => db.sqlite.prepare('SELECT vendor, failing_since, failures FROM vendor_health').all();
+
+  it('adds one to an open streak and leaves its start alone', async () => {
+    await writeRun(db, run([rec('A', 'unknown', { checkedAt: '2026-10-02T12:51:00.000Z' })]));
+    await bumpFailures(db, 'A');
+    expect(health()).toEqual([{ vendor: 'A', failing_since: '2026-10-02T12:51:00.000Z', failures: 2 }]);
+    expect(snap()).toEqual([{ vendor: 'A', severity: 'unknown' }]);
+  });
+
+  it('does NOT start a streak for a vendor that has none: a stale failing re-check cannot undo a recovery', async () => {
+    await writeRun(db, run([rec('A', 'unknown')]));
+    await writeRun(db, run([rec('A', 'operational')])); // a quicker re-check recovered it
+    await bumpFailures(db, 'A'); // the slow one finally gives up
+    expect(health()).toEqual([]);
+    expect(snap()).toEqual([{ vendor: 'A', severity: 'operational' }]);
   });
 });

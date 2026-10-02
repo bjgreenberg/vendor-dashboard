@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-10-02 08:09 AM CDT
+Last updated: 2026-10-02 08:21 AM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -90,7 +90,7 @@ flowchart TB
     a2 --> norm
     a3 --> norm
     norm --> d1[("D1<br/>snapshot + history<br/>+ vendor_health streaks")]
-    d1 -.->|"streak of 1 or 2"| again["re-check in the next minutes' runs<br/>at most 3 vendors"]
+    d1 -.->|"just went unknown,<br/>fetch got no answer"| again["re-check in the next minutes' runs<br/>one vendor per run"]
     again -.-> collect
     d1 --> render["render()<br/>escape on output"]
     render --> page["/service-status"]
@@ -179,9 +179,15 @@ seconds, and each left its vendor on the board as `unknown` until its batch
 came round again, 15 minutes later, although the feed was answering again
 within a minute or two.
 
-So every run, after its own batch, also collects the vendors whose `unknown`
-streak has **only just begun**, whichever batch they belong to. A vendor that
-answers is written with what it said. One that fails again stays `unknown`.
+So every run, after its own batch, also looks again at **one** vendor that
+has only just gone `unknown` because its fetch got no answer, whichever batch
+that vendor belongs to.
+
+> [!IMPORTANT]
+> A re-check may only **improve** a row. If the vendor answers, its real status
+> is written. If it fails again, nothing on the board changes: one more failure
+> is counted and that is all. `unknown` is never written by a re-check, so a
+> slow failing one cannot undo the green that a quicker one just wrote.
 
 ```mermaid
 sequenceDiagram
@@ -194,7 +200,7 @@ sequenceDiagram
     B->>V: three tries (10 s, 10 s, 25 s)
     V--xB: silent for all three
     B->>D: write unknown, streak = 1
-    N->>D: whose streak is 1 or 2?
+    N->>D: who just went unknown with no answer?
     D-->>N: this vendor
     N->>V: three tries again
     alt the feed answers
@@ -202,23 +208,28 @@ sequenceDiagram
         N->>D: write the real status, streak ends
     else still silent
         V--xN: no answer
-        N->>D: stays unknown, streak + 1
+        N->>D: streak + 1, board untouched
         Note over N,D: at streak 3 it waits for its own batch, 15 minutes on
     end
 ```
 
 | Rule | Value | Why |
 |---|---|---|
-| Who is re-checked | Vendors with a streak of 1 or 2 (`vendor_health.failures`) | A vendor that is really down costs two extra checks per outage, not one a minute |
-| How many per run | At most 3, longest-failing first | Bounded cost; the vendor that has waited longest goes first |
-| When in the run | After the batch has been written | A Worker holds six outgoing connections at once; a stalled re-check beside the batch could make healthy feeds time out |
-| What it shares with the batch | Nothing: its own `collect()`, budgets and write | The batch's `unknown_rate_high` alert still means the batch failed |
-| If the re-check itself breaks | Logged as `collection_alert` / `recheck_failed`; the batch is unaffected | A re-check is a bonus |
+| Who is re-checked | A vendor whose row is `unknown` with a `fetch failed: …` reason and a streak of 1 or 2 | A network error or a deadline can be waited out. A 429, a 404 or a payload that did not parse cannot, and a run that ran out of our own budget was not the vendor's fault |
+| How many extra looks | Two per outage | A vendor that is really down costs two extra checks, then waits for its normal turn |
+| How many per run | One, fewest failures first, then longest-failing | One vendor has the whole budget and all six connections to itself. Several unknown at once are served one a minute, each getting a first look before any gets a second |
+| When in the run | After the batch has been written | A Worker holds six outgoing connections; a stalled re-check beside the batch could make healthy feeds time out |
+| What a failed re-check writes | One more failure on the streak. No snapshot row, no history row | It learned nothing new, and writing `unknown` again is how one re-check could undo another |
+| If the re-check itself breaks | `collection_alert` / `recheck_failed`; the batch is unaffected | A re-check is a bonus |
 
-`vendor_health.failures` therefore counts every `unknown` write in a streak,
-re-checks included. `failing_since`, which the endpoint-rot watchdog reads, is
-untouched. Each re-check run logs `recheck_complete` with the vendors it
-`recovered` and the ones `still_unknown`.
+`vendor_health.failures` therefore counts every failed look in a streak,
+re-checks included; it is no longer "failed 15-minute checks". `failing_since`,
+which the endpoint-rot watchdog reads, is untouched. The `history` table gains
+one row per recovery (the status the re-check read) and none for a failed
+re-check, so the `unknown` rate computed from it stays comparable with earlier
+days. Each re-check logs `recheck_complete` with the `vendor` and an `outcome`
+of `recovered`, `still_unknown` or `not_checked` (our own budget ran out; that
+also raises `subrequest_budget_exhausted`).
 
 Known gaps:
 
@@ -232,9 +243,14 @@ Known gaps:
 - With a `fallbackUrls` entry, each URL gets the full 10, 10, 25 schedule in
   turn. No vendor in `config/vendors.json` uses a fallback today.
 - A vendor is `unknown` on the board from the moment its batch gives up until
-  a re-check reads it: usually one to two minutes, not zero.
+  a re-check reads it: usually one to two minutes, not zero. With several
+  vendors unknown at once, the last waits a minute per vendor ahead of it.
 - When a batch is itself slow, two consecutive minutes can re-check the same
-  vendor at once. Both are real checks and the streak count still ends them.
+  vendor at once. That wastes a look and nothing else: neither can write
+  `unknown`, and neither can write green without a verified payload.
+- A re-check that runs out of subrequest budget counts no failure, so it is
+  tried again each minute while the alert fires. One vendor has never needed
+  more than 15 of the 40.
 
 ### Endpoints
 
@@ -656,8 +672,9 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
   feed is read late rather than shown `unknown` for 15 minutes, with the same
   three tries. See [When a status feed stalls](#when-a-status-feed-stalls).
 - **A vendor that just went `unknown` is re-checked by the next minutes' runs**
-  (2026-10-02), up to twice, so the card clears in a minute or two when the
-  feed is back rather than at the vendor's next 15-minute turn.
+  (2026-10-02), one vendor per run and up to twice per outage, so the card
+  clears in a minute or two when the feed is back rather than at the vendor's
+  next 15-minute turn. A re-check can only improve a row.
 - **Retries share a run-wide budget** — originally because the free plan
   killed an invocation at 50 subrequests; kept on Workers Paid as a sanity
   bound that turns a retry storm into a loud, bounded failure.
@@ -704,7 +721,7 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
 | Paths 404 right after deploy | Propagation lag. Wait 20–30 s and retest before debugging |
 | Page layout lags a site CSS fix (e.g. header flush to the phone edge) | The page links the site's `/assets/site.css`, which the site serves `immutable` for a year. Since 2026-09-30 the Worker links it with the site's own `?v=<hash>`; if the served HTML shows a plain `/assets/site.css` link, the Worker could not fetch or hash the site's assets — check `wrangler tail` |
 | A vendor shows `unknown` | Read its `warnings` in `/service-status/api/status` — it names the HTTP status or parse failure |
-| A vendor shows `unknown` for a minute or two, then clears | Its feed was silent for longer than all three tries and a later run read it. In Workers Logs, filter on `recheck_complete`: `recovered` names the vendors a re-check cleared, `still_unknown` the ones it did not |
+| A vendor shows `unknown` for a minute or two, then clears | Its feed was silent for longer than all three tries and a later run read it. In Workers Logs, filter on `recheck_complete`: an `outcome` of `recovered` is a card a re-check cleared, `still_unknown` one it did not |
 | A vendor stays `unknown` for a full cycle with `fetch failed: The operation was aborted due to timeout` | Its feed sent nothing for longer than all three tries, the 25-second last one included. In Workers Logs, filter on `fetch_retried_ok`: lines with `attempt: 3` and `ms` over 10,000 are stalls the patient try caught, and their `ms` values say whether 25 seconds is enough. Many unknowns across platforms in the same minute mean the problem is on our side or the network's |
 | Board reads "No status data" | The cron has not run yet, or is failing. Check `wrangler tail` and `run_meta` in D1 |
 | Want to link to one service's row | Every card has a slug id: `/service-status#cloudflare`, `#1password`. There is no visible `#` glyph (removed 2026-08-03: it was reported twice as a rendering artifact, on touch and on hover) |

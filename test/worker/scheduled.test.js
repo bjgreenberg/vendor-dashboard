@@ -149,6 +149,8 @@ describe('scheduled() — one shard collected, written, self-monitored', () => {
 describe('scheduled() — a vendor that just went unknown is re-checked by the next minutes, not 15 minutes later', () => {
   let db, logs, errors;
   const OK = () => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => GREEN_STATUSPAGE });
+  const TIMEOUT = 'fetch failed: The operation was aborted due to timeout';
+  const SEEDED_AT = '2026-10-02T12:51:18.000Z';
   const inShard = new Set(shardVendors.map((v) => v.name));
   // Plain Statuspage vendors from OTHER shards: no scope, so the green stub reads green.
   const outsiders = vendorConfig.vendors.filter(
@@ -157,13 +159,25 @@ describe('scheduled() — a vendor that just went unknown is re-checked by the n
   const outsider = outsiders[0];
   const events = () => logs.mock.calls.map(([line]) => JSON.parse(line));
   const alerts = () => errors.mock.calls.map(([line]) => JSON.parse(line));
+  const rechecks = () => events().filter((e) => e.event === 'recheck_complete');
   const health = async () => (await db.prepare('SELECT vendor, failures FROM vendor_health ORDER BY vendor').all()).results;
-  const row = async (name) => (await db.prepare('SELECT severity FROM snapshot WHERE vendor = ?').bind(name).first())?.severity;
+  const snap = async (name) => db.prepare('SELECT severity, checked_at FROM snapshot WHERE vendor = ?').bind(name).first();
+  const history = async (name) =>
+    (await db.prepare('SELECT severity FROM history WHERE vendor = ? ORDER BY id').bind(name).all()).results.map((r) => r.severity);
   /** Put `name` on the board as unknown, `times` checks in a row. */
-  const seedUnknown = async (name, times = 1, at = '2026-10-02T12:51:18.000Z') => {
+  const seedUnknown = async (name, { times = 1, at = SEEDED_AT, reason = TIMEOUT } = {}) => {
     for (let i = 0; i < times; i += 1) {
-      await writeRun(db, runOf([rec(name, 'unknown', { checkedAt: at, warnings: ['fetch failed: timeout'] })], { checkedAt: at }));
+      await writeRun(db, runOf([rec(name, 'unknown', { checkedAt: at, warnings: [reason] })], { checkedAt: at }));
     }
+  };
+  const fetchLog = (fail = () => false) => {
+    const fetched = [];
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      fetched.push(url);
+      if (fail(url)) throw new Error('The operation was aborted due to timeout');
+      return OK();
+    }));
+    return fetched;
   };
 
   beforeEach(() => {
@@ -175,66 +189,104 @@ describe('scheduled() — a vendor that just went unknown is re-checked by the n
   afterEach(() => vi.restoreAllMocks());
 
   it('sanity: there are plain Statuspage vendors outside the shard under test', () => {
-    expect(outsiders.length).toBeGreaterThanOrEqual(5);
+    expect(outsiders.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('re-checks a vendor from another batch whose streak just began, and writes it green when it answers', async () => {
-    await seedUnknown(outsider.name);
-    const fetched = [];
-    vi.stubGlobal('fetch', vi.fn(async (url) => { fetched.push(url); return OK(); }));
-
-    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
-
-    expect(fetched).toContain(outsider.url);
-    expect(await row(outsider.name)).toBe('operational');
-    expect(await health()).toEqual([]);
-    expect(events().filter((e) => e.event === 'recheck_complete')).toEqual([
-      expect.objectContaining({ event: 'recheck_complete', shard: SHARD, recovered: [outsider.name], still_unknown: [] }),
-    ]);
-    // The shard's own run is untouched by the extra vendor.
-    expect(events().find((e) => e.event === 'collection_complete')).toMatchObject({ total: shardVendors.length, unknown: 0 });
-    expect(errors).not.toHaveBeenCalled();
-  });
-
-  it('a re-checked vendor that still fails stays unknown, counts one more failure, and raises no shard alert', async () => {
-    await seedUnknown(outsider.name);
+  it('end to end: a vendor that stalls in its own batch is read by the NEXT minute\'s run', async () => {
+    // No seeding: the unknown row and its reason come from the real engine,
+    // so this also pins that the re-check recognises the engine's own wording.
+    const own = shardVendors.find((v) => v.type === 'statuspage' && typeof v.url === 'string' && !v.scope);
+    let stalled = true;
     vi.stubGlobal('fetch', vi.fn(async (url) => {
-      if (url === outsider.url) throw new Error('The operation was aborted due to timeout');
+      if (stalled && url === own.url) throw new Error('The operation was aborted due to timeout');
       return OK();
     }));
 
     await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
+    expect((await snap(own.name)).severity).toBe('unknown');
+    expect(await health()).toEqual([{ vendor: own.name, failures: 1 }]);
 
-    expect(await row(outsider.name)).toBe('unknown');
+    stalled = false; // the feed is back
+    await worker.scheduled({ scheduledTime: AT_MS + 60_000 }, { DB: db });
+
+    expect((await snap(own.name)).severity).toBe('operational');
+    // (The next batch's own vendors are not all Statuspage, so the green stub
+    // leaves some of them unknown. Only this vendor's streak is under test.)
+    expect((await health()).map((h) => h.vendor)).not.toContain(own.name);
+    expect(await history(own.name)).toEqual(['unknown', 'operational']);
+    expect(rechecks()).toEqual([
+      expect.objectContaining({ event: 'recheck_complete', vendor: own.name, outcome: 'recovered', severity: 'operational' }),
+    ]);
+  });
+
+  it('re-checks a vendor from another batch whose streak just began, and writes it green when it answers', async () => {
+    await seedUnknown(outsider.name);
+    const fetched = fetchLog();
+
+    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
+
+    expect(fetched).toContain(outsider.url);
+    expect((await snap(outsider.name)).severity).toBe('operational');
+    expect(await health()).toEqual([]);
+    expect(rechecks()).toEqual([expect.objectContaining({ vendor: outsider.name, outcome: 'recovered' })]);
+    // The batch's own run is untouched by the extra vendor.
+    expect(events().find((e) => e.event === 'collection_complete')).toMatchObject({ total: shardVendors.length, unknown: 0 });
+    expect(errors).not.toHaveBeenCalled();
+  });
+
+  it('a re-check that fails again changes NOTHING on the board: it only counts one more failure', async () => {
+    // A re-check may improve a row; it must never write `unknown`. That is
+    // what makes two overlapping re-checks safe: a slow, failing one cannot
+    // overwrite the green that a quicker one already wrote.
+    await seedUnknown(outsider.name);
+    fetchLog((url) => url === outsider.url);
+
+    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
+
+    expect(await snap(outsider.name)).toEqual({ severity: 'unknown', checked_at: SEEDED_AT }); // the row is the seeded one
+    expect(await history(outsider.name)).toEqual(['unknown']); // no extra history row
     expect(await health()).toEqual([{ vendor: outsider.name, failures: 2 }]);
-    expect(events().find((e) => e.event === 'recheck_complete')).toMatchObject({ recovered: [], still_unknown: [outsider.name] });
-    // One failing outsider must not read as "the whole shard failed".
+    expect(rechecks()).toEqual([expect.objectContaining({ vendor: outsider.name, outcome: 'still_unknown' })]);
+    // One failing outsider must not read as "the whole batch failed".
     expect(alerts().some((a) => a.alert === 'unknown_rate_high')).toBe(false);
     expect(events().find((e) => e.event === 'collection_complete')).toMatchObject({ unknown: 0 });
   });
 
   it('stops after two extra looks: a streak of three waits for its own batch', async () => {
-    await seedUnknown(outsider.name, 3);
-    const fetched = [];
-    vi.stubGlobal('fetch', vi.fn(async (url) => { fetched.push(url); return OK(); }));
+    await seedUnknown(outsider.name, { times: 3 });
+    const fetched = fetchLog();
 
     await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
 
     expect(fetched).not.toContain(outsider.url);
-    expect(await row(outsider.name)).toBe('unknown');
-    expect(events().some((e) => e.event === 'recheck_complete')).toBe(false);
+    expect((await snap(outsider.name)).severity).toBe('unknown');
+    expect(rechecks()).toEqual([]);
   });
 
-  it('re-checks at most three vendors in one run, longest-failing first', async () => {
-    const five = outsiders.slice(0, 5);
-    for (const [i, v] of five.entries()) await seedUnknown(v.name, 1, `2026-10-02T12:5${i}:00.000Z`);
-    const fetched = [];
-    vi.stubGlobal('fetch', vi.fn(async (url) => { fetched.push(url); return OK(); }));
+  it('re-checks ONE vendor per run: fewest failures first, then longest-failing', async () => {
+    const [a, b, c] = outsiders;
+    await seedUnknown(a.name, { times: 2, at: '2026-10-02T12:50:00.000Z' }); // oldest, but already had a look
+    await seedUnknown(b.name, { at: '2026-10-02T12:51:00.000Z' });
+    await seedUnknown(c.name, { at: '2026-10-02T12:52:00.000Z' });
+    const fetched = fetchLog();
 
     await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
 
-    expect(five.map((v) => fetched.includes(v.url))).toEqual([true, true, true, false, false]);
-    expect((await health()).map((h) => h.vendor).sort()).toEqual([five[3].name, five[4].name].sort());
+    expect([a, b, c].map((v) => fetched.includes(v.url))).toEqual([false, true, false]);
+    expect(rechecks()).toHaveLength(1);
+  });
+
+  it('only re-checks a vendor that got NO ANSWER: not a 429, not a parse failure, not our own budget', async () => {
+    const [a, b, c] = outsiders;
+    await seedUnknown(a.name, { reason: 'fetch returned HTTP 429' });
+    await seedUnknown(b.name, { reason: 'response was not valid JSON' });
+    await seedUnknown(c.name, { reason: 'fetch failed: subrequest budget exhausted' });
+    const fetched = fetchLog();
+
+    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
+
+    expect([a, b, c].some((v) => fetched.includes(v.url))).toBe(false);
+    expect(rechecks()).toEqual([]);
   });
 
   it("does not re-check a vendor that this minute's own batch has just checked", async () => {
@@ -243,38 +295,40 @@ describe('scheduled() — a vendor that just went unknown is re-checked by the n
     // would get two full sets of tries in one minute.
     const own = shardVendors.find((v) => v.type === 'statuspage' && typeof v.url === 'string');
     await seedUnknown(own.name);
-    const fetched = [];
-    vi.stubGlobal('fetch', vi.fn(async (url) => {
-      fetched.push(url);
-      if (url === own.url) throw new Error('The operation was aborted due to timeout');
-      return OK();
-    }));
+    const fetched = fetchLog((url) => url === own.url);
 
     await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
 
     expect(fetched.filter((u) => u === own.url)).toHaveLength(3); // one set of tries, not two
     expect(await health()).toEqual([{ vendor: own.name, failures: 2 }]);
-    expect(events().some((e) => e.event === 'recheck_complete')).toBe(false);
+    expect(rechecks()).toEqual([]);
   });
 
-  it('a streak row for a vendor that is no longer configured is never collected', async () => {
-    await db.prepare("INSERT INTO vendor_health (vendor, failing_since, failures) VALUES ('Ghost', '2026-10-02T12:00:00.000Z', 1)").run();
-    vi.stubGlobal('fetch', vi.fn(async () => OK()));
-
-    await expect(worker.scheduled({ scheduledTime: AT_MS }, { DB: db })).resolves.toBeUndefined();
-
-    expect(events().some((e) => e.event === 'recheck_complete')).toBe(false);
-    const names = (await db.prepare('SELECT vendor FROM snapshot').all()).results.map((r) => r.vendor);
-    expect(names.sort()).toEqual(shardVendors.map((v) => v.name).sort()); // no Ghost, no "unknown" row
-  });
-
-  it("a failed re-check never costs the shard its own run: the batch is still written and the failure is loud", async () => {
+  it('a vendor that has left the config is skipped and cannot block the vendor behind it', async () => {
+    // A removed vendor's rows are pruned by the next successful batch write,
+    // so this only matters when that write fails. Then the stale name sits at
+    // the head of the queue: it must be passed over, not collected (it has no
+    // config) and not allowed to stop the real vendor behind it.
+    await seedUnknown('Ghost', { at: '2026-10-02T12:00:00.000Z' }); // oldest, no config entry
     await seedUnknown(outsider.name);
-    vi.stubGlobal('fetch', vi.fn(async () => OK()));
+    const fetched = fetchLog();
+    const broken = { ...db, batch: async () => { throw new Error('D1 is down'); } };
+
+    await expect(worker.scheduled({ scheduledTime: AT_MS }, { DB: broken })).rejects.toThrow('D1 is down');
+
+    expect(fetched).toContain(outsider.url);
+    // Its own write then fails too, loudly, and nothing was collected for Ghost.
+    expect(alerts().filter((a) => a.alert === 'recheck_failed')).toHaveLength(1);
+    expect(rechecks()).toEqual([]);
+  });
+
+  it('a failed re-check never costs the batch its own run: the batch is still written and the failure is loud', async () => {
+    await seedUnknown(outsider.name);
+    fetchLog();
     const broken = {
       ...db,
       prepare: (sql) => {
-        if (/FROM vendor_health\s+WHERE failures/.test(sql)) throw new Error('D1 read failed');
+        if (/FROM vendor_health h/.test(sql)) throw new Error('D1 read failed');
         return db.prepare(sql);
       },
     };

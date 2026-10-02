@@ -163,35 +163,68 @@ export async function writeRun(db, run, options = {}) {
 }
 
 /**
- * Vendors whose unknown streak has only just begun: the ones worth looking at
- * again in the next minute's run rather than at their own batch's next turn,
- * 15 minutes away (worklist #129).
+ * Vendors worth looking at again in the next minute's run, rather than at
+ * their own batch's next turn 15 minutes away (worklist #129).
  *
- * `failures` counts every unknown write in the streak, re-checks included, so
- * `failures <= maxFailures` is what bounds the extra looks: a vendor fails in
- * its own batch (1), is re-checked and fails (2), is re-checked and fails (3),
- * and from then on is left to its normal 15-minute turn. A vendor that is
- * really down therefore costs two extra checks per outage, not one a minute.
+ * A vendor qualifies when ALL of these hold:
+ *   - its unknown streak is short (`failures <= maxFailures`). `failures`
+ *     counts every failed look in the streak, re-checks included, and that is
+ *     what bounds them: the batch records 1, two re-checks may record 2 and 3,
+ *     and then the vendor waits for its normal turn. A vendor that is really
+ *     down costs two extra checks per outage, not one a minute;
+ *   - its row is `unknown` because a fetch got NO ANSWER (the engine's
+ *     `fetch failed: …` reason: a network error or a deadline). A 429, a 404
+ *     or a payload that did not parse is not waited out by asking again;
+ *   - the failure was the vendor's, not ours: a run that ran out of
+ *     subrequest budget also says `fetch failed`, and is excluded.
  *
- * Longest-failing first, so a cap cannot starve the vendor that has been on
- * the board as unknown the longest.
+ * Fewest failures first, then longest-failing: every vendor that has just
+ * gone unknown gets its first extra look before any gets its second.
  *
  * @param {D1Database} db
- * @param {number} maxFailures
- * @param {number} limit
+ * @param {{maxFailures: number, exclude?: string[], limit: number}} opts
  * @returns {Promise<string[]>} vendor names
  */
-export async function readRecheckDue(db, maxFailures, limit) {
+export async function readRecheckDue(db, { maxFailures, exclude = [], limit }) {
+  const notExcluded =
+    exclude.length > 0 ? `AND h.vendor NOT IN (${exclude.map(() => '?').join(',')})` : '';
   const rows = await db
     .prepare(
-      `SELECT vendor FROM vendor_health
-        WHERE failures <= ?
-        ORDER BY failing_since ASC, vendor ASC
+      `SELECT h.vendor
+         FROM vendor_health h
+         JOIN snapshot s ON s.vendor = h.vendor
+        WHERE h.failures <= ?
+          AND s.severity = 'unknown'
+          AND s.warnings LIKE '%fetch failed:%'
+          AND s.warnings NOT LIKE '%subrequest budget exhausted%'
+          ${notExcluded}
+        ORDER BY h.failures ASC, h.failing_since ASC, h.vendor ASC
         LIMIT ?`,
     )
-    .bind(maxFailures, limit)
+    .bind(maxFailures, ...exclude, limit)
     .all();
   return rows.results.map((r) => r.vendor);
+}
+
+/**
+ * Record that a re-check failed again: one more failure on the open streak,
+ * and NOTHING else.
+ *
+ * A failed re-check deliberately does not touch the snapshot or the history.
+ * It has learned nothing new (the row already says `unknown`), and writing
+ * `unknown` again is exactly how a slow re-check could overwrite the green
+ * that a quicker one had just written. As an UPDATE it also cannot start a
+ * streak: if the vendor recovered in the meantime the row is gone and this
+ * changes nothing.
+ *
+ * @param {D1Database} db
+ * @param {string} vendor
+ */
+export async function bumpFailures(db, vendor) {
+  await db
+    .prepare('UPDATE vendor_health SET failures = failures + 1 WHERE vendor = ?')
+    .bind(vendor)
+    .run();
 }
 
 /**

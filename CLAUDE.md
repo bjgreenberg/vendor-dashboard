@@ -112,26 +112,37 @@ a future non-Cloudflare deployment possible.
   worklist #129; `LAST_ATTEMPT_PATIENCE = 2.5` x `timeoutMs`). Statuspage's
   hosting sometimes accepts a request and sends 0 bytes; all three 10 s tries
   aborted and vendors read `unknown` for a cycle. Same three tries. Do NOT
-  rebuild this as a "second pass" or a fourth request: PR #158 tried both
-  (re-collect the vendor; a second look at the fetch) and review found a lost
-  composite outage, budget and cap problems, and misleading outcome logs, for
-  no more patience than this gives. Each fetch that answered after a failed
+  add a "second pass" or a fourth request INSIDE THE SAME RUN: PR #158 tried
+  both (re-collect the vendor before the write; a second look at the fetch)
+  and review found a lost composite outage, budget and cap problems, and
+  misleading outcome logs, for no more patience than this gives. (A LATER
+  run looking again is a different thing and does exist: see the re-check
+  bullet below.) Each fetch that answered after a failed
   try logs `fetch_retried_ok` (url, attempt, ms) BEFORE the D1 write; a
   recovered stall leaves no other trace and those `ms` values are the only
   evidence of how long stalls last, so keep the line and its position.
 - **A vendor that just went `unknown` is re-checked by the next minutes'
   runs** (2026-10-02, worklist #129; `recheckUnknown` in
-  `src/worker/index.js`). Each run, AFTER its own batch is written, collects
-  up to three vendors whose streak is 1 or 2 (`vendor_health.failures`),
-  longest-failing first, in a separate `collect()` with its own budgets and
-  its own `writeRun`. Do not run it beside the batch: a Worker holds six
-  outgoing connections and a stalled re-check would starve healthy feeds
-  whose deadlines are already running. Do not fold the re-checked vendors
-  into the batch's run either: `unknown_rate_high` must keep meaning "this
-  batch failed". It never rejects (it logs `recheck_failed`), and it cannot
-  write green without a verified payload. Consequence: `failures` counts
-  every unknown write in a streak, re-checks included; `failing_since` (what
-  the watchdog reads) is unchanged.
+  `src/worker/index.js`, `readRecheckDue` / `bumpFailures` in `storage.js`).
+  After its own batch is written, each run collects ONE vendor whose row is
+  `unknown` with a `fetch failed:` reason (not our own budget exhaustion) and
+  whose streak is 1 or 2, fewest failures first. Invariants, each of which a
+  review pass on PR #160 found broken in an earlier draft:
+  - **A re-check only improves a row.** Recovered -> `writeRun`. Failed again
+    -> `bumpFailures` and nothing else. Never write `unknown` from a
+    re-check: overlapping re-checks are last-writer-wins, and a slow failing
+    one would undo a quicker one's green.
+  - **One vendor per run, in its own `collect()`, after the batch.** Not
+    beside the batch and not several together: six outgoing connections, and
+    queued fetches' deadlines are already running.
+  - **Only "no answer" failures.** A 429 or a parse failure is not waited out.
+  - **Shared `collectLogged` and `selfMonitor`** keep the batch and the
+    re-check from drifting; the re-check passes `unknownRate: false` so one
+    failing vendor does not read as a failed batch.
+  - It never rejects (`recheck_failed` at ERROR).
+  Consequence: `vendor_health.failures` counts every failed look in a streak,
+  re-checks included (the migration comment and the watchdog spec predate
+  this); `failing_since`, what the watchdog reads, is unchanged.
 - **The retry budget is 20, not 10** (same date). Shards 7 and 9 hold seven
   and eight feeds and Statuspage stalls are correlated; at 10 the second
   tries ate the budget and most feeds never reached the patient third try.
