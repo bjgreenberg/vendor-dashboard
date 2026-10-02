@@ -123,26 +123,33 @@ a future non-Cloudflare deployment possible.
   evidence of how long stalls last, so keep the line and its position.
 - **A vendor that just went `unknown` is re-checked by the next minutes'
   runs** (2026-10-02, worklist #129; `recheckUnknown` in
-  `src/worker/index.js`, `readRecheckDue` / `bumpFailures` in `storage.js`).
-  After its own batch is written, each run collects ONE vendor whose row is
-  `unknown` with a `fetch failed:` reason (not our own budget exhaustion) and
-  whose streak is 1 or 2, fewest failures first. Invariants, each of which a
-  review pass on PR #160 found broken in an earlier draft:
+  `src/worker/index.js`; `readRecheckCandidates`, `claimRecheck`,
+  `noteFailedRecheck` in `storage.js`; `isWaitableFailure` in the engine).
+  Once its own batch is done (written, empty or failed), each run collects
+  ONE vendor that is `unknown` for a waitable reason and has looks left.
+  Invariants, each of which a review pass on PR #160 found broken in an
+  earlier draft:
   - **A re-check only improves a row.** Recovered -> `writeRun`. Failed again
-    -> `bumpFailures` and nothing else. Never write `unknown` from a
-    re-check: overlapping re-checks are last-writer-wins, and a slow failing
-    one would undo a quicker one's green.
+    -> `noteFailedRecheck` (the reason, on a row still `unknown`) and nothing
+    else. Never write `unknown` from a re-check: a slow failing one would
+    undo a quicker one's green.
+  - **Claim the look before spending it** (`claimRecheck`, a compare-and-set
+    on `vendor_health.rechecks`). Runs overlap when a batch is slow; without
+    the claim both take the same vendor, and a look that cannot finish loops.
+  - **Two looks per outage, counted in `rechecks`, not `failures`.**
+    `failures` still means consecutive failed checks by the vendor's own
+    batch (migration 0005 added the separate column for that reason).
   - **One vendor per run, in its own `collect()`, after the batch.** Not
     beside the batch and not several together: six outgoing connections, and
     queued fetches' deadlines are already running.
-  - **Only "no answer" failures.** A 429 or a parse failure is not waited out.
+  - **Only waitable failures**: no answer, or 5xx. The wording lives in the
+    engine (`REASON_NO_ANSWER`, `REASON_HTTP_STATUS`, `BUDGET_EXHAUSTED`);
+    do not re-type those strings in SQL or in the Worker.
+  - **`stampRun: false`** on the re-check's write: `run_meta.checked_at`
+    means "a batch was collected" and `/health` reads it.
   - **Shared `collectLogged` and `selfMonitor`** keep the batch and the
-    re-check from drifting; the re-check passes `unknownRate: false` so one
-    failing vendor does not read as a failed batch.
+    re-check from drifting; the re-check passes `unknownRate: false`.
   - It never rejects (`recheck_failed` at ERROR).
-  Consequence: `vendor_health.failures` counts every failed look in a streak,
-  re-checks included (the migration comment and the watchdog spec predate
-  this); `failing_since`, what the watchdog reads, is unchanged.
 - **The retry budget is 20, not 10** (same date). Shards 7 and 9 hold seven
   and eight feeds and Statuspage stalls are correlated; at 10 the second
   tries ate the budget and most feeds never reached the patient third try.

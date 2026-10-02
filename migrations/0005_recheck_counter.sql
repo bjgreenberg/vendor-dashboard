@@ -1,0 +1,13 @@
+-- Next-minute re-checks (worklist #129; README: "Then the next minutes look again").
+--
+-- `rechecks` counts the extra looks a vendor has had since its unknown streak
+-- began. It is separate from `failures` on purpose: `failures` keeps meaning
+-- "consecutive failed checks by the vendor's own batch", which the streak and
+-- the watchdog spec are written around, while `rechecks` is only the limiter
+-- that gives a vendor at most two extra looks per outage.
+--
+-- Claimed BEFORE the look (UPDATE ... WHERE rechecks = <the value just read>),
+-- so two overlapping runs cannot both take the same look.
+-- Never reset while the streak lasts: the row is deleted on recovery, and a
+-- new streak starts at the default.
+ALTER TABLE vendor_health ADD COLUMN rechecks INTEGER NOT NULL DEFAULT 0;

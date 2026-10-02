@@ -26,6 +26,8 @@ const HISTORY_RETENTION_DAYS = 90;
  *
  * @param {D1Database} db
  * @param {{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[]}} run
+ * @param {{knownVendors?: string[], stampRun?: boolean}} [options] `stampRun: false`
+ *   refreshes run_meta's counts but leaves its clock and warnings alone
  */
 export async function writeRun(db, run, options = {}) {
   // Replace ONLY the rows this run actually checked.
@@ -139,7 +141,21 @@ export async function writeRun(db, run, options = {}) {
     // and every cron threw for 25 minutes; the unit test missed it because a
     // mock `batch()` never executes SQL. See test/worker/storage.test.js, which
     // now asserts against real SQLite.
-    db
+    //
+    // `stampRun: false` (a re-check's write) refreshes the COUNTS only. The
+    // run clock and the run's warnings belong to the batch: /health and the
+    // stale banner read `checked_at` as "a batch was collected", and a
+    // one-vendor re-check that succeeds while batches are failing must not
+    // keep that clock fresh.
+    options.stampRun === false
+      ? db.prepare(
+          `UPDATE run_meta SET
+             total    = (SELECT COUNT(*) FROM snapshot),
+             impacted = (SELECT COUNT(*) FROM snapshot WHERE severity NOT IN ('operational', 'unknown')),
+             unknown  = (SELECT COUNT(*) FROM snapshot WHERE severity = 'unknown')
+           WHERE id = 1`,
+        )
+      : db
       .prepare(
         `INSERT INTO run_meta (id, checked_at, total, impacted, unknown, warnings)
          SELECT 1, ?,
@@ -163,67 +179,88 @@ export async function writeRun(db, run, options = {}) {
 }
 
 /**
- * Vendors worth looking at again in the next minute's run, rather than at
- * their own batch's next turn 15 minutes away (worklist #129).
+ * Vendors that have just gone unknown and have looks left: the candidates
+ * for the next minute's re-check (worklist #129).
  *
- * A vendor qualifies when ALL of these hold:
- *   - its unknown streak is short (`failures <= maxFailures`). `failures`
- *     counts every failed look in the streak, re-checks included, and that is
- *     what bounds them: the batch records 1, two re-checks may record 2 and 3,
- *     and then the vendor waits for its normal turn. A vendor that is really
- *     down costs two extra checks per outage, not one a minute;
- *   - its row is `unknown` because a fetch got NO ANSWER (the engine's
- *     `fetch failed: …` reason: a network error or a deadline). A 429, a 404
- *     or a payload that did not parse is not waited out by asking again;
- *   - the failure was the vendor's, not ours: a run that ran out of
- *     subrequest budget also says `fetch failed`, and is excluded.
+ * This reads; it does not judge. Whether a candidate's failure is the kind
+ * worth asking about again is the engine's call (`isWaitableFailure`), made
+ * by the caller on the `warnings` returned here.
  *
- * Fewest failures first, then longest-failing: every vendor that has just
- * gone unknown gets its first extra look before any gets its second.
+ * Fewest looks first, then longest-failing: every vendor that has just gone
+ * unknown gets its first extra look before any gets its second.
  *
  * @param {D1Database} db
- * @param {{maxFailures: number, exclude?: string[], limit: number}} opts
- * @returns {Promise<string[]>} vendor names
+ * @param {{maxRechecks: number, exclude: string[], limit: number}} opts
+ * @returns {Promise<{vendor: string, rechecks: number, warnings: string[]}[]>}
  */
-export async function readRecheckDue(db, { maxFailures, exclude = [], limit }) {
+export async function readRecheckCandidates(db, { maxRechecks, exclude, limit }) {
   const notExcluded =
     exclude.length > 0 ? `AND h.vendor NOT IN (${exclude.map(() => '?').join(',')})` : '';
   const rows = await db
     .prepare(
-      `SELECT h.vendor
+      `SELECT h.vendor, h.rechecks, s.warnings
          FROM vendor_health h
          JOIN snapshot s ON s.vendor = h.vendor
-        WHERE h.failures <= ?
+        WHERE h.rechecks < ?
           AND s.severity = 'unknown'
-          AND s.warnings LIKE '%fetch failed:%'
-          AND s.warnings NOT LIKE '%subrequest budget exhausted%'
           ${notExcluded}
-        ORDER BY h.failures ASC, h.failing_since ASC, h.vendor ASC
+        ORDER BY h.rechecks ASC, h.failing_since ASC, h.vendor ASC
         LIMIT ?`,
     )
-    .bind(maxFailures, ...exclude, limit)
+    .bind(maxRechecks, ...exclude, limit)
     .all();
-  return rows.results.map((r) => r.vendor);
+  return rows.results.map((r) => ({
+    vendor: r.vendor,
+    rechecks: r.rechecks,
+    warnings: safeParse(r.warnings, []),
+  }));
 }
 
 /**
- * Record that a re-check failed again: one more failure on the open streak,
- * and NOTHING else.
+ * Take one of a vendor's extra looks, BEFORE spending it.
  *
- * A failed re-check deliberately does not touch the snapshot or the history.
- * It has learned nothing new (the row already says `unknown`), and writing
- * `unknown` again is exactly how a slow re-check could overwrite the green
- * that a quicker one had just written. As an UPDATE it also cannot start a
- * streak: if the vendor recovered in the meantime the row is gone and this
- * changes nothing.
+ * The UPDATE succeeds only if `rechecks` still has the value the caller just
+ * read, so when two runs overlap (a slow batch pushes one run's re-check into
+ * the next minute) only one of them gets the look; the other moves on. It
+ * also means a look is counted whatever happens next, so a re-check that
+ * fails, or cannot finish, can never loop.
  *
  * @param {D1Database} db
  * @param {string} vendor
+ * @param {number} rechecks the value read by readRecheckCandidates
+ * @returns {Promise<boolean>} true if this caller holds the look
  */
-export async function bumpFailures(db, vendor) {
+export async function claimRecheck(db, vendor, rechecks) {
+  const row = await db
+    .prepare(
+      `UPDATE vendor_health SET rechecks = rechecks + 1
+        WHERE vendor = ? AND rechecks = ?
+        RETURNING vendor`,
+    )
+    .bind(vendor, rechecks)
+    .first();
+  return row != null;
+}
+
+/**
+ * Record what a failed re-check learned: the latest reason, and nothing else.
+ *
+ * A failed re-check must not write a status. The row already says `unknown`,
+ * and writing `unknown` again is how a slow re-check could overwrite the
+ * green that a quicker one (or the vendor's own batch) had written in the
+ * meantime. So this only updates the reason, and only on a row that is still
+ * `unknown`; on a recovered vendor it changes nothing. The reason matters:
+ * it is what the card shows, and what decides whether a second look is worth
+ * taking (a stall that has turned into a 404 is not).
+ *
+ * @param {D1Database} db
+ * @param {string} vendor
+ * @param {string[]} warnings
+ */
+export async function noteFailedRecheck(db, vendor, warnings) {
   await db
-    .prepare('UPDATE vendor_health SET failures = failures + 1 WHERE vendor = ?')
-    .bind(vendor)
+    .prepare(`UPDATE snapshot SET warnings = ? WHERE vendor = ? AND severity = 'unknown'`)
+    .bind(JSON.stringify(warnings), vendor)
     .run();
 }
 

@@ -84,7 +84,8 @@ const DEFAULT_RETRY_DELAY_MS = 250;
 const DEFAULT_RETRY_BUDGET = 20;
 
 /**
- * Sanity ceiling on subrequests for one invocation.
+ * Sanity ceiling on subrequests for one collect() call. (A Worker invocation
+ * may make two: its batch, then a one-vendor re-check.)
  *
  * ORIGIN: the Workers free plan killed an invocation at 50 external
  * subrequests, so this budget existed to convert a fatal, silent, whole-run
@@ -99,6 +100,35 @@ export const DEFAULT_SUBREQUEST_BUDGET = 40;
 
 /** Marker so an exhausted budget is reported distinctly from a vendor outage. */
 export const BUDGET_EXHAUSTED = 'subrequest budget exhausted';
+
+/**
+ * How a failed fetch is worded in a record's `warnings`. Exported so the one
+ * reader that has to tell the kinds apart (`isWaitableFailure`, used by the
+ * Worker's next-minute re-check) cannot drift from the writer below.
+ */
+export const REASON_NO_ANSWER = 'fetch failed: ';
+export const REASON_HTTP_STATUS = 'fetch returned HTTP ';
+
+/**
+ * Could asking again in a minute plausibly succeed?
+ *
+ * Yes when a fetch got no answer (a network error or a deadline) or the
+ * server answered 5xx: both are the far end having a bad moment. No for 429
+ * (it asked us to slow down), for 4xx (a retired or closed route), for a
+ * payload that did not parse, and for our OWN exhausted subrequest budget,
+ * which is worded as a failed fetch but is not the vendor's doing.
+ *
+ * `includes`, not `startsWith`: a composite vendor prefixes each reason with
+ * its source's group ("Azure: fetch failed: …").
+ *
+ * @param {unknown} reasons a record's `warnings`
+ * @returns {boolean}
+ */
+export function isWaitableFailure(reasons) {
+  const list = Array.isArray(reasons) ? reasons.map(String) : [];
+  if (list.some((r) => r.includes(BUDGET_EXHAUSTED))) return false;
+  return list.some((r) => r.includes(REASON_NO_ANSWER) || r.includes(`${REASON_HTTP_STATUS}5`));
+}
 
 /**
  * Identify ourselves honestly.
@@ -271,7 +301,7 @@ async function fetchWithRetry(url, ctx) {
       });
 
       if (response && response.ok === false) {
-        lastReason = `fetch returned HTTP ${response.status}`;
+        lastReason = `${REASON_HTTP_STATUS}${response.status}`;
         if (RETRYABLE_STATUS.has(response.status)) continue;
         return { ok: false, reason: lastReason };
       }
@@ -287,7 +317,7 @@ async function fetchWithRetry(url, ctx) {
       return { ok: true, body };
     } catch (error) {
       // A network-level failure is transient by nature; retry it.
-      lastReason = `fetch failed: ${error?.message ?? String(error)}`;
+      lastReason = `${REASON_NO_ANSWER}${error?.message ?? String(error)}`;
     }
   }
 

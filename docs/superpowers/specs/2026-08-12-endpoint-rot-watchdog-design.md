@@ -58,7 +58,7 @@ real network tooling, `GITHUB_TOKEN`, and fork-universality are free.
 CREATE TABLE IF NOT EXISTS vendor_health (
   vendor        TEXT PRIMARY KEY,
   failing_since TEXT NOT NULL,   -- ISO-8601, first unknown of the current streak
-  failures      INTEGER NOT NULL -- consecutive failed looks; since 2026-10-02 this includes next-minute re-checks (README: When a status feed stalls)
+  failures      INTEGER NOT NULL -- consecutive unknown collections
 );
 ```
 

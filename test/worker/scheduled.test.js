@@ -144,7 +144,7 @@ describe('scheduled() — one shard collected, written, self-monitored', () => {
 // Worklist #129, part two. The patient last try cut unknown checks from 0.41%
 // to 0.06% (2 of 3,451 in the first 16 hours), but a stall longer than ~46 s
 // still put a vendor on the board as `unknown` until its batch came round
-// again, 15 minutes later. So a vendor whose streak has just begun is looked
+// again, 15 minutes later. So a vendor that has just gone unknown is looked
 // at again by the next minutes' runs.
 describe('scheduled() — a vendor that just went unknown is re-checked by the next minutes, not 15 minutes later', () => {
   let db, logs, errors;
@@ -160,21 +160,24 @@ describe('scheduled() — a vendor that just went unknown is re-checked by the n
   const events = () => logs.mock.calls.map(([line]) => JSON.parse(line));
   const alerts = () => errors.mock.calls.map(([line]) => JSON.parse(line));
   const rechecks = () => events().filter((e) => e.event === 'recheck_complete');
-  const health = async () => (await db.prepare('SELECT vendor, failures FROM vendor_health ORDER BY vendor').all()).results;
-  const snap = async (name) => db.prepare('SELECT severity, checked_at FROM snapshot WHERE vendor = ?').bind(name).first();
+  const health = async () =>
+    (await db.prepare('SELECT vendor, failures, rechecks FROM vendor_health ORDER BY vendor').all()).results;
+  const snap = async (name) => db.prepare('SELECT severity, checked_at, warnings FROM snapshot WHERE vendor = ?').bind(name).first();
   const history = async (name) =>
     (await db.prepare('SELECT severity FROM history WHERE vendor = ? ORDER BY id').bind(name).all()).results.map((r) => r.severity);
-  /** Put `name` on the board as unknown, `times` checks in a row. */
-  const seedUnknown = async (name, { times = 1, at = SEEDED_AT, reason = TIMEOUT } = {}) => {
-    for (let i = 0; i < times; i += 1) {
-      await writeRun(db, runOf([rec(name, 'unknown', { checkedAt: at, warnings: [reason] })], { checkedAt: at }));
-    }
+  /** Put `name` on the board as unknown: one failed batch check, `looks` re-checks already spent. */
+  const seedUnknown = async (name, { looks = 0, at = SEEDED_AT, reason = TIMEOUT } = {}) => {
+    await writeRun(db, runOf([rec(name, 'unknown', { checkedAt: at, warnings: [reason] })], { checkedAt: at }));
+    if (looks > 0) await db.prepare('UPDATE vendor_health SET rechecks = ? WHERE vendor = ?').bind(looks, name).run();
   };
-  const fetchLog = (fail = () => false) => {
+  /** Stub fetch; `respond(url)` may return a status code, throw, or return nothing for a green 200. */
+  const fetchLog = (respond = () => undefined) => {
     const fetched = [];
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       fetched.push(url);
-      if (fail(url)) throw new Error('The operation was aborted due to timeout');
+      const status = respond(url);
+      if (status === 'stall') throw new Error('The operation was aborted due to timeout');
+      if (typeof status === 'number') return { ok: false, status, headers: { get: () => '' }, text: async () => '' };
       return OK();
     }));
     return fetched;
@@ -192,19 +195,16 @@ describe('scheduled() — a vendor that just went unknown is re-checked by the n
     expect(outsiders.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('end to end: a vendor that stalls in its own batch is read by the NEXT minute\'s run', async () => {
+  it("end to end: a vendor that stalls in its own batch is read by the NEXT minute's run", async () => {
     // No seeding: the unknown row and its reason come from the real engine,
     // so this also pins that the re-check recognises the engine's own wording.
     const own = shardVendors.find((v) => v.type === 'statuspage' && typeof v.url === 'string' && !v.scope);
     let stalled = true;
-    vi.stubGlobal('fetch', vi.fn(async (url) => {
-      if (stalled && url === own.url) throw new Error('The operation was aborted due to timeout');
-      return OK();
-    }));
+    fetchLog((url) => (stalled && url === own.url ? 'stall' : undefined));
 
     await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
     expect((await snap(own.name)).severity).toBe('unknown');
-    expect(await health()).toEqual([{ vendor: own.name, failures: 1 }]);
+    expect(await health()).toEqual([{ vendor: own.name, failures: 1, rechecks: 0 }]);
 
     stalled = false; // the feed is back
     await worker.scheduled({ scheduledTime: AT_MS + 60_000 }, { DB: db });
@@ -215,11 +215,11 @@ describe('scheduled() — a vendor that just went unknown is re-checked by the n
     expect((await health()).map((h) => h.vendor)).not.toContain(own.name);
     expect(await history(own.name)).toEqual(['unknown', 'operational']);
     expect(rechecks()).toEqual([
-      expect.objectContaining({ event: 'recheck_complete', vendor: own.name, outcome: 'recovered', severity: 'operational' }),
+      expect.objectContaining({ event: 'recheck_complete', vendor: own.name, outcome: 'recovered', severity: 'operational', look: 1 }),
     ]);
   });
 
-  it('re-checks a vendor from another batch whose streak just began, and writes it green when it answers', async () => {
+  it('re-checks a vendor from another batch that just went unknown, and writes it green when it answers', async () => {
     await seedUnknown(outsider.name);
     const fetched = fetchLog();
 
@@ -234,26 +234,39 @@ describe('scheduled() — a vendor that just went unknown is re-checked by the n
     expect(errors).not.toHaveBeenCalled();
   });
 
-  it('a re-check that fails again changes NOTHING on the board: it only counts one more failure', async () => {
+  it('a re-check that fails again cannot change a status: it spends one look and refreshes the reason', async () => {
     // A re-check may improve a row; it must never write `unknown`. That is
     // what makes two overlapping re-checks safe: a slow, failing one cannot
     // overwrite the green that a quicker one already wrote.
-    await seedUnknown(outsider.name);
-    fetchLog((url) => url === outsider.url);
+    await seedUnknown(outsider.name, { reason: 'fetch failed: an older reason' });
+    fetchLog((url) => (url === outsider.url ? 'stall' : undefined));
 
     await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
 
-    expect(await snap(outsider.name)).toEqual({ severity: 'unknown', checked_at: SEEDED_AT }); // the row is the seeded one
+    expect(await snap(outsider.name)).toEqual({ severity: 'unknown', checked_at: SEEDED_AT, warnings: JSON.stringify([TIMEOUT]) });
     expect(await history(outsider.name)).toEqual(['unknown']); // no extra history row
-    expect(await health()).toEqual([{ vendor: outsider.name, failures: 2 }]);
-    expect(rechecks()).toEqual([expect.objectContaining({ vendor: outsider.name, outcome: 'still_unknown' })]);
+    expect(await health()).toEqual([{ vendor: outsider.name, failures: 1, rechecks: 1 }]); // `failures` is the batch's count
+    expect(rechecks()).toEqual([expect.objectContaining({ vendor: outsider.name, outcome: 'still_unknown', look: 1 })]);
     // One failing outsider must not read as "the whole batch failed".
     expect(alerts().some((a) => a.alert === 'unknown_rate_high')).toBe(false);
     expect(events().find((e) => e.event === 'collection_complete')).toMatchObject({ unknown: 0 });
   });
 
-  it('stops after two extra looks: a streak of three waits for its own batch', async () => {
-    await seedUnknown(outsider.name, { times: 3 });
+  it('a look that finds the stall has become a 404 does not earn a second look', async () => {
+    await seedUnknown(outsider.name);
+    fetchLog((url) => (url === outsider.url ? 404 : undefined));
+    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
+    expect((await snap(outsider.name)).warnings).toBe(JSON.stringify(['fetch returned HTTP 404']));
+
+    const fetched = fetchLog();
+    await worker.scheduled({ scheduledTime: AT_MS + 15 * 60_000 }, { DB: db }); // same shard, so the outsider is still not in the batch
+
+    expect(fetched).not.toContain(outsider.url);
+    expect(await health()).toEqual([{ vendor: outsider.name, failures: 1, rechecks: 1 }]);
+  });
+
+  it('stops after two extra looks per outage', async () => {
+    await seedUnknown(outsider.name, { looks: 2 });
     const fetched = fetchLog();
 
     await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
@@ -263,9 +276,9 @@ describe('scheduled() — a vendor that just went unknown is re-checked by the n
     expect(rechecks()).toEqual([]);
   });
 
-  it('re-checks ONE vendor per run: fewest failures first, then longest-failing', async () => {
+  it('re-checks ONE vendor per run: fewest looks first, then longest-failing', async () => {
     const [a, b, c] = outsiders;
-    await seedUnknown(a.name, { times: 2, at: '2026-10-02T12:50:00.000Z' }); // oldest, but already had a look
+    await seedUnknown(a.name, { looks: 1, at: '2026-10-02T12:50:00.000Z' }); // oldest, but already had a look
     await seedUnknown(b.name, { at: '2026-10-02T12:51:00.000Z' });
     await seedUnknown(c.name, { at: '2026-10-02T12:52:00.000Z' });
     const fetched = fetchLog();
@@ -276,32 +289,69 @@ describe('scheduled() — a vendor that just went unknown is re-checked by the n
     expect(rechecks()).toHaveLength(1);
   });
 
-  it('only re-checks a vendor that got NO ANSWER: not a 429, not a parse failure, not our own budget', async () => {
-    const [a, b, c] = outsiders;
-    await seedUnknown(a.name, { reason: 'fetch returned HTTP 429' });
-    await seedUnknown(b.name, { reason: 'response was not valid JSON' });
-    await seedUnknown(c.name, { reason: 'fetch failed: subrequest budget exhausted' });
+  it('re-checks a 5xx, and passes over a 429, a parse failure and our own budget to reach it', async () => {
+    const [a, b, c, d] = outsiders;
+    await seedUnknown(a.name, { reason: 'fetch returned HTTP 429', at: '2026-10-02T12:50:00.000Z' });
+    await seedUnknown(b.name, { reason: 'response was not valid JSON', at: '2026-10-02T12:51:00.000Z' });
+    await seedUnknown(c.name, { reason: 'fetch failed: subrequest budget exhausted', at: '2026-10-02T12:52:00.000Z' });
+    await seedUnknown(d.name, { reason: 'fetch returned HTTP 503', at: '2026-10-02T12:53:00.000Z' });
     const fetched = fetchLog();
 
     await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
 
-    expect([a, b, c].some((v) => fetched.includes(v.url))).toBe(false);
+    expect([a, b, c, d].map((v) => fetched.includes(v.url))).toEqual([false, false, false, true]);
+    expect(rechecks()).toEqual([expect.objectContaining({ vendor: d.name, outcome: 'recovered' })]);
+    // The three it passed over keep their looks.
+    expect((await health()).map((h) => h.rechecks)).toEqual([0, 0, 0]);
+  });
+
+  it('when another run has already taken the look, this one does not collect the vendor', async () => {
+    await seedUnknown(outsider.name);
+    const fetched = fetchLog();
+    // Between this run's read and its claim, an overlapping run claims first.
+    const raced = {
+      ...db,
+      prepare: (sql) => {
+        if (/SET rechecks = rechecks \+ 1/.test(sql)) db.sqlite.exec('UPDATE vendor_health SET rechecks = rechecks + 1');
+        return db.prepare(sql);
+      },
+    };
+
+    await worker.scheduled({ scheduledTime: AT_MS }, { DB: raced });
+
+    expect(fetched).not.toContain(outsider.url);
+    expect(await health()).toEqual([{ vendor: outsider.name, failures: 1, rechecks: 1 }]); // the other run's look, not two
     expect(rechecks()).toEqual([]);
   });
 
   it("does not re-check a vendor that this minute's own batch has just checked", async () => {
-    // The batch runs first. Its own vendor fails there (streak 1 -> 2), which
-    // makes it "due"; the re-check must still leave it alone, or a vendor
-    // would get two full sets of tries in one minute.
+    // The batch runs first. Its own vendor fails there, which leaves it a
+    // candidate; the re-check must still leave it alone, or a vendor would
+    // get two full sets of tries in one minute.
     const own = shardVendors.find((v) => v.type === 'statuspage' && typeof v.url === 'string');
     await seedUnknown(own.name);
-    const fetched = fetchLog((url) => url === own.url);
+    const fetched = fetchLog((url) => (url === own.url ? 'stall' : undefined));
 
     await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
 
     expect(fetched.filter((u) => u === own.url)).toHaveLength(3); // one set of tries, not two
-    expect(await health()).toEqual([{ vendor: own.name, failures: 2 }]);
+    expect(await health()).toEqual([{ vendor: own.name, failures: 2, rechecks: 0 }]);
     expect(rechecks()).toEqual([]);
+  });
+
+  it("a recovered re-check does not stamp the run clock or replace the batch's warnings", async () => {
+    // `checked_at` means "a batch was collected". The batch here leaves a
+    // warning (its own vendor stalls); the re-check then recovers an outsider.
+    const own = shardVendors.find((v) => v.type === 'statuspage' && typeof v.url === 'string');
+    await seedUnknown(outsider.name);
+    fetchLog((url) => (url === own.url ? 'stall' : undefined));
+
+    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
+
+    expect((await snap(outsider.name)).severity).toBe('operational');
+    const meta = await db.prepare('SELECT * FROM run_meta WHERE id = 1').first();
+    expect(JSON.parse(meta.warnings).some((w) => w.startsWith(`${own.name}: `))).toBe(true); // the batch's, kept
+    expect(meta.unknown).toBe(1); // counts are current: the outsider is no longer unknown, the batch's vendor is
   });
 
   it('a vendor that has left the config is skipped and cannot block the vendor behind it', async () => {
@@ -338,7 +388,7 @@ describe('scheduled() — a vendor that just went unknown is re-checked by the n
     const rows = (await db.prepare('SELECT vendor, severity FROM snapshot').all()).results;
     for (const v of shardVendors) expect(rows.find((r) => r.vendor === v.name)?.severity).toBe('operational');
     expect(alerts()).toEqual([
-      expect.objectContaining({ event: 'collection_alert', alert: 'recheck_failed', detail: expect.stringContaining('D1 read failed') }),
+      expect.objectContaining({ event: 'collection_alert', recheck: true, alert: 'recheck_failed', detail: expect.stringContaining('D1 read failed') }),
     ]);
   });
 });

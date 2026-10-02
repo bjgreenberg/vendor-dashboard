@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { collect } from '../../src/engine/collect.js';
+import { collect, isWaitableFailure, BUDGET_EXHAUSTED } from '../../src/engine/collect.js';
 import { SEVERITY } from '../../src/engine/severity.js';
 
 const fixture = (n) => readFileSync(new URL(`../fixtures/${n}`, import.meta.url), 'utf8');
@@ -640,5 +640,42 @@ describe('collect — the last try is patient', () => {
       now,
     });
     expect(healthy.retriedOk).toBe(0);
+  });
+});
+
+describe('isWaitableFailure — could asking again in a minute plausibly succeed?', () => {
+  it.each([
+    [['fetch failed: The operation was aborted due to timeout'], true],
+    [['fetch failed: ECONNRESET'], true],
+    [['Azure: fetch failed: socket hang up'], true], // a composite prefixes the source group
+    [['fetch returned HTTP 503'], true],
+    [['fetch returned HTTP 504'], true],
+    [['fetch returned HTTP 429'], false], // it asked us to slow down
+    [['fetch returned HTTP 404'], false],
+    [['fetch returned HTTP 401'], false],
+    [['response was not valid JSON'], false],
+    [['no adapter registered for type "nope"'], false],
+    [[`fetch failed: ${BUDGET_EXHAUSTED}`], false], // ours, not the vendor's
+    [['fetch failed: timeout', `collector: ${BUDGET_EXHAUSTED}`], false],
+    [[], false],
+    [undefined, false],
+    ['fetch failed: not an array', false],
+  ])('%j -> %s', (reasons, expected) => {
+    expect(isWaitableFailure(reasons)).toBe(expected);
+  });
+
+  it("judges the engine's own wording: a thrown fetch and a 503 are waitable, a 404 is not", async () => {
+    const reasonFor = async (fetchFn) =>
+      (await collect(cfg([{ name: 'V', type: 'statuspage', url: 'https://v' }]), { fetchFn, now, retryDelayMs: 0 })).records[0].warnings;
+    expect(isWaitableFailure(await reasonFor(async () => { throw new Error('ECONNRESET'); }))).toBe(true);
+    expect(isWaitableFailure(await reasonFor(async () => ({ ok: false, status: 503, text: async () => '' })))).toBe(true);
+    expect(isWaitableFailure(await reasonFor(async () => ({ ok: false, status: 404, text: async () => '' })))).toBe(false);
+    const starved = await collect(
+      cfg([{ name: 'A', type: 'statuspage', url: 'https://a' }, { name: 'B', type: 'statuspage', url: 'https://b' }]),
+      { fetchFn: async () => { throw new Error('ECONNRESET'); }, now, retryDelayMs: 0, subrequestBudget: 1 },
+    );
+    expect(starved.budgetExhausted).toBe(true);
+    const denied = starved.records.find((r) => r.warnings.some((w) => w.includes(BUDGET_EXHAUSTED)));
+    expect(isWaitableFailure(denied.warnings)).toBe(false);
   });
 });
