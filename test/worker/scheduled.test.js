@@ -438,7 +438,8 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
       [1, [], [], []], // read, but not written: it is in the alert, not in `recovered`
       [2, [own.name], [], []],
     ]);
-    for (const e of relooks()) expect(Object.keys(e)).toEqual(expect.arrayContaining(['recovered', 'still_failing', 'gave_up', 'not_checked']));
+    expect(relooks()[0].not_written).toEqual([own.name]);
+    for (const e of relooks()) expect(Object.keys(e)).toEqual(expect.arrayContaining(['recovered', 'still_failing', 'gave_up', 'not_written', 'not_checked']));
   });
 
   it('a re-look that cannot read the streaks is loud and takes no look', async () => {
@@ -459,11 +460,11 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     ]);
   });
 
-  it('leaves alone a vendor whose status comes from several voting documents', async () => {
-    // Zscaler reads one document per cloud and keeps going when one is
-    // missing, so a partial reading of it looks like a full one (worklist
-    // #132). A re-look that wrote it could turn a row green on a part of the
-    // truth. Until the adapters can say "partial", it gets no re-look.
+  it('leaves alone a vendor that reads more than one document', async () => {
+    // Zscaler reads one document per cloud. A document can answer and be
+    // empty, and the adapter then reads from the rest without a word, so a
+    // partial reading looks like a whole one (worklist #132). A re-look that
+    // wrote it could turn a row green on part of the truth, so it gets none.
     const zscaler = vendorConfig.vendors.find((v) => v.name === 'Zscaler');
     const shardZ = [...Array(SHARD_COUNT).keys()].find((i) => selectShard(vendorConfig.vendors, i, SHARD_COUNT).includes(zscaler));
     let primary = 0;

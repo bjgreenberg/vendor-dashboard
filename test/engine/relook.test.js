@@ -8,7 +8,7 @@ import { SEVERITY } from '../../src/engine/severity.js';
 
 const v = (name, over = {}) => ({ name, type: 'statuspage', url: `https://${name}`, ...over });
 const rec = (vendor, severity) => ({ vendor, severity });
-const run = (records, { waitable = [], incomplete = [] } = {}) => ({ records, waitable, incomplete });
+const run = (records, { waitable = [], incomplete = [], usedExtraDocuments = [] } = {}) => ({ records, waitable, incomplete, usedExtraDocuments });
 
 describe('relookCandidates — who may be looked at again', () => {
   it('keeps plain vendors and composites of plain sources', () => {
@@ -17,12 +17,14 @@ describe('relookCandidates — who may be looked at again', () => {
     expect(relookCandidates([plain, multi])).toEqual([plain, multi]);
   });
 
-  it('drops the vendors a partial reading cannot be told from a full one for', () => {
+  it('drops every vendor configured to read more than one document', () => {
     const concur = { name: 'Concur', type: 'concur-status', url: 'https://c', statusUrls: ['https://c'] };
     const zscaler = { name: 'Zscaler', type: 'zscaler', url: 'https://z', clouds: [] };
     const docusign = { name: 'Docusign', type: 'docusign', url: 'https://d', incidentsUrl: 'https://i' };
+    const iorad = { name: 'Iorad', type: 'sorryapp', url: 'https://s', componentsUrl: 'https://c' };
+    const google = { name: 'Google', type: 'google', url: 'https://g', componentsUrl: 'https://p' };
     const plain = v('Plain');
-    expect(relookCandidates([concur, plain, zscaler, docusign])).toEqual([plain]);
+    expect(relookCandidates([concur, plain, zscaler, docusign, iorad, google])).toEqual([plain]);
   });
 });
 
@@ -68,6 +70,16 @@ describe('classifyRelook — what one re-look found', () => {
     expect(waitablePartial).toEqual({ recovered: [], stillFailing: [m], gaveUp: [] });
     const deadPartial = classifyRelook(run([rec('Multi', SEVERITY.DEGRADED)], { incomplete: ['Multi'] }), [m]);
     expect(deadPartial).toEqual({ recovered: [], stillFailing: [], gaveUp: [m] });
+  });
+
+  it('never recovers a vendor that read an extra document, however whole the reading looks', () => {
+    // Fail closed. An extra document can answer 200 and be empty; the adapter
+    // then reads from the first document alone and nothing says so. Whatever
+    // a vendor's config looks like, and whichever adapter gains an extra
+    // document next, a re-look does not write it.
+    const a = v('A');
+    const out = classifyRelook(run([rec('A', SEVERITY.OPERATIONAL)], { usedExtraDocuments: ['A'] }), [a]);
+    expect(out).toEqual({ recovered: [], stillFailing: [], gaveUp: [a] });
   });
 
   it('never recovers an unknown row, even if `incomplete` fails to list it', () => {

@@ -99,29 +99,27 @@ const DEFAULT_RETRY_BUDGET = 20;
 export const DEFAULT_SUBREQUEST_BUDGET = 40;
 
 /**
- * Does this vendor's status come from SEVERAL documents that each have a say,
- * read one after another, where an EMPTY one cannot yet be told from a
- * healthy one?
+ * The config keys that name a document beyond a vendor's first one.
+ * `collectOne` fetches each of them through `readExtra`.
+ */
+const EXTRA_DOCUMENT_KEYS = ['componentsUrl', 'incidentsUrl', 'statusUrls', 'clouds', 'bannerUrl'];
+
+/**
+ * Is this vendor configured to read more than one document?
  *
- * Concur (one document per data centre) and Zscaler (one per cloud) do, and
- * Docusign's incidents document votes beside its components. A document that
- * fails to fetch or parse is caught by collectOne's readExtra and lands the
- * vendor in `incomplete`. What is NOT caught is a document that answers 200,
- * parses, and simply holds no status: the adapters drop it without a word, and
- * the row reads from whatever is left (worklist #132). Until the adapters
- * report a partial reading themselves, `incomplete` is not the whole truth for
- * these vendors, and the Worker's re-look leaves them alone.
+ * A cheap answer from config, for callers that want to skip such a vendor
+ * before spending requests on it. It is NOT the safety check: a key this list
+ * has not heard of would slip past it. The authoritative answer is
+ * `usedExtraDocuments` in a collect() result, which is set by the code that
+ * actually fetched the document.
  *
  * Checked on the vendor and on each source of a composite.
  *
  * @param {object} vendor a config entry
  * @returns {boolean}
  */
-export function readsSeveralVotingDocuments(vendor) {
-  const one = (v) =>
-    (v?.type === 'concur-status' && Array.isArray(v.statusUrls)) ||
-    (v?.type === 'zscaler' && Array.isArray(v.clouds)) ||
-    (v?.type === 'docusign' && Boolean(v.incidentsUrl));
+export function hasExtraDocuments(vendor) {
+  const one = (v) => EXTRA_DOCUMENT_KEYS.some((key) => v?.[key] != null);
   return one(vendor) || (Array.isArray(vendor?.sources) && vendor.sources.some(one));
 }
 
@@ -503,11 +501,20 @@ async function collectOne(vendor, ctx) {
   // helper each call site swallowed its own failure silently, so nothing
   // downstream could tell a full reading from a partial one (worklist #132).
   //
+  // What `incomplete` still cannot say: a document that answers 200, parses,
+  // and holds no status (an empty component list, an empty sections page).
+  // The adapters fall back to the first document without a word. So a caller
+  // that must be sure a reading is whole should ALSO require that the vendor
+  // read no extra document at all: `usedExtraDocuments`.
+  //
   // "Failed" is any of: the fetch threw, the status was not ok (a 503 with a
   // JSON body used to be parsed as if it were the document), or the body did
   // not parse. `usable` lets a call site also reject a document that parsed
   // but holds nothing it can use.
   const readExtra = async (url, { parse = JSON.parse, usable = () => true } = {}) => {
+    // Recorded on every call, whether or not it succeeds: see
+    // `usedExtraDocuments` in collect()'s result.
+    ctx.usedExtra.add(name);
     try {
       const res = await fetchFn(url, {
         headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
@@ -652,15 +659,17 @@ async function collectOne(vendor, ctx) {
  * @param {() => Date} [ctx.now]
  * @param {number} [ctx.timeoutMs] deadline for each try but the last
  * @param {number} [ctx.lastAttemptTimeoutMs] deadline for the last try; default 2.5x timeoutMs, never shorter than it
- * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[], retried: {url: string, attempt: number, ms: number}[], retriedOk: number, waitable: string[], incomplete: string[]}>}
+ * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[], retried: {url: string, attempt: number, ms: number}[], retriedOk: number, waitable: string[], incomplete: string[], usedExtraDocuments: string[]}>}
  *   `waitable`: names of the vendors whose required fetch failed in a way that
  *   asking again a minute later could fix (see fetchWithRetry). A composite is
  *   listed when any one of its sources is, whatever its row's severity.
  *   `incomplete`: names of the vendors that were NOT read in full — the row
  *   is unknown, a composite has an unverified source, or an extra document
  *   could not be read. One hole remains: an extra document that answers 200
- *   and parses but is EMPTY of status is not detected here for the vendors
- *   readsSeveralVotingDocuments() names (worklist #132).
+ *   and parses but is EMPTY of status is not detected (worklist #132).
+ *   `usedExtraDocuments`: names of the vendors for which any extra document
+ *   was fetched, successfully or not. A vendor in neither list was read whole
+ *   from one document per source, with no hole to fall through.
  */
 export async function collect(config, ctx) {
   const {
@@ -730,10 +739,12 @@ export async function collect(config, ctx) {
   // read (readExtra), a composite with an unverified source, and (added
   // below) any vendor whose row is unknown.
   const incomplete = new Set();
+  // Vendors for which an extra document was fetched at all.
+  const usedExtra = new Set();
 
   const settled = await Promise.allSettled(
     config.vendors.map((v) => {
-      const ctx = { fetchFn: meteredFetch, now, timeoutMs, lastAttemptTimeoutMs, retryDelayMs, budget, retried, waitable, incomplete };
+      const ctx = { fetchFn: meteredFetch, now, timeoutMs, lastAttemptTimeoutMs, retryDelayMs, budget, retried, waitable, incomplete, usedExtra };
       return v?.type === 'composite' ? collectComposite(v, ctx) : collectOne(v, ctx);
     }),
   );
@@ -784,6 +795,7 @@ export async function collect(config, ctx) {
     // In config order, so a caller's log line is stable.
     waitable: config.vendors.map((v) => v?.name).filter((name) => waitable.has(name)),
     incomplete: config.vendors.map((v) => v?.name).filter((name) => incomplete.has(name)),
+    usedExtraDocuments: config.vendors.map((v) => v?.name).filter((name) => usedExtra.has(name)),
   };
 }
 

@@ -158,9 +158,9 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
  *
  * THE RULE THAT MAKES IT SAFE: a re-look may only IMPROVE a row (decided by
  * classifyRelook in the engine). It writes a vendor only when that vendor was
- * read IN FULL (`run.incomplete` does not list it): every source and every
- * extra document answered and the adapter understood each one. Otherwise it
- * writes nothing. So `unknown` is never written here, and a
+ * read WHOLE, from one document per source: every source answered, the
+ * adapter understood each one, and no extra document was involved. Otherwise
+ * it writes nothing. So `unknown` is never written here, and a
  * vendor built from several feeds that answered only in part is left as the
  * batch wrote it — a verified outage on one feed cannot be replaced by a
  * milder reading that is missing that feed.
@@ -178,8 +178,9 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
  * written keeps its place. A re-look that runs out of subrequest budget ends them: it
  * could not ask everyone, so nothing it read is written.
  *
- * NOT for vendors whose status comes from several voting documents (Concur,
- * Zscaler, Docusign): see relookCandidates in the engine.
+ * NOT for vendors that read more than one document (a component list, a
+ * catalogue, one document per data centre or cloud): see relookCandidates and
+ * classifyRelook in the engine.
  *
  * Known cost: the invocation stays open, so its log lines (the batch's
  * included) reach Workers Logs when the re-looks finish, not when the batch
@@ -223,7 +224,7 @@ async function lookAgain(env, shard, vendors) {
       const run = await collectLogged(pending, shard, tag);
       selfMonitor(run, shard, { unknownRate: false, tag });
 
-      // Every relook_complete line carries the same four lists.
+      // Every relook_complete line carries the same five lists.
       const line = (lists) =>
         console.log(
           JSON.stringify({
@@ -232,7 +233,8 @@ async function lookAgain(env, shard, vendors) {
             look,
             recovered: [], // read in full and written
             still_failing: [], // still failing in a way a minute might fix
-            gave_up: [], // not read in full, and no longer for a waitable reason
+            gave_up: [], // not read whole, and not for a waitable reason
+            not_written: [], // read whole, but the write failed (see relook_failed)
             not_checked: [], // our own budget ran out before they could be asked
             ...lists,
             subrequests: run.subrequests,
@@ -267,6 +269,7 @@ async function lookAgain(env, shard, vendors) {
         recovered: written.map((r) => r.vendor).sort(),
         still_failing: names(stillFailing),
         gave_up: names(gaveUp),
+        not_written: names(unwritten),
       });
       pending = [...stillFailing, ...unwritten];
     } catch (error) {

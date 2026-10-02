@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-10-02 09:44 AM CDT
+Last updated: 2026-10-02 09:52 AM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -187,10 +187,10 @@ more. Then it stops, and a vendor still failing waits for its batch.
 
 > [!IMPORTANT]
 > A re-look may only **improve** a row. A vendor is written only when it was
-> read **in full**: every feed it needs answered and the adapter understood
-> each one. Otherwise nothing is written. A re-look never writes `unknown`,
-> and a vendor built from several feeds that answered only in part is left as
-> it was.
+> read **whole, from one document per feed**: every feed answered, the adapter
+> understood each one, and no extra document was involved. Otherwise nothing
+> is written. A re-look never writes `unknown`, and a vendor built from
+> several feeds that answered only in part is left as it was.
 
 ```mermaid
 sequenceDiagram
@@ -224,9 +224,9 @@ sequenceDiagram
 | How it is decided | By the engine: `collect()` reports `waitable` and `incomplete` from the failure itself, and `src/engine/relook.js` decides who is a candidate and what a re-look found | Nothing reads a reason string back to work out what happened, and the policy is tested without a Worker |
 | How many re-looks | Two. The first a minute after the batch, the second a minute after the first ends | A feed that stalls is usually back within a minute or two |
 | When there is none at all | The batch ran out of subrequest budget | That is our fault, not the vendors, and such a batch starts no streaks. (A whole batch failing still gets its re-looks: feeds on one host stall together, and two batches hold nothing but Statuspage vendors. An outage on our side costs each batch its two re-looks once) |
-| Who never gets one | Concur, Zscaler and Docusign | Their status comes from several documents that each have a say. A document that fails to fetch is now recorded, but one that answers and is simply empty is not, so a full reading cannot yet be told from a partial one (worklist #132). A re-look that wrote a partial reading could turn a row green on part of the truth |
+| Who never gets one | The 7 vendors that read more than one document: Coalition, Concur, Docusign, Google, Iorad, Stormboard, Zscaler | An extra document (a component list, a catalogue, one per data centre or cloud) can answer and be empty. The adapter then reads from the first document alone and says nothing, so a partial reading looks like a whole one (worklist #132), and a re-look that wrote it could turn a row green on part of the truth. The rule fails closed: the engine records every extra-document fetch (`usedExtraDocuments`), so a vendor that gains one tomorrow is kept out without anyone updating a list. The other 42 vendors, every Statuspage one among them, are read from one document per feed |
 | Where the state lives | In the run's memory | No queue in D1 and no second run racing for the same vendor. An earlier draft did this across runs and needed claims and counters; three review passes found races in it |
-| What a re-look writes | Only vendors read in full, extra documents included (a component list, a catalogue): their row, a history row, the board's counts. Never `unknown`, never the run clock, never a prune | A re-look cannot undo a status; `run_meta.checked_at` keeps meaning "a batch was collected", which `/health` reads; and a run that has waited minutes may hold a vendor list a deploy has since changed |
+| What a re-look writes | Only vendors read whole from one document per feed: their row, a history row, the board's counts. Never `unknown`, never the run clock, never a prune | A re-look cannot undo a status; `run_meta.checked_at` keeps meaning "a batch was collected", which `/health` reads; and a run that has waited minutes may hold a vendor list a deploy has since changed |
 | When a vendor leaves the list | When it is read in full, or when its failure is no longer one that waiting fixes | A stall that has turned into a 404 is not waited out |
 | If a re-look breaks | `collection_alert` / `relook_failed` at ERROR, with the vendors and the look. The next look, if one is left, tries again; a vendor that was read but could not be written keeps its place. The batch is already written | A re-look is a bonus, and a D1 hiccup should not cost a vendor that was just read its recovery |
 | If a re-look runs out of budget | `subrequest_budget_exhausted` at ERROR; its vendors are logged as `not_checked`; no further look | It could not ask everyone, so nothing it read is written |
@@ -236,11 +236,12 @@ may run for 15 minutes and waiting costs no CPU. A healthy batch takes no
 re-look and sets no timer. If the platform ends a waiting run early, the
 vendor simply waits for its batch, as it did before.
 
-Each re-look logs `relook_complete` with the `look` (1 or 2) and four lists,
-always all four: `recovered` (read in full and written), `still_failing`
-(still failing in a way a minute might fix), `gave_up` (not read in full, and
-no longer for a waitable reason; left for the batch) and `not_checked` (our
-own budget ran out before they could be asked). The `history` table gains one row per
+Each re-look logs `relook_complete` with the `look` (1 or 2) and five lists,
+always all five: `recovered` (read whole and written), `still_failing` (still
+failing in a way a minute might fix), `gave_up` (not read whole, and not for a
+waitable reason; left for the batch), `not_written` (read whole, but the
+write failed; they get the next look) and `not_checked` (our own budget ran
+out before they could be asked). The `history` table gains one row per
 recovery and none for a failed re-look, and `vendor_health.failures` still
 counts failed batch checks only.
 
@@ -257,9 +258,9 @@ Known gaps:
   turn. No vendor in `config/vendors.json` uses a fallback today.
 - A vendor is `unknown` on the board from the moment its batch gives up until
   a re-look reads it: about a minute or two, not zero.
-- Concur, Zscaler and Docusign get no re-look at all (see the table above).
-  The same partial-reading problem exists in the normal 15-minute check and
-  is worklist #132.
+- Seven vendors get no re-look at all (see the table above). The same
+  partial-reading problem exists in their normal 15-minute check and is
+  worklist #132.
 - A stall that answers the first re-look with something waiting cannot fix (a
   429, a 404, a page that does not parse) gets no second re-look.
 - A re-look collects all of the batch's failed vendors together, as the batch

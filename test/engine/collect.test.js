@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { collect, readsSeveralVotingDocuments } from '../../src/engine/collect.js';
+import { collect, hasExtraDocuments } from '../../src/engine/collect.js';
 import { SEVERITY } from '../../src/engine/severity.js';
 
 const fixture = (n) => readFileSync(new URL(`../fixtures/${n}`, import.meta.url), 'utf8');
@@ -821,36 +821,65 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
     });
   });
 
-  it('says which configured vendors a full reading cannot yet be told from a partial one for', async () => {
+  it('says which configured vendors read more than one document', async () => {
     const config = JSON.parse(readFileSync(new URL('../../config/vendors.json', import.meta.url), 'utf8'));
-    const flagged = config.vendors.filter((v) => readsSeveralVotingDocuments(v)).map((v) => v.name).sort();
-    // Concur: one document per data centre. Zscaler: one per cloud. Docusign:
-    // components plus incidents. If this list changes, the Worker's re-look
+    const flagged = config.vendors.filter((v) => hasExtraDocuments(v)).map((v) => v.name).sort();
+    // These get no re-look. If this list changes, the Worker's re-look
     // changes with it: check that is what you meant.
-    expect(flagged).toEqual(['Concur', 'Docusign', 'Zscaler']);
-    expect(readsSeveralVotingDocuments({ name: 'Plain', type: 'statuspage', url: 'https://x' })).toBe(false);
-    expect(readsSeveralVotingDocuments(undefined)).toBe(false);
+    expect(flagged).toEqual(['Coalition (Control)', 'Concur', 'Docusign', 'Google', 'Iorad', 'Stormboard', 'Zscaler']);
+    expect(hasExtraDocuments({ name: 'Plain', type: 'statuspage', url: 'https://x' })).toBe(false);
+    expect(hasExtraDocuments(undefined)).toBe(false);
     // A composite is one of them when any of its sources is.
-    expect(readsSeveralVotingDocuments({
+    expect(hasExtraDocuments({
       name: 'Multi',
       type: 'composite',
       sources: [{ type: 'statuspage', url: 'https://a' }, { type: 'zscaler', url: 'https://z', clouds: [] }],
     })).toBe(true);
   });
 
-  it('why those vendors are set apart: an EMPTY data-centre document still counts as read, and Concur reads healthy', async () => {
-    // This is worklist #132, pinned so it cannot be forgotten: when the
-    // adapter reports a partial reading, this test should fail and
-    // readsSeveralVotingDocuments can go.
-    const vendor = { name: 'Concur', type: 'concur-status', url: 'https://c/s1', statusUrls: ['https://c/s1', 'https://c/s2'] };
-    const us2 = fixture('Concur-status-history-us2.json');
-    const partial = await collect(cfg([vendor]), {
-      fetchFn: async (url) => ({ ok: true, status: 200, text: async () => (url === 'https://c/s2' ? '{}' : us2) }),
+  it('usedExtraDocuments is set by the code that fetched the document, read or not, and only then', async () => {
+    const page = (body) => ({ ok: true, status: 200, text: async () => body });
+    const sorry = fixture('Iorad-sorryapp.json');
+    const res = await collect(
+      cfg([
+        { name: 'Plain', type: 'statuspage', url: 'https://plain' },
+        { name: 'ExtraOk', type: 'sorryapp', url: 'https://p1', componentsUrl: 'https://c1' },
+        { name: 'ExtraFails', type: 'sorryapp', url: 'https://p2', componentsUrl: 'https://c2' },
+        { name: 'PrimaryDown', type: 'sorryapp', url: 'https://p3', componentsUrl: 'https://c3' },
+      ]),
+      {
+        fetchFn: async (url) => {
+          if (url === 'https://plain') return page(fixture('GitHub.json'));
+          if (url === 'https://c1') return page('[]');
+          if (url === 'https://c2' || url === 'https://p3') throw new Error('ECONNRESET');
+          return page(sorry);
+        },
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    // PrimaryDown never got as far as its extra document.
+    expect(res.usedExtraDocuments).toEqual(['ExtraOk', 'ExtraFails']);
+  });
+
+  it.each([
+    ['an empty component list (sorryapp)', { name: 'V', type: 'sorryapp', url: 'https://p', componentsUrl: 'https://x' }, 'Iorad-sorryapp.json', '[]'],
+    ['an empty component list (instatus)', { name: 'V', type: 'instatus', url: 'https://p', componentsUrl: 'https://x' }, 'Coalition-instatus.json', '{"components":[]}'],
+    ['an empty data-centre document (concur-status)', { name: 'V', type: 'concur-status', url: 'https://p', statusUrls: ['https://p', 'https://x'] }, 'Concur-status-history-us2.json', '{}'],
+  ])('the hole `incomplete` cannot see, which `usedExtraDocuments` covers: %s', async (_label, vendor, primaryFixture, emptyBody) => {
+    // Worklist #132. The extra document answers 200 and parses, and holds no
+    // status. The adapter falls back to the first document without a word,
+    // so the row is not unknown and `incomplete` is empty. When the adapters
+    // report a partial reading this test should fail, and re-looks can be
+    // given back to the vendors that read more than one document.
+    const primary = fixture(primaryFixture);
+    const res = await collect(cfg([vendor]), {
+      fetchFn: async (url) => ({ ok: true, status: 200, text: async () => (url === 'https://x' ? emptyBody : primary) }),
       now,
       retryDelayMs: 0,
     });
-    expect(partial.records[0].severity).not.toBe(SEVERITY.UNKNOWN);
-    expect(partial.records[0].warnings).toEqual([]);
-    expect(partial.incomplete).toEqual([]);
+    expect(res.records[0].severity).not.toBe(SEVERITY.UNKNOWN);
+    expect(res.incomplete).toEqual([]);
+    expect(res.usedExtraDocuments).toEqual(['V']);
   });
 });

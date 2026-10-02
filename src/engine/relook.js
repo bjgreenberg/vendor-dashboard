@@ -7,44 +7,52 @@
  */
 
 import { SEVERITY } from './severity.js';
-import { readsSeveralVotingDocuments } from './collect.js';
+import { hasExtraDocuments } from './collect.js';
 
 /**
- * The vendors of a batch that may be looked at again.
+ * The vendors of a batch that are worth looking at again.
  *
- * Everyone the batch marked waitable, except the vendors for which a full
- * reading cannot yet be told from a partial one (see
- * readsSeveralVotingDocuments). A re-look that wrote such a vendor could turn
- * a row green on part of the truth.
+ * Everyone the batch marked waitable, except the vendors configured to read
+ * more than one document. A re-look could never write those (see
+ * classifyRelook), so asking them again would spend requests for nothing.
+ * This is a saving, not the safety check.
  *
  * @param {object[]} vendors config entries the batch marked waitable
  * @returns {object[]}
  */
 export function relookCandidates(vendors) {
-  return vendors.filter((v) => !readsSeveralVotingDocuments(v));
+  return vendors.filter((v) => !hasExtraDocuments(v));
 }
 
 /**
  * Sort the vendors of one re-look into what happens to each.
  *
  * THE RULE: a re-look may only improve a row. `recovered` is therefore only
- * the vendors that were read IN FULL (collect() does not list them as
- * `incomplete`) with a real status. The check on the severity is belt and
- * braces: a missing or misnamed `incomplete` must never let an unknown row
- * through.
+ * the vendors read WHOLE, and from ONE document per source:
+ *   - not in `incomplete`: every source answered and was understood;
+ *   - not in `usedExtraDocuments`: no component list, catalogue, data-centre
+ *     or cloud document was involved. Those can answer 200 and be empty, the
+ *     adapters then fall back to the first document, and nothing can tell
+ *     that partial reading from a whole one (worklist #132). This is the
+ *     fail-closed half: an adapter that gains an extra document tomorrow is
+ *     kept out of re-look writes without anyone having to remember a list;
+ *   - a real status: the check on the severity is belt and braces, so a
+ *     missing or misnamed `incomplete` can never let an unknown row through.
  *
- * @param {{records: any[], waitable: string[], incomplete: string[]}} run a collect() result for `pending`
+ * @param {{records: any[], waitable: string[], incomplete: string[], usedExtraDocuments: string[]}} run
+ *   a collect() result for `pending`
  * @param {object[]} pending the config entries that were collected
  * @returns {{recovered: any[], stillFailing: object[], gaveUp: object[]}}
  *   `recovered`: records to write. `stillFailing`: vendors still failing in a
- *   way a minute might fix. `gaveUp`: not read in full, and no longer for a
- *   waitable reason (a stall that became a 404): left for their batch.
+ *   way a minute might fix. `gaveUp`: everything else (a stall that became a
+ *   404, or a reading that cannot be vouched for): left for their batch.
  */
 export function classifyRelook(run, pending) {
   const incomplete = new Set(run.incomplete);
+  const usedExtra = new Set(run.usedExtraDocuments);
   const waitable = new Set(run.waitable);
   const recovered = run.records.filter(
-    (r) => !incomplete.has(r.vendor) && r.severity !== SEVERITY.UNKNOWN,
+    (r) => !incomplete.has(r.vendor) && !usedExtra.has(r.vendor) && r.severity !== SEVERITY.UNKNOWN,
   );
   const read = new Set(recovered.map((r) => r.vendor));
   const rest = pending.filter((v) => !read.has(v.name));

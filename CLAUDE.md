@@ -133,16 +133,20 @@ a future non-Cloudflare deployment possible.
     budget (`collectBatch` returns `[]`). Do NOT add "skip when the whole
     batch failed": Statuspage stalls are correlated and two shards are all
     Statuspage, so that guard skips the case re-looks exist for.
-  - **Never Concur, Zscaler or Docusign** (`readsSeveralVotingDocuments` in
-    the engine, used by `relookCandidates`). `readExtra` catches a document
-    that fails; their adapters still drop one that answers and is EMPTY, so
-    `incomplete` is not the whole truth for them and a re-look could write a
-    partial reading as green. Remove this exclusion only when
-    worklist #132 gives the adapters a "partial" signal; an engine test pins
-    the gap and will fail when it is fixed.
-  - **A re-look only improves a row.** It writes a vendor only when
-    `run.incomplete` does not list it: every source verified and every extra
-    document read. It never writes `unknown`, and a composite that answered
+  - **Never a vendor that reads more than one document** (today Coalition,
+    Concur, Docusign, Google, Iorad, Stormboard, Zscaler). An extra document
+    can answer 200 and be empty; the adapter then reads from the first one
+    alone and says nothing, so a partial reading looks whole (worklist #132).
+    Two layers: `hasExtraDocuments` (config keys) keeps them out of the
+    candidates to save requests, and `classifyRelook` refuses any vendor in
+    `run.usedExtraDocuments`, which `readExtra` sets on every call. The second
+    is the safety and it fails closed: a new adapter that calls `readExtra`
+    is excluded with no list to update. Give these vendors re-looks back only
+    when the adapters report a partial reading; three engine tests pin the
+    hole and will fail when it is closed.
+  - **A re-look only improves a row.** It writes a vendor only when it is in
+    neither `run.incomplete` nor `run.usedExtraDocuments`: every source
+    verified, one document each. It never writes `unknown`, and a composite that answered
     in part is not written, whether the missing source failed waitably or
     not. The policy is `src/engine/relook.js` (pure; keep it out of the
     Worker, per the engine/worker boundary above).
