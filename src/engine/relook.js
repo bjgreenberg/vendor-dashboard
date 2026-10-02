@@ -31,11 +31,12 @@ export function relookCandidates(vendors) {
  * the vendors read WHOLE, and from ONE document per source:
  *   - not in `incomplete`: every source answered and was understood;
  *   - not in `usedExtraDocuments`: no component list, catalogue, data-centre
- *     or cloud document was involved. Those can answer 200 and be empty, the
- *     adapters then fall back to the first document, and nothing can tell
- *     that partial reading from a whole one (worklist #132). This is the
- *     fail-closed half: an adapter that gains an extra document tomorrow is
- *     kept out of re-look writes without anyone having to remember a list;
+ *     or cloud document was involved. This is the fail-closed half: an
+ *     adapter that gains an extra document tomorrow is kept out of re-look
+ *     writes without anyone having to remember a list. It was needed because
+ *     such a document could answer 200, be empty, and pass for read; that
+ *     hole is closed (worklist #132), so `incomplete` alone would now do,
+ *     and dropping this clause is a possible later change, on its own;
  *   - a real status: the check on the severity is belt and braces, so a
  *     missing or misnamed `incomplete` can never let an unknown row through.
  *

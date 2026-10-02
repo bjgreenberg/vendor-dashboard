@@ -24,8 +24,9 @@ import { makeRecord, unknownRecord, toPlainText } from '../record.js';
 function toComponents(list) {
   const byName = new Map();
   for (const c of list) {
-    const name = toPlainText(c?.name ?? '');
-    if (!name) continue;
+    // A component with no usable name still shows and still votes, under a
+    // stand-in name. Dropping it would let its state vanish without a word.
+    const name = toPlainText(c?.name ?? '') || 'Unnamed component';
     const severity = normalizeSeverity(c?.state ?? c?.status);
     const prev = byName.get(name);
     if (!prev || rank(severity) > rank(prev.severity)) {

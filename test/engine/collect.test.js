@@ -783,23 +783,37 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
     const page = (body) => ({ ok: true, status: 200, text: async () => body });
     const failures = [
       ['the fetch throws', async () => { throw new Error('The operation was aborted due to timeout'); }],
-      ['it answers 503 with a JSON body', async () => ({ ok: false, status: 503, text: async () => '{"error":"busy"}' })],
+      // The body is a document that WOULD be a reading. Only the status says
+      // it is not, so this pins the `res.ok` check and not the `usable` one.
+      ['it answers 503 with a well-formed document', async (good) => ({ ok: false, status: 503, text: async () => good })],
       ['it does not parse', async () => page('<html>')],
     ];
     const cases = [
-      ['sorryapp components', { name: 'V', type: 'sorryapp', url: 'https://p', componentsUrl: 'https://x' }, 'Iorad-sorryapp.json'],
-      ['instatus components', { name: 'V', type: 'instatus', url: 'https://p', componentsUrl: 'https://x' }, 'Coalition-instatus.json'],
-      ['docusign incidents', { name: 'V', type: 'docusign', url: 'https://p', incidentsUrl: 'https://x' }, 'Docusign-components.json'],
-      ['a concur-status data centre', { name: 'V', type: 'concur-status', url: 'https://p', statusUrls: ['https://p', 'https://x'] }, 'Concur-status-history-us2.json'],
-      ['a zscaler cloud', { name: 'V', type: 'zscaler', url: 'https://p', clouds: [{ label: 'A', url: 'https://p' }, { label: 'B', url: 'https://x' }] }, 'Zscaler-zdx.json'],
+      // The last column is an extra document that is a reading (null: the
+      // first document's own fixture is one).
+      ['sorryapp components', { name: 'V', type: 'sorryapp', url: 'https://p', componentsUrl: 'https://x' }, 'Iorad-sorryapp.json', '[{"name":"App","state":"operational"}]'],
+      ['instatus components', { name: 'V', type: 'instatus', url: 'https://p', componentsUrl: 'https://x' }, 'Coalition-instatus.json', '{"components":[{"name":"App","status":"OPERATIONAL"}]}'],
+      ['docusign incidents', { name: 'V', type: 'docusign', url: 'https://p', incidentsUrl: 'https://x' }, 'Docusign-components.json', '{"incidents":[]}'],
+      ['a concur-status data centre', { name: 'V', type: 'concur-status', url: 'https://p', statusUrls: ['https://p', 'https://x'] }, 'Concur-status-history-us2.json', null],
+      ['a zscaler cloud', { name: 'V', type: 'zscaler', url: 'https://p', clouds: [{ label: 'A', url: 'https://p' }, { label: 'B', url: 'https://x' }] }, 'Zscaler-zdx.json', null],
     ];
 
-    for (const [label, vendor, primaryFixture] of cases) {
+    for (const [label, vendor, primaryFixture, goodExtra] of cases) {
+      it(`${label}: control -> with the extra document answering 200, the vendor is read in full`, async () => {
+        const primary = fixture(primaryFixture);
+        const res = await collect(cfg([vendor]), {
+          fetchFn: async (url) => page(url === 'https://x' ? (goodExtra ?? primary) : primary),
+          now,
+          retryDelayMs: 0,
+        });
+        expect(res.incomplete).toEqual([]);
+      });
+
       for (const [how, extra] of failures) {
         it(`${label}: ${how} -> the vendor is incomplete, and still has a row`, async () => {
           const primary = fixture(primaryFixture);
           const res = await collect(cfg([vendor]), {
-            fetchFn: async (url) => (url === 'https://x' ? extra() : page(primary)),
+            fetchFn: async (url) => (url === 'https://x' ? extra(goodExtra ?? primary) : page(primary)),
             now,
             retryDelayMs: 0,
           });
@@ -955,12 +969,13 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
     ['an empty component list (sorryapp)', { name: 'V', type: 'sorryapp', url: 'https://p', componentsUrl: 'https://x' }, 'Iorad-sorryapp.json', '[]'],
     ['an empty component list (instatus)', { name: 'V', type: 'instatus', url: 'https://p', componentsUrl: 'https://x' }, 'Coalition-instatus.json', '{"components":[]}'],
     ['an empty data-centre document (concur-status)', { name: 'V', type: 'concur-status', url: 'https://p', statusUrls: ['https://p', 'https://x'] }, 'Concur-status-history-us2.json', '{}'],
-  ])('the hole `incomplete` cannot see, which `usedExtraDocuments` covers: %s', async (_label, vendor, primaryFixture, emptyBody) => {
-    // Worklist #132. The extra document answers 200 and parses, and holds no
-    // status. The adapter falls back to the first document without a word,
-    // so the row is not unknown and `incomplete` is empty. When the adapters
-    // report a partial reading this test should fail, and re-looks can be
-    // given back to the vendors that read more than one document.
+  ])('an extra document that answers and is empty is caught (the hole #132 closed): %s', async (_label, vendor, primaryFixture, emptyBody) => {
+    // The extra document answers 200 and parses, and holds no status. Until
+    // 2026-10-02 the adapter fell back to the first document without a word,
+    // the row was not unknown, and `incomplete` was empty: a partial reading
+    // that looked whole. Every readExtra call now says what a reading looks
+    // like (`usable`, required), so the vendor is `incomplete` and the card
+    // says what is missing.
     const primary = fixture(primaryFixture);
     const res = await collect(cfg([vendor]), {
       fetchFn: async (url) => ({ ok: true, status: 200, text: async () => (url === 'https://x' ? emptyBody : primary) }),
@@ -968,7 +983,12 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
       retryDelayMs: 0,
     });
     expect(res.records[0].severity).not.toBe(SEVERITY.UNKNOWN);
-    expect(res.incomplete).toEqual([]);
+    expect(res.incomplete).toEqual(['V']);
+    expect(res.records[0].warnings[0]).toMatch(/could not be read/);
+    // A status URL with no `data_center` in it is named by its position.
+    if (vendor.type === 'concur-status') {
+      expect(res.records[0].warnings[0]).toBe('1 of 2 data centres could not be read (#2). The status shown is from the other 1.');
+    }
     expect(res.usedExtraDocuments).toEqual(['V']);
   });
 });

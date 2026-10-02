@@ -179,6 +179,36 @@ describe('docusign (health.docusign.com components + incidents feeds)', () => {
     expect(r.description).toBe('');
   });
 
+  it('an incident that carries no status is an unknown vote: it cannot be told from an active one', () => {
+    for (const bad of [{ id: 'b', title: 'Old one', impact: 'available' }, { title: 'Old one', status: null }, null, 'text']) {
+      const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: { incidents: [bad] } }));
+      expect(r.severity, JSON.stringify(bad)).toBe(SEVERITY.UNKNOWN);
+      expect(r.warnings, JSON.stringify(bad)).toEqual(['1 incident in the list carries no status, so it cannot be told from an active one']);
+    }
+  });
+
+  it("many incidents with no status are one warning with a count, and none of the vendor's words", () => {
+    // The dashboard rewrites warnings that contain "timed out", "not found"
+    // and the like into "could not be reached". An incident title can hold
+    // those words, so the warning carries a count and no title.
+    const many = Array.from({ length: 110 }, (_, n) => ({ id: `i${n}`, title: 'Envelope sends timed out; page not found' }));
+    const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: { incidents: many } }));
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.warnings).toEqual(['110 incidents in the list carry no status, so they cannot be told from active ones']);
+  });
+
+  it('an incident with no status does not outrank or hide an active one beside it', () => {
+    const r = parseDocusign(fixture('Docusign-components'), opts({
+      incidents: { incidents: [
+        { id: 'a', title: 'Slow', status: 'investigating', impact: 'performance_degradation', events: [] },
+        { id: 'b', title: 'Old one', status: null },
+      ] },
+    }));
+    expect(r.severity).toBe(SEVERITY.DEGRADED);
+    expect(r.incidentName).toBe('Slow');
+    expect(r.warnings).toEqual(['1 incident in the list carries no status, so it cannot be told from an active one']);
+  });
+
   it('a missing or malformed incidents feed warns but lets the components decide', () => {
     for (const bad of [undefined, null, 'html', {}, { incidents: 'nope' }]) {
       const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: bad }));

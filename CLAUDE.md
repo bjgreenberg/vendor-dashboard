@@ -134,16 +134,18 @@ a future non-Cloudflare deployment possible.
     batch failed": Statuspage stalls are correlated and two shards are all
     Statuspage, so that guard skips the case re-looks exist for.
   - **Never a vendor that reads more than one document** (today Coalition,
-    Concur, Docusign, Google, Iorad, Stormboard, Zscaler). An extra document
-    can answer 200 and be empty; the adapter then reads from the first one
-    alone and says nothing, so a partial reading looks whole (worklist #132).
-    Two layers: `hasExtraDocuments` (config keys) keeps them out of the
-    candidates to save requests, and `classifyRelook` refuses any vendor in
+    Concur, Docusign, Google, Iorad, Stormboard, Zscaler). Two layers:
+    `hasExtraDocuments` (config keys) keeps them out of the candidates to
+    save requests, and `classifyRelook` refuses any vendor in
     `run.usedExtraDocuments`, which `readExtra` sets on every call. The second
     is the safety and it fails closed: a new adapter that calls `readExtra`
-    is excluded with no list to update. Give these vendors re-looks back only
-    when the adapters report a partial reading; three engine tests pin the
-    hole and will fail when it is closed.
+    is excluded with no list to update. The reason was a hole: an extra
+    document could answer 200, be empty, and pass for read. Worklist #132
+    closed it for every document shape each call site checks (2026-10-02;
+    the partial-readings bullet below), so giving these vendors re-looks is
+    possible: drop the `usedExtra` clause in `classifyRelook`
+    and the filter in `relookCandidates`. It was left out of that PR on
+    purpose. Do it as its own change, with its own review.
   - **A re-look only improves a row.** It writes a vendor only when it is in
     neither `run.incomplete` nor `run.usedExtraDocuments`: every source
     verified, one document each. It never writes `unknown`, and a composite that answered
@@ -152,7 +154,8 @@ a future non-Cloudflare deployment possible.
     Worker, per the engine/worker boundary above).
   - **Extra documents go through `readExtra` in `collectOne`.** It is the one
     place that fetches a component list, catalogue, data-centre or cloud
-    document; it checks `res.ok`, parses, and on ANY failure records the
+    document; it checks `res.ok`, parses, asks the call site's `usable`
+    whether the document holds a reading, and on ANY failure records the
     vendor in `incomplete`. Do not add another hand-rolled fetch-and-ignore
     block: six of them, each swallowing its failure, are why a partial
     reading used to look like a full one.
@@ -195,7 +198,68 @@ a future non-Cloudflare deployment possible.
   `relook_failed`, `relook: true`. A run with re-looks lasts up to ~4 min
   (15 min is the platform limit), and its logs arrive when it ends. Tests drive the waits with fake timers
   (`settle()` in `test/worker/scheduled.test.js`); do not add an env knob.
-- **The retry budget is 20, not 10** (same date). Shards 7 and 9 hold seven
+- **A vendor read only in part keeps its verified status and SAYS SO**
+  (worklist #132, Brian's decision 2026-10-02). Seven vendors read more than
+  one document. When an extra one fails, or answers and holds nothing:
+  - The row keeps the status that was verified. `collectOne` puts a note
+    FIRST in the record's warnings, written for a reader ("1 of 4 data
+    centres could not be read (EU2). The status shown is from the other
+    3."); the dashboard shows a record's first warning on the card as it
+    stands, so do not word it for operators and do not let
+    `humanizeWarning` swallow it.
+  - A missing data centre (Concur) or cloud (Zscaler) is an `unknown`
+    component that does NOT vote. For Concur the collector passes
+    `unreadDataCenters` and the adapter appends them after the severity is
+    decided.
+  - **A data centre in config `dataCenters` that holds no reading is an
+    `unknown` VOTE** (Concur: US2, the US vantage point; `dataCenters` means
+    "must be read" for `concur-status`). The row cannot read green or
+    maintenance from the others. It is NOT a veto: anything worse that was
+    verified where a data centre WAS read (trouble there, a displayed banner
+    beside it) outranks unknown and shows, with the collector's note naming
+    US2. With NO data centre read the adapter returns unknown before it
+    looks at the banner (older code, left alone; issue #164). The first draft
+    forced the row to `unknown` and dropped the components; review showed
+    that hid a verified EU outage. Worst wins, as it does for a vendor of
+    several feeds. When the row IS unknown for this reason the card says
+    only that (no "Affected: ..." line under an Unknown badge).
+    **This covers US2 answering 200 with nothing in it. US2 is also the
+    first document: if its fetch fails outright the row is `unknown` and no
+    other data centre is asked**, exactly as for any vendor's first
+    document. That is fail-closed and was left alone.
+  - **`usable` is REQUIRED on every `readExtra` call and has no default.** A
+    document that answers 200 and is empty is the failure nobody notices
+    (`{"success":true}`, `{"components":[]}`, Instatus group headers only).
+    **`usable` judges the DOCUMENT, never each entry.** PR #163 tried
+    `incidents.every(has a status)` for Docusign; review showed one bad old
+    incident then threw away the whole list, an active outage with it. A bad
+    ENTRY is the adapter's job, and it fails that entry closed while keeping
+    the rest: a Docusign incident with no status is an `unknown` vote plus
+    ONE warning with a count and none of the vendor's words (a title holding
+    "timed out" or "not found" would be rewritten by `humanizeWarning`); a
+    SorryApp component with no name shows as `Unnamed component`; a Concur
+    status word nobody knows is `unknown` plus a warning. Not covered: an
+    Instatus list with a `null` entry still throws (row unknown), and
+    SorryApp components vote only while the page reads operational. `isReadableZscalerCloud` is the same function the Zscaler
+    adapter uses; `isReadableConcurDoc` lives beside the Concur adapter,
+    which shows whatever the collector tells it was unread, so the card's
+    count and the unknown components cannot disagree.
+  - Google's product list only supplies names (`part` is `null`): recorded
+    in `incomplete`, no note on the card.
+  - **Concur's banner is fetched for `concur-status`** and a displayed banner
+    floors the row at `degraded` (maintenance included, and a row that would
+    be unknown only for an empty US2); the card shows the banner's English
+    text after any affected services, cut to 300 characters (cut to 1,000
+    BEFORE `toPlainText`, which is quadratic on runs of `<`). Before this it
+    was fetched only
+    for the retired `concur` type, so the floor never fired in production.
+    The predicate is `typeof data.display === 'boolean'` because the adapter
+    tests `=== true`: a string `"true"` must count as unread, not as "off".
+  - Not chosen: `unknown` whenever anything is missing (it would have hidden
+    a verified outage behind a failed component list), and a majority rule
+    for Zscaler (7 of 8 clouds unread still shows the one that was read,
+    with the count on the card).
+- **The retry budget is 20, not 10** (2026-10-01). Shards 7 and 9 hold seven
   and eight feeds and Statuspage stalls are correlated; at 10 the second
   tries ate the budget and most feeds never reached the patient third try.
 - **Retries share a run-wide budget** — the Workers *free* plan caps subrequests

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { renderDashboard, esc, safeUrl, formatChicago, humanizeWarning } from '../../src/worker/render.js';
 
 // Audit finding M4. Every field on this page is third-party content from ~35
@@ -429,6 +430,81 @@ describe('renderDashboard — warnings shown to readers', () => {
     const card = html.slice(html.indexOf('<article'), html.indexOf('</article>'));
     expect(card).not.toContain('vs-warn');
     expect(card).not.toContain('DNS');
+  });
+});
+
+// Worklist #132: a row that could only be read in part keeps its verified
+// status, and the card says what is missing. The engine writes that note for
+// readers and puts it first, because the card shows one warning line.
+describe('renderDashboard — a vendor read only in part', () => {
+  const note = '1 of 4 data centres could not be read (EU2). The status shown is from the other 3.';
+  const record = {
+    vendor: 'Concur', service: 'Concur', severity: 'operational',
+    incidentName: '', description: 'All 11 services report normal.',
+    sourceUrl: 'https://open.concur.com/',
+    components: [
+      { name: 'Expense', severity: 'operational', description: '' },
+      { name: 'Data centre EU2', severity: 'unknown', description: 'Could not be read.' },
+    ],
+    warnings: [note],
+    checkedAt: '2026-10-02T12:00:00.000Z',
+  };
+  const card = () => {
+    const html = renderDashboard({ records: [record], meta: null });
+    return html.slice(html.indexOf('<article'), html.indexOf('</article>'));
+  };
+
+  it('the note reaches the card word for word', () => {
+    expect(humanizeWarning(note)).toBe(note);
+    expect(card()).toContain(`<p class="vs-warn">${note}</p>`);
+  });
+
+  it('the card shows the FIRST warning: the note, not the adapter detail behind it', () => {
+    const html = renderDashboard({
+      records: [{ ...record, warnings: [note, 'cloud "ZDX · zdxcloud.net" returned no readable status', 'incidents.json unavailable; judged on components alone'] }],
+      meta: null,
+    });
+    const article = html.slice(html.indexOf('<article'), html.indexOf('</article>'));
+    expect(article).toContain(`<p class="vs-warn">${note}</p>`);
+    expect(article).not.toContain('zdxcloud');
+    expect(article).not.toContain('incidents.json');
+  });
+
+  it('no configured cloud label or data-centre name trips the rewriting of operator warnings', () => {
+    // humanizeWarning rewrites text containing "abort", "not found", "fetch
+    // failed" and the like. A label containing one would turn the note into
+    // "could not be reached" on an Operational card.
+    const config = JSON.parse(readFileSync(new URL('../../config/vendors.json', import.meta.url), 'utf8'));
+    const labels = [
+      ...config.vendors.find((v) => v.name === 'Zscaler').clouds.map((c) => c.label),
+      ...config.vendors.find((v) => v.name === 'Concur').statusUrls.map((u) => new URL(u).searchParams.get('data_center').toUpperCase()),
+    ];
+    expect(labels).toHaveLength(12);
+    for (const label of labels) {
+      const text = `1 of 8 clouds could not be read (${label}). The status shown is from the other 7.`;
+      expect(humanizeWarning(text), label).toBe(text);
+    }
+  });
+
+  it('the notes for one missing document and for many clouds pass through too', () => {
+    for (const text of [
+      'The component list could not be read. The status shown does not include it.',
+      '7 of 8 clouds could not be read (ZIA · zscalerone.net, ZIA · zscalertwo.net, ZIA · zscalerthree.net, ZIA · zscloud.net and 3 more). The status shown is from the other 1.',
+      "Concur's US2 data centre could not be read, so its status is not shown.",
+      '1 incident in the list carries no status, so it cannot be told from an active one',
+      '110 incidents in the list carry no status, so they cannot be told from active ones',
+      'unrecognised status "wobbly" on "Expense"',
+    ]) {
+      expect(humanizeWarning(text)).toBe(text);
+    }
+  });
+
+  it('the row still reads Operational, and the unread data centre is listed with the affected components', () => {
+    const html = card();
+    expect(html).toContain('vs-card--ok');
+    const affected = html.slice(html.indexOf('<ul class="vs-children">'), html.indexOf('</ul>'));
+    expect(affected).toContain('Data centre EU2');
+    expect(affected).not.toContain('Expense');
   });
 });
 

@@ -23,9 +23,9 @@ import { parseApple } from './adapters/apple.js';
 import { parseOktaAtom } from './adapters/okta.js';
 import { parseSalesforce } from './adapters/salesforce.js';
 import { parseConcur } from './adapters/concur.js';
-import { parseConcurStatus } from './adapters/concur-status.js';
+import { parseConcurStatus, isReadableConcurDoc } from './adapters/concur-status.js';
 import { parseSorryApp } from './adapters/sorryapp.js';
-import { parseBetterStack } from './adapters/betterstack.js';
+import { parseBetterStack, parseBetterStackSections } from './adapters/betterstack.js';
 import { parseMicrosoft, parseMicrosoftFeed, parseMicrosoftConsumer, parseMicrosoftAdminPost } from './adapters/microsoft.js';
 import { parseAzureFeed, parseAzureDevOps, parseAzurePost } from './adapters/azure.js';
 import { parseAws } from './adapters/aws.js';
@@ -33,7 +33,7 @@ import { parseIbmCloud } from './adapters/ibm.js';
 import { parseOracle } from './adapters/oracle.js';
 import { parseMetaStatus } from './adapters/metastatus.js';
 import { parseSignal } from './adapters/signal.js';
-import { parseZscaler } from './adapters/zscaler.js';
+import { parseZscaler, isReadableZscalerCloud } from './adapters/zscaler.js';
 import { parseDocusign } from './adapters/docusign.js';
 
 /** Deadline for every try at a URL but the last. A hung status page must not stall the run. */
@@ -102,9 +102,7 @@ export const DEFAULT_SUBREQUEST_BUDGET = 40;
  * The config keys that name a document beyond a vendor's first one.
  * `collectOne` fetches each of them through `readExtra`, except an entry
  * that IS the vendor's `url` (Concur's first data centre, Zscaler's first
- * cloud): that document is already in hand and is reused. `bannerUrl` is
- * fetched for type `concur` only, although the configured Concur vendor is
- * `concur-status` and sets one: a known gap, tracked in worklist #132.
+ * cloud): that document is already in hand and is reused.
  */
 const EXTRA_DOCUMENT_KEYS = ['componentsUrl', 'incidentsUrl', 'statusUrls', 'clouds', 'bannerUrl'];
 
@@ -125,6 +123,51 @@ const EXTRA_DOCUMENT_KEYS = ['componentsUrl', 'incidentsUrl', 'statusUrls', 'clo
 export function hasExtraDocuments(vendor) {
   const one = (v) => EXTRA_DOCUMENT_KEYS.some((key) => v?.[key] != null);
   return one(vendor) || (Array.isArray(vendor?.sources) && vendor.sources.some(one));
+}
+
+/**
+ * The note a card carries when part of a vendor could not be read
+ * (worklist #132, decided 2026-10-02: the row keeps the status that WAS
+ * verified, and says what is missing).
+ *
+ * Written for a reader, not an operator: the dashboard shows a record's first
+ * warning on the card as it stands.
+ *
+ * @param {{noun: string, total: number, unread: string[]} | null} units the
+ *   vendor's data centres or clouds, when it has them
+ * @param {string[]} singles other documents that could not be read, each as a
+ *   noun phrase ("the component list")
+ * @returns {string} '' when nothing is missing
+ */
+function partialNote(units, singles) {
+  const sentences = [];
+  if (units && units.unread.length > 0) {
+    const k = units.unread.length;
+    const shown = units.unread.slice(0, 4).join(', ');
+    const more = k > 4 ? ` and ${k - 4} more` : '';
+    sentences.push(
+      `${k} of ${units.total} ${units.noun}s could not be read (${shown}${more}). The status shown is from the other ${units.total - k}.`,
+    );
+  }
+  for (const what of singles) {
+    sentences.push(`${what.charAt(0).toUpperCase()}${what.slice(1)} could not be read. The status shown does not include it.`);
+  }
+  return sentences.join(' ');
+}
+
+/**
+ * A data centre's name, from a Concur status_history URL.
+ * @param {string} url
+ * @param {number} index position in `statusUrls`, the fallback name
+ */
+function dataCenterOf(url, index) {
+  try {
+    const dc = new URL(url).searchParams.get('data_center');
+    if (dc) return dc.toUpperCase();
+  } catch {
+    /* not a URL: fall through to the position */
+  }
+  return `#${index + 1}`;
 }
 
 /** Marker so an exhausted budget is reported distinctly from a vendor outage. */
@@ -502,22 +545,33 @@ async function collectOne(vendor, ctx) {
   // EXTRA DOCUMENTS. Some vendors need more than the first one: a component
   // list, a catalogue, one document per data centre or per cloud. A missing
   // one must not sink the vendor (the first document still stands), so every
-  // failure here returns `undefined` rather than throwing. But it is recorded:
-  // the vendor was NOT read in full, and `incomplete` says so. Before this
-  // helper each call site swallowed its own failure silently, so nothing
-  // downstream could tell a full reading from a partial one (worklist #132).
-  //
-  // What `incomplete` still cannot say: a document that answers 200, parses,
-  // and holds no status (an empty component list, an empty sections page).
-  // The adapters fall back to the first document without a word. So a caller
-  // that must be sure a reading is whole should ALSO require that the vendor
-  // read no extra document at all: `usedExtraDocuments`.
+  // failure here returns `undefined` rather than throwing. But it is recorded
+  // twice over: in `incomplete` (the vendor was NOT read in full), and, for a
+  // document that decides or could change the status, on the card, as a note
+  // saying what is missing (worklist #132). Before this helper each call site
+  // swallowed its own failure silently, and Concur read plain green with
+  // three of four data centres unread.
   //
   // "Failed" is any of: the fetch threw, the status was not ok (a 503 with a
-  // JSON body used to be parsed as if it were the document), or the body did
-  // not parse. `usable` lets a call site also reject a document that parsed
-  // but holds nothing it can use.
-  const readExtra = async (url, { parse = JSON.parse, usable = () => true } = {}) => {
+  // JSON body used to be parsed as if it were the document), the body did not
+  // parse, or `usable` says the document holds nothing to read. `usable` is
+  // REQUIRED and has no default: a document that answers 200 and is empty is
+  // the failure nobody notices, so every call site must say what a reading
+  // looks like. A call that forgets it is treated as unread.
+  //
+  // `part` is how a reader would name the document: `{ what: 'the component
+  // list' }`, or `{ unit: 'EU2' }` for one of a vendor's data centres or
+  // clouds. `null` means the document only supplies names and cannot change
+  // the status (Google's product list), so its absence earns no note.
+  const unreadUnits = [];
+  const unreadSingles = [];
+  let units = null; // { noun, total } once a vendor is known to have them
+  const markUnread = (part) => {
+    ctx.incomplete.add(name);
+    if (part?.unit) unreadUnits.push(part.unit);
+    else if (part?.what) unreadSingles.push(part.what);
+  };
+  const readExtra = async (url, part, usable, parse = JSON.parse) => {
     // Recorded on every call, whether or not it succeeds: see
     // `usedExtraDocuments` in collect()'s result.
     ctx.usedExtra.add(name);
@@ -530,9 +584,17 @@ async function collectOne(vendor, ctx) {
       if (!usable(doc)) throw new Error('document had nothing usable');
       return doc;
     } catch {
-      ctx.incomplete.add(name);
+      markUnread(part);
       return undefined;
     }
+  };
+  // The adapter's record, with the note about missing parts put first. An
+  // unknown row keeps its own reason: there is no status for a note to qualify.
+  const finish = (record) => {
+    const note = partialNote(units && { ...units, unread: unreadUnits }, unreadSingles);
+    return note && record.severity !== SEVERITY.UNKNOWN
+      ? { ...record, warnings: [note, ...(record.warnings ?? [])] }
+      : record;
   };
 
   try {
@@ -540,11 +602,17 @@ async function collectOne(vendor, ctx) {
       // BetterStack renders its resource list from a separate /sections
       // fragment; the main page carries no resource names at all.
       if (vendor.type === 'betterstack' && vendor.componentsUrl) {
-        // If it fails, the page-level state still stands.
-        const sections = await readExtra(vendor.componentsUrl, { parse: (text) => text });
+        // If it fails, the page-level state still stands. A fragment that
+        // lists no service at all is not a reading.
+        const sections = await readExtra(
+          vendor.componentsUrl,
+          { what: 'the list of monitored services' },
+          (text) => parseBetterStackSections(text).length > 0,
+          (text) => text,
+        );
         if (sections !== undefined) opts.sections = sections;
       }
-      return TEXT_ADAPTERS[vendor.type](body, opts);
+      return finish(TEXT_ADAPTERS[vendor.type](body, opts));
     }
 
     let payload;
@@ -559,8 +627,13 @@ async function collectOne(vendor, ctx) {
     // if it fails, the page-level status still stands.
     // Google publishes its product catalogue separately from its incidents feed.
     if (vendor.type === 'google' && vendor.componentsUrl) {
-      // The catalogue is advisory; incidents still decide severity.
-      const products = await readExtra(vendor.componentsUrl);
+      // The catalogue is advisory; incidents still decide severity. It only
+      // supplies names, so a missing one earns no note on the card.
+      const products = await readExtra(
+        vendor.componentsUrl,
+        null,
+        (doc) => Array.isArray(doc?.products) && doc.products.length > 0,
+      );
       if (products !== undefined) opts.products = products;
     }
 
@@ -569,16 +642,28 @@ async function collectOne(vendor, ctx) {
     // votes and supplies the card text, but if the fetch fails the components
     // still decide and the parser records a warning (opts.incidents undefined).
     if (vendor.type === 'docusign' && vendor.incidentsUrl) {
-      // If it fails, parseDocusign warns and judges on components alone.
-      const incidents = await readExtra(vendor.incidentsUrl);
+      // If it fails, parseDocusign warns and judges on components alone. An
+      // empty list is a reading (no incidents); a document with no list is
+      // not. A list with a bad entry in it IS read: the parser fails that
+      // entry closed and keeps the rest. Refusing the whole list here would
+      // throw away an active incident standing next to the bad one.
+      const incidents = await readExtra(
+        vendor.incidentsUrl,
+        { what: 'the incident list' },
+        (doc) => Array.isArray(doc?.incidents),
+      );
       if (incidents !== undefined) opts.incidents = incidents;
     }
 
     if (vendor.type === 'instatus' && vendor.componentsUrl) {
-      // If it fails, page.status still decides, on its own.
-      const extra = await readExtra(vendor.componentsUrl, {
-        usable: (doc) => Array.isArray(doc?.components),
-      });
+      // If it fails, page.status still decides, on its own. A list with no
+      // components the parser would count (it skips group headers) is not a
+      // reading.
+      const extra = await readExtra(
+        vendor.componentsUrl,
+        { what: 'the component list' },
+        (doc) => Array.isArray(doc?.components) && doc.components.some((c) => c && !c.isParent),
+      );
       if (extra !== undefined) payload.components = extra.components;
     }
 
@@ -587,11 +672,16 @@ async function collectOne(vendor, ctx) {
     // page-level status and NOTHING underneath, so a reader cannot see what the
     // vendor even covers -- the same gap found on Oracle, IBM and Seismic.
     if (vendor.type === 'sorryapp' && vendor.componentsUrl) {
-      // If it fails, the page state still decides, on its own.
-      const extra = await readExtra(vendor.componentsUrl, {
-        usable: (doc) => Array.isArray(doc) || Array.isArray(doc?.components),
-      });
-      if (extra !== undefined) payload.components = Array.isArray(extra) ? extra : extra.components;
+      // If it fails, the page state still decides, on its own. An empty list
+      // is not a reading. A list with odd entries is read: the parser keeps
+      // every entry (a nameless one under a stand-in name) so none is lost.
+      const listOf = (doc) => (Array.isArray(doc) ? doc : doc?.components);
+      const extra = await readExtra(
+        vendor.componentsUrl,
+        { what: 'the component list' },
+        (doc) => Array.isArray(listOf(doc)) && listOf(doc).length > 0,
+      );
+      if (extra !== undefined) payload.components = listOf(extra);
     }
 
     // concur-status reads one document PER DATA CENTRE and merges them.
@@ -604,18 +694,39 @@ async function collectOne(vendor, ctx) {
     // the same feed at another address (fetchWithFallback), so a document
     // that came from one is still this data centre's; no configured vendor
     // of this type has a fallback, and a config test keeps it that way.
+    //
+    // A data centre that could not be read does not sink the others, and is
+    // not dropped in silence either: it is named to the adapter (which shows
+    // it as an unknown component, and counts it as an unknown vote when it
+    // is one the config requires) and on the card.
     if (vendor.type === 'concur-status' && Array.isArray(vendor.statusUrls)) {
+      units = { noun: 'data centre', total: vendor.statusUrls.length };
       const docs = [];
-      for (const u of vendor.statusUrls) {
+      for (const [i, u] of vendor.statusUrls.entries()) {
+        const part = { unit: dataCenterOf(u, i) };
         if (u === vendor.url) {
-          docs.push(payload);
+          // Already in hand. It answered; whether it holds a reading is the
+          // same question every other data centre is asked.
+          if (isReadableConcurDoc(payload)) docs.push(payload);
+          else markUnread(part);
           continue;
         }
-        // A missing data centre must not sink the others.
-        const doc = await readExtra(u);
+        const doc = await readExtra(u, part, isReadableConcurDoc);
         if (doc !== undefined) docs.push(doc);
       }
       payload = docs;
+      opts.unreadDataCenters = [...unreadUnits];
+    }
+
+    // Concur's banner is its own "something is wrong" flag, and the adapter
+    // treats a displayed one as a floor. Until 2026-10-02 it was fetched only
+    // for the retired `concur` type, so for the configured vendor the floor
+    // never fired.
+    if (vendor.type === 'concur-status' && vendor.bannerUrl) {
+      const banner = await readExtra(vendor.bannerUrl, { what: 'the issue banner' }, (doc) =>
+        typeof doc?.data?.display === 'boolean',
+      );
+      if (banner !== undefined) opts.banner = banner;
     }
 
     // Zscaler publishes one document PER CLOUD, and the document does not name
@@ -626,14 +737,19 @@ async function collectOne(vendor, ctx) {
     // failure is recorded as a null document for the parser to report as
     // unknown-with-warning.
     if (vendor.type === 'zscaler' && Array.isArray(vendor.clouds)) {
+      units = { noun: 'cloud', total: vendor.clouds.length };
       const docs = [];
       for (const cloud of vendor.clouds) {
+        const part = { unit: typeof cloud?.label === 'string' ? cloud.label : 'unnamed cloud' };
         if (cloud?.url === vendor.url) {
+          // Already in hand; counted as unread if it holds no reading. The
+          // parser gets it either way and reports that cloud as unknown.
+          if (!isReadableZscalerCloud(payload)) markUnread(part);
           docs.push({ label: cloud?.label, data: payload });
           continue;
         }
         // A missing cloud is a null document, which the parser reports.
-        const data = await readExtra(cloud?.url);
+        const data = await readExtra(cloud?.url, part, isReadableZscalerCloud);
         docs.push({ label: cloud?.label, data: data === undefined ? null : data });
       }
       payload = docs;
@@ -644,18 +760,20 @@ async function collectOne(vendor, ctx) {
     // while something was broken, and showed nothing at all when healthy.
     if (vendor.type === 'concur' && vendor.componentsUrl) {
       // The catalogue is advisory; incidents still decide severity.
-      const catalogue = await readExtra(vendor.componentsUrl);
+      const catalogue = await readExtra(vendor.componentsUrl, null, (doc) => doc !== null && typeof doc === 'object');
       if (catalogue !== undefined) opts.serviceCatalogue = catalogue;
     }
 
     // Concur needs a second, optional payload; a failed banner must not sink it.
     if (vendor.type === 'concur' && vendor.bannerUrl) {
       // A failed banner must not sink the vendor.
-      const banner = await readExtra(vendor.bannerUrl);
+      const banner = await readExtra(vendor.bannerUrl, { what: 'the issue banner' }, (doc) =>
+        typeof doc?.data?.display === 'boolean',
+      );
       if (banner !== undefined) opts.banner = banner;
     }
 
-    return JSON_ADAPTERS[vendor.type](payload, opts);
+    return finish(JSON_ADAPTERS[vendor.type](payload, opts));
   } catch (error) {
     return unknownRecord(name, `adapter threw: ${error?.message ?? String(error)}`, opts);
   }
@@ -681,11 +799,12 @@ async function collectOne(vendor, ctx) {
  *   listed when any one of its sources is, whatever its row's severity.
  *   `incomplete`: names of the vendors that were NOT read in full — the row
  *   is unknown, a composite has an unverified source, or an extra document
- *   could not be read. One hole remains: an extra document that answers 200
- *   and parses but is EMPTY of status is not detected (worklist #132).
+ *   could not be read. "Could not be read" includes a document that answers
+ *   200, parses, and holds no reading: every readExtra call site says what a
+ *   reading looks like (worklist #132 closed that hole on 2026-10-02).
  *   `usedExtraDocuments`: names of the vendors for which any extra document
  *   was fetched, successfully or not. A vendor in neither list was read whole
- *   from one document per source, with no hole to fall through.
+ *   from one document per source.
  */
 export async function collect(config, ctx) {
   const {
