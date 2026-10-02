@@ -287,7 +287,7 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     expect(relooks()).toHaveLength(2); // both from the first run
     // And the second run says why it took none, so a search for this vendor's
     // re-look finds an answer instead of silence.
-    expect(skipped()).toEqual([{ event: 'relook_skipped', shard: SHARD, multi_document: [], streak_not_new: [own.name] }]);
+    expect(skipped()).toEqual([{ event: 'relook_skipped', shard: SHARD, multi_document: [], no_new_streak: [own.name] }]);
   });
 
   it('a new outage, after a recovery, gets its re-looks again', async () => {
@@ -377,6 +377,13 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     expect(relooks().map(outcome)).toEqual([[1, [], [], [own.name]]]);
     expect((await snap(own.name)).severity).toBe('unknown');
     expect(await history(own.name)).toEqual(['unknown']);
+    // Why it gave up is said once. The row still carries the batch's reason
+    // (a timeout), so without this line nothing anywhere would say "404".
+    const warned = warns.mock.calls.map(([line]) => JSON.parse(line)).filter((w) => w.detail.startsWith(`${own.name}:`));
+    expect(warned).toEqual([
+      { event: 'collection_warning', detail: expect.stringContaining('aborted due to timeout') },
+      { event: 'collection_warning', relook: true, look: 1, detail: `${own.name}: fetch returned HTTP 404` },
+    ]);
   });
 
   it('a healthy batch takes no re-look and sets no timer', async () => {
@@ -492,7 +499,24 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     expect(await health()).toContainEqual({ vendor: zscaler.name, failures: 1 }); // a fresh streak, and still no re-look
     expect(primary).toBe(3);
     expect(relooks().flatMap((e) => [...e.recovered, ...e.still_failing, ...e.gave_up])).not.toContain(zscaler.name);
-    expect(skipped()).toEqual([{ event: 'relook_skipped', shard: shardZ, multi_document: [zscaler.name], streak_not_new: [] }]);
+    expect(skipped()).toEqual([{ event: 'relook_skipped', shard: shardZ, multi_document: [zscaler.name], no_new_streak: [] }]);
+  });
+
+  it('in one batch, some vendors are looked at again and one is left out: both are said', async () => {
+    // Zscaler's batch also holds plain Statuspage vendors. Everything stalls.
+    const zscaler = vendorConfig.vendors.find((v) => v.name === 'Zscaler');
+    const shardZ = [...Array(SHARD_COUNT).keys()].find((i) => selectShard(vendorConfig.vendors, i, SHARD_COUNT).includes(zscaler));
+    const others = selectShard(vendorConfig.vendors, shardZ, SHARD_COUNT).filter((v) => v !== zscaler).map((v) => v.name).sort();
+    expect(others.length).toBeGreaterThan(0);
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('The operation was aborted due to timeout'); }));
+
+    await run({ DB: db }, (SHARD_COUNT + shardZ) * 60_000);
+
+    expect(skipped()).toEqual([{ event: 'relook_skipped', shard: shardZ, multi_document: [zscaler.name], no_new_streak: [] }]);
+    expect(relooks().map(outcome)).toEqual([
+      [1, [], others, []],
+      [2, [], others, []],
+    ]);
   });
 
   it('a batch whose own write fails takes no re-look: its error escapes as before', async () => {

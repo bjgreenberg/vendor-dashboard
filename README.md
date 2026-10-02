@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-10-02 11:31 AM CDT
+Last updated: 2026-10-02 11:41 AM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -247,10 +247,19 @@ counts failed batch checks only.
 
 A vendor that failed waitably and gets no re-look is named on one
 `relook_skipped` line, with the reason: `multi_document` (it reads more than
-one document) or `streak_not_new` (this is not the first failed check of its
-outage). A batch with no waitable failure logs neither line. A re-look does
-not repeat the batch's `collection_warning` lines: it would be the same failed
-fetch said up to twice more, about rows the re-look did not write.
+one document) or `no_new_streak` (no unknown streak began with this batch:
+the vendor was already unknown before it, or its row is not unknown at all,
+as when one feed of a multi-feed vendor stalls and the others are read). A
+batch with no waitable failure logs neither line. Two cases log no
+`relook_skipped`: a batch that ran out of subrequest budget, and a failed
+read of the streaks (`relook_failed`, look 0, names the vendors it asked
+about).
+
+A re-look does not repeat the batch's `collection_warning` for a vendor that
+is still failing: it would be the same failed fetch said up to twice more.
+It does log the warnings of a vendor it gave up on, tagged `relook: true`,
+because that reason is new (a stall that became a 404) and the row still
+carries the batch's.
 
 Known gaps:
 
