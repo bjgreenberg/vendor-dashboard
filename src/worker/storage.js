@@ -163,6 +163,38 @@ export async function writeRun(db, run, options = {}) {
 }
 
 /**
+ * Vendors whose unknown streak has only just begun: the ones worth looking at
+ * again in the next minute's run rather than at their own batch's next turn,
+ * 15 minutes away (worklist #129).
+ *
+ * `failures` counts every unknown write in the streak, re-checks included, so
+ * `failures <= maxFailures` is what bounds the extra looks: a vendor fails in
+ * its own batch (1), is re-checked and fails (2), is re-checked and fails (3),
+ * and from then on is left to its normal 15-minute turn. A vendor that is
+ * really down therefore costs two extra checks per outage, not one a minute.
+ *
+ * Longest-failing first, so a cap cannot starve the vendor that has been on
+ * the board as unknown the longest.
+ *
+ * @param {D1Database} db
+ * @param {number} maxFailures
+ * @param {number} limit
+ * @returns {Promise<string[]>} vendor names
+ */
+export async function readRecheckDue(db, maxFailures, limit) {
+  const rows = await db
+    .prepare(
+      `SELECT vendor FROM vendor_health
+        WHERE failures <= ?
+        ORDER BY failing_since ASC, vendor ASC
+        LIMIT ?`,
+    )
+    .bind(maxFailures, limit)
+    .all();
+  return rows.results.map((r) => r.vendor);
+}
+
+/**
  * Persist the external truth-check's stamp (spec:
  * docs/superpowers/specs/2026-09-05-truth-check-design.md). Single row,
  * upserted; the reader treats an absent row as "never checked" and a stale

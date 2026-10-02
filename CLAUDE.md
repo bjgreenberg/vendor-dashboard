@@ -119,6 +119,19 @@ a future non-Cloudflare deployment possible.
   try logs `fetch_retried_ok` (url, attempt, ms) BEFORE the D1 write; a
   recovered stall leaves no other trace and those `ms` values are the only
   evidence of how long stalls last, so keep the line and its position.
+- **A vendor that just went `unknown` is re-checked by the next minutes'
+  runs** (2026-10-02, worklist #129; `recheckUnknown` in
+  `src/worker/index.js`). Each run, AFTER its own batch is written, collects
+  up to three vendors whose streak is 1 or 2 (`vendor_health.failures`),
+  longest-failing first, in a separate `collect()` with its own budgets and
+  its own `writeRun`. Do not run it beside the batch: a Worker holds six
+  outgoing connections and a stalled re-check would starve healthy feeds
+  whose deadlines are already running. Do not fold the re-checked vendors
+  into the batch's run either: `unknown_rate_high` must keep meaning "this
+  batch failed". It never rejects (it logs `recheck_failed`), and it cannot
+  write green without a verified payload. Consequence: `failures` counts
+  every unknown write in a streak, re-checks included; `failing_since` (what
+  the watchdog reads) is unchanged.
 - **The retry budget is 20, not 10** (same date). Shards 7 and 9 hold seven
   and eight feeds and Statuspage stalls are correlated; at 10 the second
   tries ate the budget and most feeds never reached the patient third try.
@@ -197,7 +210,7 @@ To actually verify a collection:
 
 ```sh
 # 1. The collector's own verdict, unfiltered — NOT --status=error.
-npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|fetch_retried_ok'
+npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|fetch_retried_ok|recheck_complete'
 # 2. The board's aggregate state, over more than one cron cycle.
 curl -s https://briangreenberg.net/service-status/api/status \
   | python3 -c "import sys,json;from collections import Counter;d=json.load(sys.stdin);print(Counter(r['severity'] for r in d['records']))"

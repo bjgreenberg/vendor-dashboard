@@ -9,7 +9,7 @@
 
 import { collect, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
 import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
-import { writeRun, readSnapshot, readMeta, writeTruthCheck } from './storage.js';
+import { writeRun, readSnapshot, readMeta, writeTruthCheck, readRecheckDue } from './storage.js';
 import { siteAssetVersions } from './site-assets.js';
 import { renderLlmsTxt, renderMarkdown } from './llms.js';
 import { agentOf, countFetch, stats as aiFetchStats } from './ai-fetches.js';
@@ -18,6 +18,98 @@ import vendorConfig from '../../config/vendors.json';
 
 /** Must match `triggers.crons` in wrangler.jsonc; shard rotation is derived from it. */
 const CRON_EVERY_MINUTES = 1;
+
+/**
+ * A vendor is re-checked by the next minutes' runs while its unknown streak
+ * is this short. Its own batch records failure 1; two re-checks may record 2
+ * and 3; after that it waits for its normal 15-minute turn.
+ */
+const RECHECK_WHILE_FAILURES_AT_MOST = 2;
+
+/** Most vendors re-checked in one run, longest-failing first. */
+const RECHECK_MAX_VENDORS = 3;
+
+/**
+ * Look again at vendors that have just gone unknown.
+ *
+ * WHY: the patient last try (10 s, 10 s, 25 s) cut unknown checks from 0.41%
+ * to 0.06% in its first 16 hours, but a feed that stalls for longer than
+ * ~46 s is still written `unknown`, and stayed on the board that way until
+ * its batch came round again 15 minutes later. NetSuite and Dropbox both did
+ * on 2026-10-02. Their feeds were answering again within a minute or two.
+ *
+ * So each run also collects the vendors whose streak has only just begun,
+ * whichever batch they belong to. A vendor that answers is written with what
+ * it said and its streak ends. One that fails again stays `unknown`. Nothing
+ * here can turn a row green without a real fetch and a verified payload.
+ *
+ * It is its OWN collect() and its OWN write, run AFTER the batch's, so that:
+ *   - a still-stalled vendor cannot hold back the batch's write for 46 s;
+ *   - it has its own subrequest and retry budgets;
+ *   - the batch's `unknown_rate_high` alert still means "this batch failed";
+ *   - it never competes with the batch for connections. A Worker may hold six
+ *     outgoing connections at once and further fetches queue behind them with
+ *     their deadlines already running, so a stalled re-check run BESIDE the
+ *     batch could have made healthy feeds time out.
+ * The price of "after" is that two minutes' re-checks of the same vendor can
+ * overlap when a batch was itself slow. That is harmless: both are real
+ * checks, the streak count still ends them, and neither can write green
+ * without a verified payload.
+ *
+ * It NEVER rejects: a re-check is a bonus, and a failure in it must not cost
+ * the batch its run. It logs the failure at ERROR instead.
+ *
+ * @param {D1Database} db
+ * @param {object[]} batch this minute's own vendors, which are not re-checked
+ * @param {number} shard
+ */
+async function recheckUnknown(db, batch, shard) {
+  const started = Date.now();
+  try {
+    const inBatch = new Set(batch.map((v) => v.name));
+    const byName = new Map(vendorConfig.vendors.map((v) => [v.name, v]));
+    // Ask for enough rows that dropping this batch's own vendors (and any
+    // name no longer in config) still leaves a full set.
+    const due = await readRecheckDue(
+      db,
+      RECHECK_WHILE_FAILURES_AT_MOST,
+      RECHECK_MAX_VENDORS + inBatch.size + 5,
+    );
+    const vendors = due
+      .filter((name) => byName.has(name) && !inBatch.has(name))
+      .slice(0, RECHECK_MAX_VENDORS)
+      .map((name) => byName.get(name));
+    if (vendors.length === 0) return;
+
+    const run = await collect({ ...vendorConfig, vendors }, { fetchFn: fetch.bind(globalThis) });
+    for (const r of run.retried) {
+      console.log(JSON.stringify({ event: 'fetch_retried_ok', shard, recheck: true, ...r }));
+    }
+    await writeRun(db, run, { knownVendors: vendorConfig.vendors.map((v) => v.name) });
+
+    const names = (wanted) => run.records.filter(wanted).map((r) => r.vendor).sort();
+    console.log(
+      JSON.stringify({
+        event: 'recheck_complete',
+        shard,
+        recovered: names((r) => r.severity !== 'unknown'),
+        still_unknown: names((r) => r.severity === 'unknown'),
+        subrequests: run.subrequests,
+        budget_exhausted: run.budgetExhausted,
+        duration_ms: Date.now() - started,
+      }),
+    );
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: 'collection_alert',
+        shard,
+        alert: 'recheck_failed',
+        detail: String(error?.message ?? error),
+      }),
+    );
+  }
+}
 
 /**
  * Scheduled collection.
@@ -32,6 +124,29 @@ const CRON_EVERY_MINUTES = 1;
  * @param {{DB: D1Database}} env
  */
 async function scheduled(controller, env) {
+  const at = new Date(controller.scheduledTime ?? Date.now());
+  const shard = shardDueAt(at, SHARD_COUNT, CRON_EVERY_MINUTES);
+  const vendors = selectShard(vendorConfig.vendors, shard, SHARD_COUNT);
+
+  // The batch first, then the re-check, even when the batch threw: a failed
+  // batch is no reason to leave another vendor on the board as unknown. The
+  // re-check never rejects, so the batch's own error still escapes (see the
+  // note above on why a thrown run must be visible).
+  try {
+    await collectBatch(env, shard, vendors);
+  } finally {
+    await recheckUnknown(env.DB, vendors, shard);
+  }
+}
+
+/**
+ * Collect, write and self-monitor one batch (shard).
+ *
+ * @param {{DB: D1Database}} env
+ * @param {number} shard
+ * @param {object[]} vendors
+ */
+async function collectBatch(env, shard, vendors) {
   const started = Date.now();
 
   // Collect one shard per invocation. Two free-plan ceilings originally
@@ -40,9 +155,6 @@ async function scheduled(controller, env) {
   // it keeps each invocation tiny, bounds any one vendor's blast radius, and
   // is battle-tested. One invocation covers ~3 vendors; every vendor is still
   // refreshed once per 15 minutes.
-  const at = new Date(controller.scheduledTime ?? Date.now());
-  const shard = shardDueAt(at, SHARD_COUNT, CRON_EVERY_MINUTES);
-  const vendors = selectShard(vendorConfig.vendors, shard, SHARD_COUNT);
 
   // An EMPTY shard is legitimate once vendors can be pinned: pinning the
   // expensive ones elsewhere can leave a slot with nothing hashed into it.

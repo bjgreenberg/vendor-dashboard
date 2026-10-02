@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { writeRun, readSnapshot } from '../../src/worker/storage.js';
+import { writeRun, readSnapshot, readRecheckDue } from '../../src/worker/storage.js';
 import { makeD1, record as rec, runOf as run } from '../helpers/d1.js';
 
 // These tests execute the REAL SQL against REAL SQLite.
@@ -341,5 +341,27 @@ describe('vendor_health — endpoint-rot streak tracking', () => {
     await writeRun(db, run([rec('SendGrid', 'unknown')]));
     await writeRun(db, run([rec('Zoom', 'operational', at('2026-07-31T23:45:00.000Z'))]));
     expect(health().map((r) => r.vendor)).toEqual(['SendGrid']);
+  });
+});
+
+describe('readRecheckDue — vendors whose unknown streak has only just begun', () => {
+  const unknownAt = (vendor, at) => writeRun(db, run([rec(vendor, 'unknown', { checkedAt: at })], { checkedAt: at }));
+
+  it('returns streaks of up to maxFailures, longest-failing first, and no more than the limit', async () => {
+    await unknownAt('Newest', '2026-10-02T12:53:00.000Z');
+    await unknownAt('Oldest', '2026-10-02T12:51:00.000Z');
+    await unknownAt('Middle', '2026-10-02T12:52:00.000Z');
+    for (let i = 0; i < 3; i += 1) await unknownAt('Stuck', '2026-10-02T06:00:00.000Z');
+
+    expect(await readRecheckDue(db, 2, 10)).toEqual(['Oldest', 'Middle', 'Newest']); // Stuck has 3 failures
+    expect(await readRecheckDue(db, 2, 2)).toEqual(['Oldest', 'Middle']);
+    expect(await readRecheckDue(db, 3, 10)).toEqual(['Stuck', 'Oldest', 'Middle', 'Newest']);
+  });
+
+  it('returns nothing on a healthy board, and nothing once a vendor recovers', async () => {
+    expect(await readRecheckDue(db, 2, 10)).toEqual([]);
+    await unknownAt('A', '2026-10-02T12:51:00.000Z');
+    await writeRun(db, run([rec('A', 'operational')]));
+    expect(await readRecheckDue(db, 2, 10)).toEqual([]);
   });
 });

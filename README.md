@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-10-01 02:22 PM CDT
+Last updated: 2026-10-02 08:09 AM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -90,6 +90,8 @@ flowchart TB
     a2 --> norm
     a3 --> norm
     norm --> d1[("D1<br/>snapshot + history<br/>+ vendor_health streaks")]
+    d1 -.->|"streak of 1 or 2"| again["re-check in the next minutes' runs<br/>at most 3 vendors"]
+    again -.-> collect
     d1 --> render["render()<br/>escape on output"]
     render --> page["/service-status"]
     d1 --> api["/api/status<br/>unknownSince per failing vendor"]
@@ -169,6 +171,55 @@ catching a stall, and those `ms` values are the only record of how long real
 stalls last. `attempt: 2` is an ordinary retry. `retried_ok` on
 `collection_complete` is the count.
 
+#### Then the next minutes look again
+
+The patient last try cut `unknown` checks from 0.41% to 0.06% in its first 16
+hours (2 of 3,451). The two that got through were stalls longer than 46
+seconds, and each left its vendor on the board as `unknown` until its batch
+came round again, 15 minutes later, although the feed was answering again
+within a minute or two.
+
+So every run, after its own batch, also collects the vendors whose `unknown`
+streak has **only just begun**, whichever batch they belong to. A vendor that
+answers is written with what it said. One that fails again stays `unknown`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Vendor's own batch (minute M)
+    participant V as Vendor status feed
+    participant D as D1 (snapshot and streak)
+    participant N as Next minutes' runs (M+1, M+2)
+
+    B->>V: three tries (10 s, 10 s, 25 s)
+    V--xB: silent for all three
+    B->>D: write unknown, streak = 1
+    N->>D: whose streak is 1 or 2?
+    D-->>N: this vendor
+    N->>V: three tries again
+    alt the feed answers
+        V-->>N: payload
+        N->>D: write the real status, streak ends
+    else still silent
+        V--xN: no answer
+        N->>D: stays unknown, streak + 1
+        Note over N,D: at streak 3 it waits for its own batch, 15 minutes on
+    end
+```
+
+| Rule | Value | Why |
+|---|---|---|
+| Who is re-checked | Vendors with a streak of 1 or 2 (`vendor_health.failures`) | A vendor that is really down costs two extra checks per outage, not one a minute |
+| How many per run | At most 3, longest-failing first | Bounded cost; the vendor that has waited longest goes first |
+| When in the run | After the batch has been written | A Worker holds six outgoing connections at once; a stalled re-check beside the batch could make healthy feeds time out |
+| What it shares with the batch | Nothing: its own `collect()`, budgets and write | The batch's `unknown_rate_high` alert still means the batch failed |
+| If the re-check itself breaks | Logged as `collection_alert` / `recheck_failed`; the batch is unaffected | A re-check is a bonus |
+
+`vendor_health.failures` therefore counts every `unknown` write in a streak,
+re-checks included. `failing_since`, which the endpoint-rot watchdog reads, is
+untouched. Each re-check run logs `recheck_complete` with the vendors it
+`recovered` and the ones `still_unknown`.
+
 Known gaps:
 
 - The extra documents some vendors need after the first one (Concur's
@@ -180,6 +231,10 @@ Known gaps:
   last and step "last collection" back by a minute until the next run.
 - With a `fallbackUrls` entry, each URL gets the full 10, 10, 25 schedule in
   turn. No vendor in `config/vendors.json` uses a fallback today.
+- A vendor is `unknown` on the board from the moment its batch gives up until
+  a re-check reads it: usually one to two minutes, not zero.
+- When a batch is itself slow, two consecutive minutes can re-check the same
+  vendor at once. Both are real checks and the streak count still ends them.
 
 ### Endpoints
 
@@ -600,6 +655,9 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
 - **The last try waits longer** (10 s, 10 s, then 25 s; 2026-10-01). A stalled
   feed is read late rather than shown `unknown` for 15 minutes, with the same
   three tries. See [When a status feed stalls](#when-a-status-feed-stalls).
+- **A vendor that just went `unknown` is re-checked by the next minutes' runs**
+  (2026-10-02), up to twice, so the card clears in a minute or two when the
+  feed is back rather than at the vendor's next 15-minute turn.
 - **Retries share a run-wide budget** — originally because the free plan
   killed an invocation at 50 subrequests; kept on Workers Paid as a sanity
   bound that turns a retry storm into a loud, bounded failure.
@@ -646,7 +704,8 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
 | Paths 404 right after deploy | Propagation lag. Wait 20–30 s and retest before debugging |
 | Page layout lags a site CSS fix (e.g. header flush to the phone edge) | The page links the site's `/assets/site.css`, which the site serves `immutable` for a year. Since 2026-09-30 the Worker links it with the site's own `?v=<hash>`; if the served HTML shows a plain `/assets/site.css` link, the Worker could not fetch or hash the site's assets — check `wrangler tail` |
 | A vendor shows `unknown` | Read its `warnings` in `/service-status/api/status` — it names the HTTP status or parse failure |
-| A vendor flickers to `unknown` for one cycle with `fetch failed: The operation was aborted due to timeout` | Its feed sent nothing for longer than all three tries, the 25-second last one included. In Workers Logs, filter on `fetch_retried_ok`: lines with `attempt: 3` and `ms` over 10,000 are stalls the patient try caught, and their `ms` values say whether 25 seconds is enough. Many unknowns across platforms in the same minute mean the problem is on our side or the network's |
+| A vendor shows `unknown` for a minute or two, then clears | Its feed was silent for longer than all three tries and a later run read it. In Workers Logs, filter on `recheck_complete`: `recovered` names the vendors a re-check cleared, `still_unknown` the ones it did not |
+| A vendor stays `unknown` for a full cycle with `fetch failed: The operation was aborted due to timeout` | Its feed sent nothing for longer than all three tries, the 25-second last one included. In Workers Logs, filter on `fetch_retried_ok`: lines with `attempt: 3` and `ms` over 10,000 are stalls the patient try caught, and their `ms` values say whether 25 seconds is enough. Many unknowns across platforms in the same minute mean the problem is on our side or the network's |
 | Board reads "No status data" | The cron has not run yet, or is failing. Check `wrangler tail` and `run_meta` in D1 |
 | Want to link to one service's row | Every card has a slug id: `/service-status#cloudflare`, `#1password`. There is no visible `#` glyph (removed 2026-08-03: it was reported twice as a rendering artifact, on touch and on hover) |
 | `fetch-logos.mjs` says REFUSING TO SHIP | The committed manifest lists a logo for a configured vendor and this clone has no file for it — a bot wall refused the download (LinkedIn, NetSuite, OpenAI, SendGrid, Tableau have all done it). A refused download is not vendor removal, so the build stops instead of shipping a shrunken manifest. Restore `assets/icons` from a clone that has the files (the row below), or declare `iconUrl` for that vendor, then re-run |
