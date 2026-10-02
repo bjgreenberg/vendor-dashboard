@@ -157,6 +157,22 @@ describe('scheduled() — one shard collected, written, self-monitored', () => {
     const alerts = errors.mock.calls.map(([line]) => JSON.parse(line));
     expect(alerts.some((a) => a.alert === 'unknown_rate_high')).toBe(true);
   });
+
+  it('takes no re-look when every vendor in the batch failed: that is our network, not theirs', async () => {
+    // Re-collecting the whole batch twice would triple the load in the very
+    // incident, and hold this run's alert lines back for minutes.
+    const fetched = [];
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      fetched.push(url);
+      throw new Error('network down');
+    }));
+
+    await settle(worker.scheduled({ scheduledTime: AT_MS }, { DB: db }));
+
+    for (const v of shardVendors) expect(fetched.filter((u) => u === v.url).length).toBeLessThanOrEqual(3); // one set of tries each
+    const events = logs.mock.calls.map(([line]) => JSON.parse(line));
+    expect(events.some((e) => e.event === 'relook_complete')).toBe(false);
+  });
 });
 
 // Worklist #129, part two. The patient last try cut unknown checks from 0.41%
@@ -171,7 +187,7 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
   const own = shardVendors.find((v) => v.type === 'statuspage' && typeof v.url === 'string' && !v.scope);
   const events = () => logs.mock.calls.map(([line]) => JSON.parse(line));
   const alerts = () => errors.mock.calls.map(([line]) => JSON.parse(line));
-  const relooks = () => events().filter((e) => e.event === 'recheck_complete');
+  const relooks = () => events().filter((e) => e.event === 'relook_complete');
   const outcome = (e) => [e.look, e.recovered, e.still_failing, e.gave_up];
   const health = async () => (await db.prepare('SELECT vendor, failures FROM vendor_health ORDER BY vendor').all()).results;
   const snap = async (name) => db.prepare('SELECT severity, checked_at, warnings FROM snapshot WHERE vendor = ?').bind(name).first();
@@ -215,7 +231,7 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     expect(await history(own.name)).toEqual(['unknown', 'operational']); // the board DID say unknown in between
     expect(events().find((e) => e.event === 'collection_complete')).toMatchObject({ unknown: 1 });
     expect(relooks().map(outcome)).toEqual([[1, [own.name], [], []]]);
-    expect(relooks()[0]).toMatchObject({ event: 'recheck_complete', shard: SHARD });
+    expect(relooks()[0]).toMatchObject({ event: 'relook_complete', shard: SHARD });
   });
 
   it('a feed that comes back two minutes later is read by the second re-look', async () => {
@@ -409,7 +425,7 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     expect(rows).toHaveLength(shardVendors.length); // the batch's write stands
     expect(alerts()).toEqual([
       expect.objectContaining({
-        event: 'collection_alert', recheck: true, alert: 'recheck_failed', look: 1, vendors: [own.name],
+        event: 'collection_alert', relook: true, alert: 'relook_failed', look: 1, vendors: [own.name],
         detail: expect.stringContaining('D1 hiccup'),
       }),
     ]);

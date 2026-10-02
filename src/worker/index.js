@@ -2,7 +2,7 @@
  * Cloudflare Worker entry point.
  *
  * Thin by design: this file wires Cloudflare bindings to the runtime-agnostic
- * engine and does no status logic of its own. Everything that decides whether a
+ * engine and reads no vendor payload itself. Everything that decides whether a
  * vendor is healthy lives in src/engine/ and is unit-tested without a network
  * or a Worker runtime.
  */
@@ -61,7 +61,7 @@ async function scheduled(controller, env) {
  *
  * @param {object[]} vendors
  * @param {number} shard
- * @param {object} [tag] extra fields for the log line, e.g. {recheck: true, look: 1}
+ * @param {object} [tag] extra fields for the log line, e.g. {relook: true, look: 1}
  */
 async function collectLogged(vendors, shard, tag = {}) {
   const run = await collect({ ...vendorConfig, vendors }, { fetchFn: fetch.bind(globalThis) });
@@ -129,8 +129,8 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
 }
 
 /**
- * Look again, a minute later and a minute after that, at the vendors of THIS
- * batch that have just gone unknown because a fetch failed in a way that
+ * Look again, a minute after the batch and a minute after that look ends, at
+ * the vendors of THIS batch that have just gone unknown because a fetch failed in a way that
  * waiting might fix.
  *
  * WHY: the patient last try (10 s, 10 s, 25 s) cut unknown checks from 0.41%
@@ -146,8 +146,9 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
  * no reason text to interpret. An earlier draft did it across runs; three
  * review passes on PR #160 found a lost update, a double claim and a starved
  * queue in it. A scheduled Worker may run for 15 minutes and waiting costs no
- * CPU, so the longest this adds (two waits and two full sets of tries, about
- * four minutes) is affordable. If the platform ends the invocation early, the
+ * CPU, so what this adds is affordable: two waits and two full sets of tries,
+ * about four minutes for a one-document vendor and up to about eight for one
+ * that reads many documents in turn (Zscaler). If the platform ends the invocation early, the
  * vendor simply waits for its batch, as it always did.
  *
  * WHO: a vendor that is `waitable` AND whose unknown streak is one check old
@@ -193,26 +194,36 @@ async function lookAgain(env, shard, vendors) {
     pending = vendors.filter((v) => fresh.has(v.name));
 
     for (look = 1; look <= RELOOKS && pending.length > 0; look += 1) {
-      const tag = { recheck: true, look };
+      const tag = { relook: true, look };
       await new Promise((resolve) => setTimeout(resolve, RELOOK_DELAY_MS));
       const started = Date.now();
       const run = await collectLogged(pending, shard, tag);
       selfMonitor(run, shard, { unknownRate: false, tag });
 
+      const names = (list) => list.map((v) => v.name).sort();
+      if (run.budgetExhausted) {
+        // It could not ask everyone, so nothing it read is written and no
+        // further look is taken. selfMonitor has raised the alert; this line
+        // says which vendors were left unread.
+        console.log(JSON.stringify({ event: 'relook_complete', shard, look, not_checked: names(pending), subrequests: run.subrequests }));
+        return;
+      }
+
       const incomplete = new Set(run.incomplete);
       const stillWaitable = new Set(run.waitable);
-      const recovered = run.budgetExhausted ? [] : run.records.filter((r) => !incomplete.has(r.vendor));
+      // Read in full, and (belt and braces) not unknown: a missing or
+      // misnamed `incomplete` must never let an unknown row be written.
+      const recovered = run.records.filter((r) => !incomplete.has(r.vendor) && r.severity !== 'unknown');
       if (recovered.length > 0) {
         await writeRun(env.DB, { ...run, records: recovered }, { stampRun: false });
       }
 
-      const names = (list) => list.map((v) => v.name).sort();
       const before = pending;
-      pending = run.budgetExhausted ? [] : pending.filter((v) => stillWaitable.has(v.name));
+      pending = pending.filter((v) => stillWaitable.has(v.name));
       const done = new Set([...recovered.map((r) => r.vendor), ...pending.map((v) => v.name)]);
       console.log(
         JSON.stringify({
-          event: 'recheck_complete',
+          event: 'relook_complete',
           shard,
           look,
           // Read in full and written.
@@ -231,9 +242,9 @@ async function lookAgain(env, shard, vendors) {
       JSON.stringify({
         event: 'collection_alert',
         shard,
-        recheck: true,
+        relook: true,
         look,
-        alert: 'recheck_failed',
+        alert: 'relook_failed',
         vendors: (pending.length > 0 ? pending : vendors).map((v) => v.name).sort(),
         detail: String(error?.message ?? error),
       }),
@@ -303,6 +314,17 @@ async function collectBatch(env, shard, vendors) {
   );
 
   selfMonitor(run, shard, { unknownRate: true });
+
+  // Who is worth another look? Nobody, when the trouble is ours:
+  //   - a batch that ran out of subrequest budget is an operator fault, and
+  //     it starts no streaks, so "a streak one check old" would be read from
+  //     an earlier cycle;
+  //   - a batch of two or more in which EVERY vendor failed is our egress or
+  //     DNS, not that many vendors at once. Collecting them all again twice
+  //     would triple the load in the very incident, and hold this run's
+  //     alert lines back for minutes.
+  if (run.budgetExhausted) return [];
+  if (run.total >= 2 && run.unknown === run.total) return [];
   return run.waitable;
 }
 

@@ -121,18 +121,22 @@ a future non-Cloudflare deployment possible.
   try logs `fetch_retried_ok` (url, attempt, ms) BEFORE the D1 write; a
   recovered stall leaves no other trace and those `ms` values are the only
   evidence of how long stalls last, so keep the line and its position.
-- **A run looks again at its own failed vendors, one and two minutes later**
+- **A run looks again at its own failed vendors: a minute after the batch,
+  then a minute after that look ends**
   (2026-10-02, worklist #129; `lookAgain` in `src/worker/index.js`). After
   the batch is written, the same invocation waits `RELOOK_DELAY_MS` (60 s)
   and re-collects; up to `RELOOKS` (2) times. Invariants:
   - **Who:** vendors in the batch's `run.waitable` whose streak is one check
     old (`readNewStreaks`). The streak condition is the cap: an outage gets
     its re-looks once, at its start. Without it a dead vendor is collected
-    three times a cycle for hours.
+    three times a cycle for hours. **Nobody** when the batch ran out of
+    budget, or when every vendor in a batch of two or more failed: that is
+    our fault or our network (`collectBatch` returns `[]`).
   - **A re-look only improves a row.** It writes a vendor only when
-    `run.incomplete` does not list it (every source verified). It never
-    writes `unknown`, and a composite that answered in part is not written,
-    whether the missing source failed waitably or not.
+    `run.incomplete` does not list it: every source verified, and for
+    multi-document vendors (concur-status, zscaler) every document read. It
+    never writes `unknown`, and a composite that answered in part is not
+    written, whether the missing source failed waitably or not.
   - **State stays in the run's memory.** Do NOT rebuild this as a queue in D1
     read by later runs: PR #160 tried that (candidate rows, a claim counter,
     a migration) and three review passes found a lost update, a double claim
@@ -145,11 +149,13 @@ a future non-Cloudflare deployment possible.
     deploy has changed.
   - **Shared `collectLogged` and `selfMonitor`** keep the batch and the
     re-looks from drifting; re-looks pass `unknownRate: false`.
-  - It never rejects (`recheck_failed` at ERROR, with vendors and look); a
+  - It never rejects (`relook_failed` at ERROR, with vendors and look); a
     batch that throws takes no re-look; a budget-exhausted re-look writes
-    nothing and ends the re-looks.
-  A run with re-looks lasts up to ~4 min (15 min is the platform limit), and
-  its logs arrive when it ends. Tests drive the waits with fake timers
+    nothing, logs the vendors as `not_checked` and ends the re-looks.
+  One word everywhere: `lookAgain`, `RELOOKS`, `relook_complete`,
+  `relook_failed`, `relook: true`. A run with re-looks lasts up to ~4 min
+  (~8 for Zscaler; 15 min is the platform limit), and its logs arrive when it
+  ends. Tests drive the waits with fake timers
   (`settle()` in `test/worker/scheduled.test.js`); do not add an env knob.
 - **The retry budget is 20, not 10** (same date). Shards 7 and 9 hold seven
   and eight feeds and Statuspage stalls are correlated; at 10 the second
@@ -229,7 +235,7 @@ To actually verify a collection:
 
 ```sh
 # 1. The collector's own verdict, unfiltered — NOT --status=error.
-npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|fetch_retried_ok|recheck_complete'
+npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|fetch_retried_ok|relook_complete'
 # 2. The board's aggregate state, over more than one cron cycle.
 curl -s https://briangreenberg.net/service-status/api/status \
   | python3 -c "import sys,json;from collections import Counter;d=json.load(sys.stdin);print(Counter(r['severity'] for r in d['records']))"

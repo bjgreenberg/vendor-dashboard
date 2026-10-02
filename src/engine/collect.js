@@ -169,13 +169,18 @@ const TEXT_ADAPTERS = {
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 /**
- * Statuses worth ANOTHER LOOK a minute later (see `waitable` in collect()).
+ * Is this status worth ANOTHER LOOK a minute later (see `waitable` in
+ * collect())?
  *
- * The retryable ones, less 429. A 5xx, a 408 or a 425 is the far end having a
- * bad moment, and a minute is often enough. A 429 is the far end asking us to
- * slow down; coming back a minute later with three more tries is not that.
+ * Any 5xx, a 408 or a 425: the far end, or something in front of it, having a
+ * bad moment, and a minute is often enough. That is wider than
+ * RETRYABLE_STATUS on purpose (a CDN's 520 to 524 are not retried at once,
+ * but they do pass). Not a 429: that is the far end asking us to slow down,
+ * and coming back a minute later with three more tries is not slowing down.
+ *
+ * @param {number} status
  */
-const WAITABLE_STATUS = new Set([...RETRYABLE_STATUS].filter((code) => code !== 429));
+const isWaitableStatus = (status) => status >= 500 || status === 408 || status === 425;
 
 /** Attempts per vendor, including the first. */
 const MAX_ATTEMPTS = 3;
@@ -253,7 +258,7 @@ async function decodeBody(response) {
  * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string, waitable: boolean}>}
  *   `waitable`: the LAST try failed in a way that asking again a minute later
  *   could fix — no answer at all (a network error or a deadline), or a status
- *   in WAITABLE_STATUS. Decided here, from the failure itself, so nothing
+ *   that isWaitableStatus accepts. Decided here, from the failure itself, so nothing
  *   downstream has to read the reason text to find out. Our own exhausted
  *   subrequest budget is worded as a failed fetch but is not the vendor's
  *   doing, and is never waitable.
@@ -293,7 +298,7 @@ async function fetchWithRetry(url, ctx) {
 
       if (response && response.ok === false) {
         lastReason = `fetch returned HTTP ${response.status}`;
-        waitable = WAITABLE_STATUS.has(response.status);
+        waitable = isWaitableStatus(response.status);
         if (RETRYABLE_STATUS.has(response.status)) continue;
         return { ok: false, reason: lastReason, waitable };
       }
@@ -559,7 +564,9 @@ async function collectOne(vendor, ctx) {
           });
           docs.push(JSON.parse(await res.text()));
         } catch {
-          /* a missing data centre must not sink the others */
+          // A missing data centre must not sink the others. But the vendor was
+          // not read in full, and a re-look must not write it as if it were.
+          ctx.incomplete.add(name);
         }
       }
       payload = docs;
@@ -586,6 +593,7 @@ async function collectOne(vendor, ctx) {
           docs.push({ label: cloud?.label, data: JSON.parse(await res.text()) });
         } catch {
           docs.push({ label: cloud?.label, data: null });
+          ctx.incomplete.add(name); // not read in full (see concur-status above)
         }
       }
       payload = docs;
@@ -637,13 +645,14 @@ async function collectOne(vendor, ctx) {
  * @param {() => Date} [ctx.now]
  * @param {number} [ctx.timeoutMs] deadline for each try but the last
  * @param {number} [ctx.lastAttemptTimeoutMs] deadline for the last try; default 2.5x timeoutMs, never shorter than it
- * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[], retried: {url: string, attempt: number, ms: number}[], retriedOk: number, waitable: string[]}>}
+ * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[], retried: {url: string, attempt: number, ms: number}[], retriedOk: number, waitable: string[], incomplete: string[]}>}
  *   `waitable`: names of the vendors whose required fetch failed in a way that
  *   asking again a minute later could fix (see fetchWithRetry). A composite is
  *   listed when any one of its sources is, whatever its row's severity.
- *   `incomplete`: names of the vendors that were NOT fully verified — the row
- *   is unknown, or (a composite) at least one source is. A vendor absent from
- *   this list was read in full.
+ *   `incomplete`: names of the vendors that were NOT read in full — the row
+ *   is unknown, or a composite has an unverified source, or a multi-document
+ *   vendor (Concur's data centres, Zscaler's clouds) is missing a document.
+ *   A vendor absent from this list was read in full.
  */
 export async function collect(config, ctx) {
   const {
@@ -709,7 +718,9 @@ export async function collect(config, ctx) {
   const retried = [];
   // Vendors whose required fetch failed in a way worth another look.
   const waitable = new Set();
-  // Composite vendors with at least one source that could not be verified.
+  // Vendors that were not read in full: a composite with an unverified
+  // source, a multi-document vendor with a document missing, and (added
+  // below) any vendor whose row is unknown.
   const incomplete = new Set();
 
   const settled = await Promise.allSettled(

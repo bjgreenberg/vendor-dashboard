@@ -658,7 +658,9 @@ describe('collect — which vendors are worth another look (waitable)', () => {
     ['a network error or deadline', async () => { throw new Error('ECONNRESET'); }, ['V']],
     ['HTTP 503', status(503), ['V']],
     ['HTTP 504', status(504), ['V']],
+    ['HTTP 520 (a CDN error in front of the vendor)', status(520), ['V']],
     ['HTTP 408', status(408), ['V']],
+    ['HTTP 425', status(425), ['V']],
     ['HTTP 429 (it asked us to slow down)', status(429), []],
     ['HTTP 404 (a retired route)', status(404), []],
     ['HTTP 401', status(401), []],
@@ -770,5 +772,60 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
 
   it('lists nothing when every source of every vendor was verified', async () => {
     expect((await withB(async () => ok())).incomplete).toEqual([]);
+  });
+
+  // Multi-document vendors read one document per data centre or per cloud and
+  // keep going when one is missing. The row can then read healthy with a
+  // document unread, so `incomplete` is the only thing that says so.
+  it('lists a concur-status vendor when one of its data-centre documents could not be read', async () => {
+    const vendor = { name: 'Concur', type: 'concur-status', url: 'https://c/s1', statusUrls: ['https://c/s1', 'https://c/s2'] };
+    const us2 = fixture('Concur-status-history-us2.json');
+    const answer = { ok: true, status: 200, text: async () => us2 };
+
+    const full = await collect(cfg([vendor]), { fetchFn: async () => answer, now, retryDelayMs: 0 });
+    expect(full.records[0].severity).not.toBe(SEVERITY.UNKNOWN);
+    expect(full.incomplete).toEqual([]);
+
+    // One data centre's document stalls. The row still reads from the one
+    // that answered, so it is NOT unknown, and only `incomplete` says a
+    // document went unread.
+    const partial = await collect(cfg([vendor]), {
+      fetchFn: async (url) => {
+        if (url === 'https://c/s2') throw new Error('The operation was aborted due to timeout');
+        return answer;
+      },
+      now,
+      retryDelayMs: 0,
+    });
+    expect(partial.records[0].severity).toBe(full.records[0].severity);
+    expect(partial.incomplete).toEqual(['Concur']);
+  });
+
+  it('lists a zscaler vendor when one of its cloud documents could not be read', async () => {
+    const vendor = {
+      name: 'Zscaler',
+      type: 'zscaler',
+      url: 'https://z/zdx',
+      clouds: [{ label: 'ZDX', url: 'https://z/zdx' }, { label: 'ZPA', url: 'https://z/zpa' }],
+    };
+    const zdx = fixture('Zscaler-zdx.json');
+    const zpa = fixture('Zscaler-zpa.json');
+    const partial = await collect(cfg([vendor]), {
+      fetchFn: async (url) => {
+        if (url === 'https://z/zpa') throw new Error('The operation was aborted due to timeout');
+        return { ok: true, status: 200, text: async () => zdx };
+      },
+      now,
+      retryDelayMs: 0,
+    });
+    expect(partial.incomplete).toEqual(['Zscaler']);
+
+    const full = await collect(cfg([vendor]), {
+      fetchFn: async (url) => ({ ok: true, status: 200, text: async () => (url === 'https://z/zpa' ? zpa : zdx) }),
+      now,
+      retryDelayMs: 0,
+    });
+    expect(full.records[0].severity).not.toBe(SEVERITY.UNKNOWN);
+    expect(full.incomplete).toEqual([]);
   });
 });
