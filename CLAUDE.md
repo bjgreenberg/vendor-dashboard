@@ -141,9 +141,9 @@ a future non-Cloudflare deployment possible.
     is the safety and it fails closed: a new adapter that calls `readExtra`
     is excluded with no list to update. The reason was a hole: an extra
     document could answer 200, be empty, and pass for read. Worklist #132
-    closed it (2026-10-02; the partial-readings bullet below), so
-    `incomplete` can now be trusted for these vendors and giving them
-    re-looks is possible: drop the `usedExtra` clause in `classifyRelook`
+    closed it for every document shape each call site checks (2026-10-02;
+    the partial-readings bullet below), so giving these vendors re-looks is
+    possible: drop the `usedExtra` clause in `classifyRelook`
     and the filter in `relookCandidates`. It was left out of that PR on
     purpose. Do it as its own change, with its own review.
   - **A re-look only improves a row.** It writes a vendor only when it is in
@@ -211,19 +211,31 @@ a future non-Cloudflare deployment possible.
     component that does NOT vote. For Concur the collector passes
     `unreadDataCenters` and the adapter appends them after the severity is
     decided.
-  - **The row is `unknown` when a data centre in config `dataCenters` is the
-    one missing** (Concur: US2, the US vantage point). The others cannot
-    stand in for it. `dataCenters` means "must be read" for `concur-status`.
+  - **A data centre in config `dataCenters` that is missing is an `unknown`
+    VOTE** (Concur: US2, the US vantage point; `dataCenters` means "must be
+    read" for `concur-status`). The row cannot read green or maintenance
+    from the others. It is NOT a veto: trouble verified in another data
+    centre outranks unknown and shows, with the collector's note naming US2.
+    The first draft forced the row to `unknown` and dropped the components;
+    review showed that hid a verified EU outage. Worst wins, as it does for
+    a vendor of several feeds.
   - **`usable` is REQUIRED on every `readExtra` call and has no default.** A
     document that answers 200 and is empty is the failure nobody notices
-    (`{"success":true}`, `{"components":[]}`). `isReadableConcurDoc` and
-    `isReadableZscalerCloud` live in the adapters and are shared with them,
-    so the card's count and the unknown components cannot disagree.
+    (`{"success":true}`, `{"components":[]}`). A predicate must reject what
+    its adapter would silently skip: Instatus group headers, SorryApp entries
+    with no name, a Docusign incident with no status. `isReadableZscalerCloud`
+    is the same function the Zscaler adapter uses; `isReadableConcurDoc`
+    lives beside the Concur adapter, which shows whatever the collector
+    tells it was unread, so the card's count and the unknown components
+    cannot disagree.
   - Google's product list only supplies names (`part` is `null`): recorded
     in `incomplete`, no note on the card.
   - **Concur's banner is fetched for `concur-status`** and a displayed banner
-    floors the row at `degraded`. Before this it was fetched only for the
-    retired `concur` type, so the floor never fired in production.
+    floors a row that has a status at `degraded` (maintenance included); the
+    card shows the banner's English text. Before this it was fetched only
+    for the retired `concur` type, so the floor never fired in production.
+    The predicate is `typeof data.display === 'boolean'` because the adapter
+    tests `=== true`: a string `"true"` must count as unread, not as "off".
   - Not chosen: `unknown` whenever anything is missing (it would have hidden
     a verified outage behind a failed component list), and a majority rule
     for Zscaler (7 of 8 clouds unread still shows the one that was read,

@@ -77,10 +77,13 @@ export function isReadableConcurDoc(doc) {
  * @param {{vendor: string, banner?: any, now?: () => Date, dataCenters?: string[], unreadDataCenters?: string[]}} options
  *   `dataCenters`: the data centres that MUST be read (config; today US2,
  *   because the board judges from the United States). If one of them is among
- *   `unreadDataCenters` the row is unknown: the others cannot stand in for it.
+ *   `unreadDataCenters` it counts as an UNKNOWN vote: the row cannot read
+ *   green or maintenance from the others, and it is unknown unless trouble
+ *   verified in another data centre is worse, in which case that trouble
+ *   shows (worst wins, as for a vendor of several feeds).
  *   `unreadDataCenters`: every data centre the collector could not read. Each
- *   shows as an unknown component and does not vote; the collector puts the
- *   note on the card.
+ *   shows as an unknown component; one that is not required does not vote.
+ *   The collector puts the note on the card.
  * @returns {import('../record.js').StatusRecord}
  */
 export function parseConcurStatus(payloads, options) {
@@ -90,20 +93,22 @@ export function parseConcurStatus(payloads, options) {
   const unread = (Array.isArray(unreadDataCenters) ? unreadDataCenters : []).map(String);
   const required = new Set((Array.isArray(dataCenters) ? dataCenters : []).map((dc) => String(dc).toUpperCase()));
   const missingRequired = unread.filter((dc) => required.has(dc.toUpperCase()));
-  if (missingRequired.length > 0) {
-    // Written for the card: this text is what a reader sees on the row.
-    return unknownRecord(
-      vendor,
-      `Concur's ${missingRequired.join(', ')} data centre could not be read, so its status is not shown.`,
-      opts,
-    );
-  }
+  // Written for the card: when the row is unknown for this reason, this text
+  // is what a reader sees on it.
+  const requiredReason =
+    missingRequired.length > 0
+      ? `Concur's ${
+          missingRequired.length === 1
+            ? missingRequired[0]
+            : `${missingRequired.slice(0, -1).join(', ')} and ${missingRequired.at(-1)}`
+        } data centre${missingRequired.length === 1 ? '' : 's'} could not be read, so its status is not shown.`
+      : null;
 
   const docs = (Array.isArray(payloads) ? payloads : [payloads]).filter(
     (d) => d && typeof d === 'object' && d.data && typeof d.data === 'object',
   );
   if (docs.length === 0) {
-    return unknownRecord(vendor, 'no usable status_history payload', opts);
+    return unknownRecord(vendor, requiredReason ?? 'no usable status_history payload', opts);
   }
 
   /** @type {Map<string, {severity: string, bad: string[]}>} */
@@ -122,7 +127,7 @@ export function parseConcurStatus(payloads, options) {
   }
 
   if (services.size === 0) {
-    return unknownRecord(vendor, 'status_history carried no services', opts);
+    return unknownRecord(vendor, requiredReason ?? 'status_history carried no services', opts);
   }
 
   const components = [...services.entries()]
@@ -137,6 +142,9 @@ export function parseConcurStatus(payloads, options) {
   const severity = worst([
     ...components.map((c) => c.severity),
     bannerActive ? SEVERITY.DEGRADED : SEVERITY.OPERATIONAL,
+    // A required data centre that could not be read is an unknown vote: it
+    // outranks operational and maintenance, and yields to verified trouble.
+    requiredReason ? SEVERITY.UNKNOWN : SEVERITY.OPERATIONAL,
   ]);
 
   return makeRecord({
@@ -147,16 +155,22 @@ export function parseConcurStatus(payloads, options) {
     description: unhealthy.length
       ? `Affected: ${unhealthy.map((c) => c.name).join(', ')}.`
       : bannerActive
-        ? 'Concur is displaying a status banner.'
-        : `All ${components.length} services report normal.`,
+        ? // Concur's own words when it sends them; the render layer escapes.
+          toPlainText(banner?.data?.text?.en) || 'Concur is displaying a status banner.'
+        : requiredReason
+          ? 'Status could not be determined.'
+          : `All ${components.length} services report normal.`,
     sourceUrl: SOURCE_URL,
     // After the services, and after the severity above was decided: a data
-    // centre that could not be read is shown, and does not vote.
+    // centre that could not be read is shown. Only a REQUIRED one votes, and
+    // its vote is already in `severity`.
     components: [
       ...components,
       ...unread.map((dc) => ({ name: `Data centre ${dc}`, severity: SEVERITY.UNKNOWN, description: 'Could not be read.' })),
     ],
-    warnings: [],
+    // When trouble verified elsewhere outranks the unknown, the row has a
+    // status and the collector's note names what is missing instead.
+    warnings: requiredReason && severity === SEVERITY.UNKNOWN ? [requiredReason] : [],
     now,
   });
 }

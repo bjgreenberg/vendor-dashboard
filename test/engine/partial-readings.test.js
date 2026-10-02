@@ -69,14 +69,26 @@ describe('Concur — one document per data centre', () => {
     ]);
   });
 
-  it('the US data centre answers with no status in it: the row is unknown, never judged from the others', async () => {
+  it('the US data centre answers with no status in it: the row is unknown, never green from the others', async () => {
     // `dataCenters: ["US2"]` in config names the one that must be read. The
     // board judges from the United States.
     expect(concur.dataCenters).toEqual(['US2']);
     const { res, row } = await one(concur, fetchBy({ [US2]: '{"success":true}', [concur.bannerUrl]: banner }, healthy));
     expect(row.severity).toBe(SEVERITY.UNKNOWN);
-    expect(row.warnings[0]).toBe("Concur's US2 data centre could not be read, so its status is not shown.");
+    expect(row.description).toBe('Status could not be determined.');
+    expect(row.warnings).toEqual(["Concur's US2 data centre could not be read, so its status is not shown."]);
+    expect(row.components).toContainEqual({ name: 'Data centre US2', severity: SEVERITY.UNKNOWN, description: 'Could not be read.' });
     expect(res.incomplete).toEqual(['Concur']);
+  });
+
+  it('the US data centre unread and an outage verified elsewhere: the outage shows, it is not hidden behind unknown', async () => {
+    // US2 missing counts as an unknown vote, not as a veto. A verified major
+    // outage outranks unknown, as it does for a vendor of several feeds.
+    const down = JSON.stringify({ data: { Expense: { Service: 'Expense', 'Current Status': { status: 'unavailable', incidents: [] } } } });
+    const { row } = await one(concur, fetchBy({ [US2]: '{"success":true}', [EU2]: down, [concur.bannerUrl]: banner }, healthy));
+    expect(row.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(row.warnings[0]).toBe('1 of 4 data centres could not be read (US2). The status shown is from the other 3.');
+    expect(row.components.find((c) => c.name === 'Expense').severity).toBe(SEVERITY.MAJOR_OUTAGE);
   });
 
   it('trouble in a data centre that WAS read still shows, with the note beside it', async () => {
@@ -97,6 +109,7 @@ describe('Concur — one document per data centre', () => {
       expect(calls).toContain(concur.bannerUrl);
       expect(row.severity).toBe(SEVERITY.DEGRADED);
       expect(row.incidentName).toBe('Status banner displayed');
+      expect(row.description).toBe('Issue Alert'); // Concur's own words, not ours
     });
 
     it('a banner that could not be read is said so; the status from the data centres stands', async () => {
@@ -106,8 +119,14 @@ describe('Concur — one document per data centre', () => {
       expect(res.incomplete).toEqual(['Concur']);
     });
 
-    it('a banner document with no display flag is not a reading', async () => {
-      const { row } = await one(concur, fetchBy({ [concur.bannerUrl]: '{"success":true}' }, healthy));
+    it.each([
+      ['no data at all', '{"success":true}'],
+      ['a display flag that is a string', '{"data":{"display":"true"}}'],
+      ['a display flag that is a number', '{"data":{"display":1}}'],
+      ['data with no flag', '{"data":{}}'],
+    ])('a banner document with %s is not a reading', async (_label, body) => {
+      const { row } = await one(concur, fetchBy({ [concur.bannerUrl]: body }, healthy));
+      expect(row.severity).toBe(SEVERITY.OPERATIONAL);
       expect(row.warnings[0]).toBe('The issue banner could not be read. The status shown does not include it.');
     });
 
@@ -147,6 +166,17 @@ describe('Zscaler — one document per cloud', () => {
     );
     expect(row.components.filter((c) => c.severity === SEVERITY.UNKNOWN)).toHaveLength(7);
     expect(res.incomplete).toEqual(['Zscaler']);
+  });
+
+  it('exactly four unread clouds are all named, with no "and 0 more"', async () => {
+    const { row } = await one(zscaler, fetchBy({ [urls[1]]: stall, [urls[2]]: stall, [urls[3]]: stall, [urls[4]]: stall }, healthy));
+    expect(row.warnings[0]).toBe(`4 of 8 clouds could not be read (${labels.slice(1, 5).join(', ')}). The status shown is from the other 4.`);
+  });
+
+  it('a cloud configured with no label is still counted, by a stand-in name', async () => {
+    const two = { name: 'Z', type: 'zscaler', url: 'https://a', clouds: [{ label: 'A', url: 'https://a' }, { url: 'https://b' }] };
+    const { row } = await one(two, fetchBy({ 'https://b': stall }, healthy));
+    expect(row.warnings[0]).toBe('1 of 2 clouds could not be read (unnamed cloud). The status shown is from the other 1.');
   });
 
   it('a cloud that answers 200 with nothing readable in it is counted as unread', async () => {
@@ -196,6 +226,17 @@ describe('vendors with one extra document', () => {
     });
   }
 
+  it.each([
+    ['Coalition (Control)', 'Coalition-instatus.json', '{"components":[{"name":"Group","isParent":true}]}', 'The component list', 'only group headers, which the adapter does not count'],
+    ['Iorad', 'Iorad-sorryapp.json', '[{"id":1,"state":"degraded"},{"id":2}]', 'The component list', 'entries with no name, which the adapter drops'],
+    ['Docusign', 'Docusign-components.json', '{"incidents":[{"title":"x","impact":"service_disruption"}]}', 'The incident list', 'an incident with no status, which the adapter skips'],
+  ])('%s: an extra document the adapter would ignore is not a reading (%s ... %s)', async (name, primaryFixture, body, what) => {
+    const v = vendor(name);
+    const { res, row } = await one(v, fetchBy({ [v.componentsUrl ?? v.incidentsUrl]: body }, fixture(primaryFixture)));
+    expect(row.warnings[0]).toBe(NOTE(what));
+    expect(res.incomplete).toEqual([name]);
+  });
+
   it('Stormboard: a sections fragment that lists a service is a reading, and carries no note', async () => {
     const v = vendor('Stormboard');
     const { res, row } = await one(v, fetchBy({ [v.componentsUrl]: sections }, fixture('Stormboard-betterstack.html')));
@@ -219,10 +260,20 @@ describe('vendors with one extra document', () => {
     expect(res.incomplete).toEqual(['Google']);
   });
 
+  it('Google: an empty product list is not a reading either', async () => {
+    const v = vendor('Google');
+    const { res, row } = await one(v, fetchBy({ [v.componentsUrl]: '{"products":[]}' }, fixture('Google-appsstatus.json')));
+    expect(row.warnings.join(' ')).not.toMatch(/could not be read/);
+    expect(res.incomplete).toEqual(['Google']);
+  });
+
   it('an unknown row carries its own reason, not a note about parts', async () => {
+    // The first document answers but holds no state, and the component list
+    // stalls too. There is no status for a note to qualify.
     const v = vendor('Iorad');
-    const { row } = await one(v, fetchBy({ [v.url]: () => ({ ok: false, status: 404, text: async () => '' }), [v.componentsUrl]: stall }, '{}'));
+    const { res, row } = await one(v, fetchBy({ [v.url]: '{"page":{}}', [v.componentsUrl]: stall }, '{}'));
+    expect(res.usedExtraDocuments).toEqual(['Iorad']); // the extra document WAS asked for
     expect(row.severity).toBe(SEVERITY.UNKNOWN);
-    expect(row.warnings).toEqual(['fetch returned HTTP 404']);
+    expect(row.warnings).toEqual(['payload had no page.state']);
   });
 });

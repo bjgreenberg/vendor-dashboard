@@ -129,16 +129,46 @@ describe('parseConcurStatus — data centres that could not be read', () => {
     expect(r.warnings).toEqual([]); // the note on the card is the collector's
   });
 
-  it('is unknown when a REQUIRED data centre is among them, whatever the others say', () => {
-    const r = parseConcurStatus([doc({ Expense: 'normal' })], {
-      vendor: 'Concur',
-      dataCenters: ['US2'],
-      unreadDataCenters: ['us2'], // matched without regard to case
-      now,
-    });
+  it.each([
+    ['upper case in config, lower from the collector', ['US2'], ['us2']],
+    ['lower case in config, upper from the collector', ['us2'], ['US2']],
+  ])('a REQUIRED data centre among them is an unknown vote: never green from the others (%s)', (_label, dataCenters, unreadDataCenters) => {
+    const r = parseConcurStatus([doc({ Expense: 'normal' })], { vendor: 'Concur', dataCenters, unreadDataCenters, now });
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
-    expect(r.warnings).toEqual(["Concur's us2 data centre could not be read, so its status is not shown."]);
-    expect(r.components).toEqual([]);
+    expect(r.description).toBe('Status could not be determined.');
+    expect(r.incidentName).toBe('');
+    expect(r.warnings).toEqual([`Concur's ${unreadDataCenters[0]} data centre could not be read, so its status is not shown.`]);
+    // What was read is still listed, under the data centre that was not.
+    expect(r.components.map((c) => [c.name, c.severity])).toEqual([
+      ['Expense', SEVERITY.OPERATIONAL],
+      [`Data centre ${unreadDataCenters[0]}`, SEVERITY.UNKNOWN],
+    ]);
+  });
+
+  it('a required data centre unread does not hide trouble verified in another: worst wins, as everywhere else', () => {
+    const r = parseConcurStatus([doc({ Expense: 'unavailable', Travel: 'normal' })], {
+      vendor: 'Concur', dataCenters: ['US2'], unreadDataCenters: ['US2'], now,
+    });
+    expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(r.description).toBe('Affected: Expense.');
+    expect(r.warnings).toEqual([]); // the row has a status; the collector's note names US2
+  });
+
+  it('a required data centre unread and maintenance elsewhere: unknown outranks maintenance', () => {
+    const r = parseConcurStatus([doc({ Expense: 'maintenance' })], { vendor: 'Concur', dataCenters: ['US2'], unreadDataCenters: ['US2'], now });
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.warnings).toHaveLength(1);
+  });
+
+  it('two required data centres unread are both named', () => {
+    const r = parseConcurStatus([doc({ Expense: 'normal' })], { vendor: 'Concur', dataCenters: ['US2', 'USG'], unreadDataCenters: ['US2', 'USG'], now });
+    expect(r.warnings).toEqual(["Concur's US2 and USG data centres could not be read, so its status is not shown."]);
+  });
+
+  it('nothing read at all, with a required data centre unread, says which', () => {
+    const r = parseConcurStatus([], { vendor: 'Concur', dataCenters: ['US2'], unreadDataCenters: ['US2', 'EU2'], now });
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.warnings).toEqual(["Concur's US2 data centre could not be read, so its status is not shown."]);
   });
 
   it('with no required data centre configured, a missing one never makes the row unknown by itself', () => {
@@ -176,6 +206,25 @@ describe('parseConcurStatus — banner floor', () => {
     });
     expect(r.severity).toBe(SEVERITY.DEGRADED);
     expect(r.incidentName).toBe('Status banner displayed');
+    expect(r.description).toBe('Concur is displaying a status banner.');
+  });
+
+  it("shows the banner in Concur's own words when it carries English text", () => {
+    const r = parseConcurStatus([doc({ Expense: 'normal' })], {
+      vendor: 'Concur',
+      banner: { data: { display: true, text: { en: 'Issue Alert – We are <b>investigating</b> an issue.', de: 'Problemwarnung' } } },
+      now,
+    });
+    expect(r.severity).toBe(SEVERITY.DEGRADED);
+    expect(r.description).toBe('Issue Alert – We are investigating an issue.');
+  });
+
+  it.each([
+    ['text that is not a string', { en: 42 }],
+    ['empty text', { en: '   ' }],
+    ['no text at all', undefined],
+  ])('falls back to its own sentence on %s', (_label, text) => {
+    const r = parseConcurStatus([doc({ Expense: 'normal' })], { vendor: 'Concur', banner: { data: { display: true, text } }, now });
     expect(r.description).toBe('Concur is displaying a status banner.');
   });
 

@@ -149,11 +149,8 @@ function partialNote(units, singles) {
       `${k} of ${units.total} ${units.noun}s could not be read (${shown}${more}). The status shown is from the other ${units.total - k}.`,
     );
   }
-  if (singles.length > 0) {
-    const list = singles.length === 1 ? singles[0] : `${singles.slice(0, -1).join(', ')} and ${singles.at(-1)}`;
-    sentences.push(
-      `${list.charAt(0).toUpperCase()}${list.slice(1)} could not be read. The status shown does not include ${singles.length === 1 ? 'it' : 'them'}.`,
-    );
+  for (const what of singles) {
+    sentences.push(`${what.charAt(0).toUpperCase()}${what.slice(1)} could not be read. The status shown does not include it.`);
   }
   return sentences.join(' ');
 }
@@ -646,20 +643,25 @@ async function collectOne(vendor, ctx) {
     // still decide and the parser records a warning (opts.incidents undefined).
     if (vendor.type === 'docusign' && vendor.incidentsUrl) {
       // If it fails, parseDocusign warns and judges on components alone. An
-      // empty list is a reading (no incidents); a document with no list is not.
-      const incidents = await readExtra(vendor.incidentsUrl, { what: 'the incident list' }, (doc) =>
-        Array.isArray(doc?.incidents),
+      // empty list is a reading (no incidents); a document with no list is
+      // not, and neither is one holding an incident with no status, which
+      // the parser would skip without a word.
+      const incidents = await readExtra(
+        vendor.incidentsUrl,
+        { what: 'the incident list' },
+        (doc) => Array.isArray(doc?.incidents) && doc.incidents.every((i) => typeof i?.status === 'string'),
       );
       if (incidents !== undefined) opts.incidents = incidents;
     }
 
     if (vendor.type === 'instatus' && vendor.componentsUrl) {
       // If it fails, page.status still decides, on its own. A list with no
-      // components in it is not a reading.
+      // components the parser would count (it skips group headers) is not a
+      // reading.
       const extra = await readExtra(
         vendor.componentsUrl,
         { what: 'the component list' },
-        (doc) => Array.isArray(doc?.components) && doc.components.length > 0,
+        (doc) => Array.isArray(doc?.components) && doc.components.some((c) => c && !c.isParent),
       );
       if (extra !== undefined) payload.components = extra.components;
     }
@@ -670,12 +672,13 @@ async function collectOne(vendor, ctx) {
     // vendor even covers -- the same gap found on Oracle, IBM and Seismic.
     if (vendor.type === 'sorryapp' && vendor.componentsUrl) {
       // If it fails, the page state still decides, on its own. A list with
-      // no components in it is not a reading.
+      // no component the parser would keep (it drops nameless entries) is not
+      // a reading.
       const listOf = (doc) => (Array.isArray(doc) ? doc : doc?.components);
       const extra = await readExtra(
         vendor.componentsUrl,
         { what: 'the component list' },
-        (doc) => Array.isArray(listOf(doc)) && listOf(doc).length > 0,
+        (doc) => Array.isArray(listOf(doc)) && listOf(doc).some((c) => typeof c?.name === 'string' && c.name.trim() !== ''),
       );
       if (extra !== undefined) payload.components = listOf(extra);
     }

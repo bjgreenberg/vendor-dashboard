@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { renderDashboard, esc, safeUrl, formatChicago, humanizeWarning } from '../../src/worker/render.js';
 
 // Audit finding M4. Every field on this page is third-party content from ~35
@@ -456,6 +457,33 @@ describe('renderDashboard — a vendor read only in part', () => {
   it('the note reaches the card word for word', () => {
     expect(humanizeWarning(note)).toBe(note);
     expect(card()).toContain(`<p class="vs-warn">${note}</p>`);
+  });
+
+  it('the card shows the FIRST warning: the note, not the adapter detail behind it', () => {
+    const html = renderDashboard({
+      records: [{ ...record, warnings: [note, 'cloud "ZDX · zdxcloud.net" returned no readable status', 'incidents.json unavailable; judged on components alone'] }],
+      meta: null,
+    });
+    const article = html.slice(html.indexOf('<article'), html.indexOf('</article>'));
+    expect(article).toContain(`<p class="vs-warn">${note}</p>`);
+    expect(article).not.toContain('zdxcloud');
+    expect(article).not.toContain('incidents.json');
+  });
+
+  it('no configured cloud label or data-centre name trips the rewriting of operator warnings', () => {
+    // humanizeWarning rewrites text containing "abort", "not found", "fetch
+    // failed" and the like. A label containing one would turn the note into
+    // "could not be reached" on an Operational card.
+    const config = JSON.parse(readFileSync(new URL('../../config/vendors.json', import.meta.url), 'utf8'));
+    const labels = [
+      ...config.vendors.find((v) => v.name === 'Zscaler').clouds.map((c) => c.label),
+      ...config.vendors.find((v) => v.name === 'Concur').statusUrls.map((u) => new URL(u).searchParams.get('data_center').toUpperCase()),
+    ];
+    expect(labels).toHaveLength(12);
+    for (const label of labels) {
+      const text = `1 of 8 clouds could not be read (${label}). The status shown is from the other 7.`;
+      expect(humanizeWarning(text), label).toBe(text);
+    }
   });
 
   it('the notes for one missing document and for many clouds pass through too', () => {

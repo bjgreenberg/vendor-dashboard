@@ -142,6 +142,8 @@ describe('isReadableZscalerCloud', () => {
     ['null (the fetch failed)', () => null, false],
     ['no legend', () => reshape((d) => { d.severity = []; }), false],
     ['a legend whose entries carry no tid', () => reshape((d) => { d.severity = [{ name: 'x' }]; }), false],
+    ['a legend whose tids are numbers (the adapter indexes string tids only)', () => reshape((d) => { d.severity = d.severity.map((s) => ({ ...s, tid: Number(s.tid) || 1 })); }), false],
+    ['a category with no subCategory list at all', () => reshape((d) => { d.category = [{ title: 'all' }]; }), false],
     ['no categories', () => reshape((d) => { d.category = []; }), false],
     ['categories that are not a list', () => reshape((d) => { d.category = 'nope'; }), false],
     ['categories with no services under them', () => reshape((d) => { d.category = [{ title: 'all', subCategory: [] }]; }), false],
