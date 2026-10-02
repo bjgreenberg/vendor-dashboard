@@ -53,13 +53,51 @@ export function concurSeverityOf(raw) {
 }
 
 /**
+ * Is this status_history document a reading: does at least one service in it
+ * carry a Current Status?
+ *
+ * A document can answer 200, parse, and hold nothing (`{"success":true}`).
+ * The collector asks this before counting a data centre as read, so that an
+ * empty answer is reported as a data centre that could not be read rather
+ * than merged in as silence (worklist #132).
+ *
+ * @param {any} doc one parsed status_history document
+ * @returns {boolean}
+ */
+export function isReadableConcurDoc(doc) {
+  const data = doc?.data;
+  if (!data || typeof data !== 'object') return false;
+  return Object.values(data).some((entry) => Boolean(entry?.['Current Status']));
+}
+
+/**
  * @param {any} payloads one parsed status_history document per data centre
- * @param {{vendor: string, banner?: any, now?: () => Date}} options
+ *   that was READ. A data centre that could not be read is not in this list;
+ *   it is named in `options.unreadDataCenters`.
+ * @param {{vendor: string, banner?: any, now?: () => Date, dataCenters?: string[], unreadDataCenters?: string[]}} options
+ *   `dataCenters`: the data centres that MUST be read (config; today US2,
+ *   because the board judges from the United States). If one of them is among
+ *   `unreadDataCenters` the row is unknown: the others cannot stand in for it.
+ *   `unreadDataCenters`: every data centre the collector could not read. Each
+ *   shows as an unknown component and does not vote; the collector puts the
+ *   note on the card.
  * @returns {import('../record.js').StatusRecord}
  */
 export function parseConcurStatus(payloads, options) {
-  const { vendor, banner, now } = options ?? {};
+  const { vendor, banner, now, dataCenters, unreadDataCenters } = options ?? {};
   const opts = { now, sourceUrl: SOURCE_URL, service: SERVICE_LABEL };
+
+  const unread = (Array.isArray(unreadDataCenters) ? unreadDataCenters : []).map(String);
+  const required = new Set((Array.isArray(dataCenters) ? dataCenters : []).map((dc) => String(dc).toUpperCase()));
+  const missingRequired = unread.filter((dc) => required.has(dc.toUpperCase()));
+  if (missingRequired.length > 0) {
+    // Written for the card: this text is what a reader sees on the row.
+    return unknownRecord(
+      vendor,
+      `Concur's ${missingRequired.join(', ')} data centre could not be read, so its status is not shown.`,
+      opts,
+    );
+  }
 
   const docs = (Array.isArray(payloads) ? payloads : [payloads]).filter(
     (d) => d && typeof d === 'object' && d.data && typeof d.data === 'object',
@@ -112,7 +150,12 @@ export function parseConcurStatus(payloads, options) {
         ? 'Concur is displaying a status banner.'
         : `All ${components.length} services report normal.`,
     sourceUrl: SOURCE_URL,
-    components,
+    // After the services, and after the severity above was decided: a data
+    // centre that could not be read is shown, and does not vote.
+    components: [
+      ...components,
+      ...unread.map((dc) => ({ name: `Data centre ${dc}`, severity: SEVERITY.UNKNOWN, description: 'Could not be read.' })),
+    ],
     warnings: [],
     now,
   });

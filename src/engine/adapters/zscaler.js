@@ -54,6 +54,27 @@ function impactingSeverity(name) {
 }
 
 /**
+ * Is this cloud document a reading: a legend, and at least one service under
+ * its categories?
+ *
+ * One definition, used twice: by parseZscaler to decide whether a cloud was
+ * verified, and by the collector to decide whether the cloud counts as read
+ * (so that the card can say how many were not; worklist #132).
+ *
+ * @param {any} doc one parsed cloud-status document, or null
+ * @returns {boolean}
+ */
+export function isReadableZscalerCloud(doc) {
+  const payload = doc?.data;
+  const legend = (Array.isArray(payload?.severity) ? payload.severity : []).filter((s) => s && typeof s.tid === 'string');
+  const categories = Array.isArray(payload?.category) ? payload.category : [];
+  // A category envelope with no services under it verified nothing — a
+  // reshaped payload must not read green just because it parsed.
+  const services = categories.reduce((n, cat) => n + (Array.isArray(cat?.subCategory) ? cat.subCategory.length : 0), 0);
+  return legend.length > 0 && services > 0;
+}
+
+/**
  * Parse the per-cloud Trust portal documents into one status record.
  *
  * @param {{label: string, data: any}[]} cloudDocs one entry per configured
@@ -97,31 +118,28 @@ export function parseZscaler(cloudDocs, options) {
     const label = typeof entry?.label === 'string' ? entry.label : 'unnamed cloud';
     const payload = entry?.data?.data;
 
-    // The legend ships in every document; index it by tid.
-    const legend = new Map();
-    for (const s of Array.isArray(payload?.severity) ? payload.severity : []) {
-      if (s && typeof s.tid === 'string') legend.set(s.tid, s);
-    }
-
-    const categories = Array.isArray(payload?.category) ? payload.category : null;
-    if (!categories || categories.length === 0 || legend.size === 0) {
-      // Fetch failure, reshape, or a legend we cannot read — this cloud was
-      // NOT verified. It shows as unknown and warns, but does not vote: the
-      // clouds that WERE verified still decide the row, mirroring how scoped
-      // Statuspage vendors judge on matched components while warning about
-      // missing ones.
+    if (!isReadableZscalerCloud(entry?.data)) {
+      // Fetch failure, reshape, a legend we cannot read, or categories with
+      // no services under them — this cloud was NOT verified. It shows as
+      // unknown and warns, but does not vote: the clouds that WERE verified
+      // still decide the row, mirroring how scoped Statuspage vendors judge
+      // on matched components while warning about missing ones.
       components.push({ name: label, severity: SEVERITY.UNKNOWN });
       warnings.push(`cloud "${label}" returned no readable status`);
       continue;
     }
 
+    // The legend ships in every document; index it by tid.
+    const legend = new Map();
+    for (const s of payload.severity) {
+      if (s && typeof s.tid === 'string') legend.set(s.tid, s);
+    }
+
     const cloudVotes = [];
     const detail = [];
-    let servicesSeen = 0;
 
-    for (const cat of categories) {
+    for (const cat of payload.category) {
       const subs = Array.isArray(cat?.subCategory) ? cat.subCategory : [];
-      servicesSeen += subs.length;
       for (const sub of subs) {
         const events = Array.isArray(sub?.category_status) ? sub.category_status : [];
         for (const ev of events) {
@@ -166,14 +184,6 @@ export function parseZscaler(cloudDocs, options) {
           if (!firstIncident) firstIncident = title;
         }
       }
-    }
-
-    // A category envelope with no services under it verified nothing — a
-    // reshaped payload must not read green just because it parsed.
-    if (servicesSeen === 0) {
-      components.push({ name: label, severity: SEVERITY.UNKNOWN });
-      warnings.push(`cloud "${label}" returned no readable status`);
-      continue;
     }
 
     const cloudSeverity = cloudVotes.length > 0 ? worst(cloudVotes) : SEVERITY.OPERATIONAL;

@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-10-02 11:53 AM CDT
+Last updated: 2026-10-02 12:01 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -32,6 +32,7 @@ Live at **<https://briangreenberg.net/service-status>**.
 
 - [Why it exists](#why-it-exists)
 - [How it works](#how-it-works)
+  - [When part of a vendor could not be read](#when-part-of-a-vendor-could-not-be-read)
 - [Configuring vendors](#configuring-vendors)
 - [Project structure](#project-structure)
 - [Development](#development)
@@ -224,7 +225,7 @@ sequenceDiagram
 | How it is decided | By the engine: `collect()` reports `waitable` and `incomplete` from the failure itself, and `src/engine/relook.js` decides who is a candidate and what a re-look found | Nothing reads a reason string back to work out what happened, and the policy is tested without a Worker |
 | How many re-looks | Two. The first a minute after the batch, the second a minute after the first ends | A feed that stalls is usually back within a minute or two |
 | When there is none at all | The batch ran out of subrequest budget | That is our fault, not the vendors, and such a batch starts no streaks. (A whole batch failing still gets its re-looks: feeds on one host stall together, and two batches hold nothing but Statuspage vendors. An outage on our side costs each batch its two re-looks once) |
-| Who never gets one | The 7 vendors that read more than one document: Coalition, Concur, Docusign, Google, Iorad, Stormboard, Zscaler | An extra document (a component list, a catalogue, one per data centre or cloud) can answer and be empty. The adapter then reads from the first document alone and says nothing, so a partial reading looks like a whole one (worklist #132), and a re-look that wrote it could turn a row green on part of the truth. The rule fails closed: the engine records every extra-document fetch (`usedExtraDocuments`), so a vendor that gains one tomorrow is kept out without anyone updating a list. The other 42 vendors, every Statuspage one among them, are read from one document per feed |
+| Who never gets one | The 7 vendors that read more than one document: Coalition, Concur, Docusign, Google, Iorad, Stormboard, Zscaler | A re-look must only write a vendor read whole, and until 2026-10-02 an extra document could answer, be empty, and pass for read. That hole is closed (see [When part of a vendor could not be read](#when-part-of-a-vendor-could-not-be-read)), but these seven are still left out: giving them re-looks is its own change, to be reviewed on its own. The rule fails closed: the engine records every extra-document fetch (`usedExtraDocuments`), so a vendor that gains one tomorrow is kept out without anyone updating a list. The other 42 vendors, every Statuspage one among them, are read from one document per feed |
 | Where the state lives | In the run's memory | No queue in D1 and no second run racing for the same vendor. An earlier draft did this across runs and needed claims and counters; three review passes found races in it |
 | What a re-look writes | Only vendors read whole from one document per feed: their row, a history row, the board's counts. Never `unknown`, never the run clock, never a prune | A re-look cannot undo a status; `run_meta.checked_at` keeps meaning "a batch was collected", which `/health` reads; and a run that has waited minutes may hold a vendor list a deploy has since changed |
 | When a vendor leaves the list | When it is read in full, or when its failure is no longer one that waiting fixes | A stall that has turned into a 404 is not waited out |
@@ -279,9 +280,8 @@ Known gaps:
   turn. No vendor in `config/vendors.json` uses a fallback today.
 - A vendor is `unknown` on the board from the moment its batch gives up until
   a re-look reads it: about a minute or two, not zero.
-- Seven vendors get no re-look at all (see the table above). The same
-  partial-reading problem exists in their normal 15-minute check and is
-  worklist #132.
+- Seven vendors get no re-look at all (see the table above). Their normal
+  15-minute check now says when it read them only in part.
 - A stall that answers the first re-look with something waiting cannot fix (a
   429, a 404, a page that does not parse) gets no second re-look.
 - A re-look collects all of the batch's failed vendors together, as the batch
@@ -299,6 +299,68 @@ Known gaps:
   seconds to finish. A run caught in its one-minute wait is ended there. The
   batch was already written, so the board is right; whether that run's log
   lines survive is not established.
+
+### When part of a vendor could not be read
+
+Seven vendors are read from more than one document: one per data centre
+(Concur), one per cloud (Zscaler), or a second document that carries the
+component list or the incident list. Any of those can fail on its own, or
+answer and hold nothing.
+
+> [!IMPORTANT]
+> The row keeps the status that **was** verified, and the card says what is
+> missing. A data centre or cloud that could not be read shows as an `unknown`
+> component and does not vote. The row is `unknown` when the part that is
+> missing is one the status cannot be judged without: the first document, or a
+> data centre the config names as required (`dataCenters`; for Concur, US2,
+> because the board judges from the United States).
+
+Before 2026-10-02 a missing document was dropped without a word. Concur read
+plain `operational` with three of its four data centres unread, and nothing on
+the card said so.
+
+```mermaid
+flowchart TD
+    first["First document<br/>3 tries: 10 s, 10 s, 25 s"] -->|"no answer"| unk["Row: unknown"]
+    first -->|"answers"| extra["Each extra document<br/>1 try, 10 s"]
+    extra --> q{"Did it answer,<br/>and does it hold a reading?"}
+    q -->|"yes, all of them"| whole["Row: the verified status<br/>no note"]
+    q -->|"no"| req{"Is it a data centre<br/>the config requires?"}
+    req -->|"yes (Concur US2)"| unk
+    req -->|"no"| part["Row: the verified status<br/>Card: what could not be read<br/>Missing data centre or cloud: unknown component"]
+```
+
+| Vendor | Extra documents | What the card says when one is missing |
+|---|---|---|
+| Concur | One per data centre (US2, EU2, APJ1, USG), and its issue banner | `1 of 4 data centres could not be read (EU2). The status shown is from the other 3.` plus an unknown `Data centre EU2` component. US2 missing: the row is `unknown`. Banner missing: `The issue banner could not be read. The status shown does not include it.` |
+| Zscaler | One per cloud (8) | `7 of 8 clouds could not be read (… and 3 more). The status shown is from the other 1.` Each unread cloud is an unknown component |
+| Coalition, Iorad | The component list | `The component list could not be read. The status shown does not include it.` |
+| Stormboard | The list of monitored services | The same, naming that list |
+| Docusign | The incident list (an active incident votes) | `The incident list could not be read. The status shown does not include it.` |
+| Google | The product list | Nothing. That list only supplies names; incidents decide the status |
+
+"Holds a reading" is checked for every extra document, not only "answered and
+parsed": a data centre with no service status in it, a component list with no
+components, a cloud document with no legend or no services. Each call site has
+to say what a reading looks like (`usable` in `readExtra`,
+`src/engine/collect.js`); there is no default, so a new extra document cannot
+skip the question.
+
+Concur's issue banner is its own "something is wrong" flag. A displayed banner
+is a floor: the row reads at least `degraded`. Until 2026-10-02 the banner was
+never fetched for the configured vendor, so that floor did not exist in
+production.
+
+The note is the record's first warning, written for a reader, and the
+dashboard shows it on the card as it stands. `/service-status/api/status`
+carries the same text, and `collect()` lists the vendor in `incomplete`.
+
+> [!WARNING]
+> Nothing files an issue for a partial reading that lasts. The endpoint-rot
+> watchdog watches rows that are `unknown`; a row that keeps its status with
+> one data centre missing for days is visible on the card, in
+> `/service-status/api/status` and as a `collection_warning` log line each
+> cycle, and nowhere else.
 
 ### Endpoints
 
@@ -438,8 +500,10 @@ codebase serve different deployments with different configs.
 | `url` | The status endpoint |
 | `scope` | Optional. Restrict which components count, by `groups` or exact `components` names |
 | `scope.regionGroups` | Optional. `{ "GroupName": ["US East", …] }` — for a group whose leaves are geographies, only the listed ones vote on severity. The rest display (prefixed with the group name) but do not vote, per the US vantage point |
-| `dataCenters` | Concur only — restrict to named data centres |
-| `bannerUrl` | Concur only — its secondary "something is wrong" signal |
+| `statusUrls` | Concur only — one status document per data centre; the first is also `url` |
+| `dataCenters` | Concur only — the data centres that **must** be read. If one of them cannot be, the row is `unknown`; any other missing data centre leaves the verified status in place with a note on the card |
+| `bannerUrl` | Concur only — its "something is wrong" banner. A displayed banner floors the row at `degraded`; an unreadable one is noted on the card |
+| `clouds` | Zscaler only — one `{label, url}` per cloud; the first is also `url` |
 | `incidentsUrl` | Docusign only — health.docusign.com keeps its incident list on a second document; advisory, an active incident votes and supplies the card text |
 
 **Scoping matters more than it looks.** Cloudflare publishes ~470 components,
@@ -770,6 +834,7 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
 | Paths 404 right after deploy | Propagation lag. Wait 20–30 s and retest before debugging |
 | Page layout lags a site CSS fix (e.g. header flush to the phone edge) | The page links the site's `/assets/site.css`, which the site serves `immutable` for a year. Since 2026-09-30 the Worker links it with the site's own `?v=<hash>`; if the served HTML shows a plain `/assets/site.css` link, the Worker could not fetch or hash the site's assets — check `wrangler tail` |
 | A vendor shows `unknown` | Read its `warnings` in `/service-status/api/status` — it names the HTTP status or parse failure |
+| A card reads Operational with a line such as "1 of 4 data centres could not be read" | Part of that vendor did not answer, or answered with nothing in it. The status is from the parts that were read; the missing data centre or cloud is listed as an unknown component. It clears by itself at the vendor's next check if the document is back. If it stays for hours, fetch the vendor's extra URLs from `config/vendors.json` by hand |
 | A vendor shows `unknown` for a minute or two, then clears | Its feed was silent for longer than all three tries and the same run read it on a re-look. In Workers Logs, filter on `relook_complete`: `recovered` lists the cards a re-look cleared, `still_failing` and `gave_up` the ones it did not. A vendor that got no re-look is on a `relook_skipped` line with the reason |
 | A vendor stays `unknown` for a full cycle with `fetch failed: The operation was aborted due to timeout` | Its feed sent nothing for longer than all three tries, the 25-second last one included. In Workers Logs, filter on `fetch_retried_ok`: lines with `attempt: 3` and `ms` over 10,000 are stalls the patient try caught, and their `ms` values say whether 25 seconds is enough. Many unknowns across platforms in the same minute mean the problem is on our side or the network's |
 | Board reads "No status data" | The cron has not run yet, or is failing. Check `wrangler tail` and `run_meta` in D1 |

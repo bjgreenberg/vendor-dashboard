@@ -535,10 +535,9 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
   });
 
   it('leaves alone a vendor that reads more than one document', async () => {
-    // Zscaler reads one document per cloud. A document can answer and be
-    // empty, and the adapter then reads from the rest without a word, so a
-    // partial reading looks like a whole one (worklist #132). A re-look that
-    // wrote it could turn a row green on part of the truth, so it gets none.
+    // Zscaler reads one document per cloud. Vendors that read more than one
+    // document get no re-look (see CLAUDE.md: the hole that made it unsafe is
+    // closed, and giving them re-looks is left as its own change).
     const zscaler = vendorConfig.vendors.find((v) => v.name === 'Zscaler');
     const shardZ = [...Array(SHARD_COUNT).keys()].find((i) => selectShard(vendorConfig.vendors, i, SHARD_COUNT).includes(zscaler));
     let primary = 0;

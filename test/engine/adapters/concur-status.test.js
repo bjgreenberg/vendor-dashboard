@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseConcurStatus, concurSeverityOf } from '../../../src/engine/adapters/concur-status.js';
+import { parseConcurStatus, concurSeverityOf, isReadableConcurDoc } from '../../../src/engine/adapters/concur-status.js';
 import { SEVERITY } from '../../../src/engine/severity.js';
 
 // Audit finding M4: this adapter sat at 16.66% branch coverage inside a
@@ -104,6 +104,66 @@ describe('parseConcurStatus — fail-closed paths', () => {
     const r = parseConcurStatus([{ data: {} }], { vendor: 'Concur', now });
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
     expect(r.warnings[0]).toMatch(/no services/);
+  });
+});
+
+// Worklist #132. The collector tells the adapter which data centres it could
+// not read; the adapter shows them, keeps them out of the vote, and refuses to
+// judge the row at all when a required one is missing.
+describe('parseConcurStatus — data centres that could not be read', () => {
+  it('shows each as an unknown component, after the services, and does not let it vote', () => {
+    const r = parseConcurStatus([doc({ Expense: 'normal', Travel: 'normal' })], {
+      vendor: 'Concur',
+      dataCenters: ['US2'],
+      unreadDataCenters: ['EU2', 'USG'],
+      now,
+    });
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+    expect(r.components.map((c) => [c.name, c.severity])).toEqual([
+      ['Expense', SEVERITY.OPERATIONAL],
+      ['Travel', SEVERITY.OPERATIONAL],
+      ['Data centre EU2', SEVERITY.UNKNOWN],
+      ['Data centre USG', SEVERITY.UNKNOWN],
+    ]);
+    expect(r.description).toBe('All 2 services report normal.'); // counts services, not data centres
+    expect(r.warnings).toEqual([]); // the note on the card is the collector's
+  });
+
+  it('is unknown when a REQUIRED data centre is among them, whatever the others say', () => {
+    const r = parseConcurStatus([doc({ Expense: 'normal' })], {
+      vendor: 'Concur',
+      dataCenters: ['US2'],
+      unreadDataCenters: ['us2'], // matched without regard to case
+      now,
+    });
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.warnings).toEqual(["Concur's us2 data centre could not be read, so its status is not shown."]);
+    expect(r.components).toEqual([]);
+  });
+
+  it('with no required data centre configured, a missing one never makes the row unknown by itself', () => {
+    const r = parseConcurStatus([doc({ Expense: 'normal' })], { vendor: 'Concur', unreadDataCenters: ['US2'], now });
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+  });
+
+  it('still keeps trouble that was read', () => {
+    const r = parseConcurStatus([doc({ Expense: 'unavailable' })], { vendor: 'Concur', dataCenters: ['US2'], unreadDataCenters: ['APJ1'], now });
+    expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+  });
+});
+
+describe('isReadableConcurDoc — what counts as a reading of one data centre', () => {
+  it.each([
+    ['a service with a Current Status', doc({ Expense: 'normal' }), true],
+    ['a status word we do not know (the adapter fails closed on it; it is still a reading)', doc({ Expense: 'fine' }), true],
+    ['no data at all', { success: true }, false],
+    ['data that is not an object', { data: 'nope' }, false],
+    ['an empty data object', { data: {} }, false],
+    ['services, none with a Current Status', { data: { Expense: { Service: 'Expense' } } }, false],
+    ['null', null, false],
+    ['a string', 'not json shaped', false],
+  ])('%s -> %s', (_label, input, expected) => {
+    expect(isReadableConcurDoc(input)).toBe(expected);
   });
 });
 

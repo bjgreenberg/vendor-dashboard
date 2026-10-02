@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { parseZscaler } from '../../../src/engine/adapters/zscaler.js';
+import { parseZscaler, isReadableZscalerCloud } from '../../../src/engine/adapters/zscaler.js';
 import { SEVERITY } from '../../../src/engine/severity.js';
 
 const fixture = (name) =>
@@ -128,6 +128,33 @@ describe('parseZscaler — fails closed on anything it cannot verify', () => {
       .not.toThrow();
     expect(parseZscaler([{ label: 'x', data: { data: { category: 'nope' } } }], opts()).severity)
       .toBe(SEVERITY.UNKNOWN);
+  });
+});
+
+// One definition of "this cloud was read", shared with the collector so the
+// card's count of unread clouds can never disagree with the unknown
+// components the adapter shows (worklist #132).
+describe('isReadableZscalerCloud', () => {
+  const reshape = (fn) => { const c = zpa().data; fn(c.data); return c; };
+
+  it.each([
+    ['a recorded healthy cloud', () => zpa().data, true],
+    ['null (the fetch failed)', () => null, false],
+    ['no legend', () => reshape((d) => { d.severity = []; }), false],
+    ['a legend whose entries carry no tid', () => reshape((d) => { d.severity = [{ name: 'x' }]; }), false],
+    ['no categories', () => reshape((d) => { d.category = []; }), false],
+    ['categories that are not a list', () => reshape((d) => { d.category = 'nope'; }), false],
+    ['categories with no services under them', () => reshape((d) => { d.category = [{ title: 'all', subCategory: [] }]; }), false],
+  ])('%s -> %s', (_label, make, expected) => {
+    expect(isReadableZscalerCloud(make())).toBe(expected);
+  });
+
+  it('agrees with the adapter: a cloud it calls unreadable is the one parseZscaler shows as unknown', () => {
+    const bad = { label: 'bad', data: reshape((d) => { d.category = [{ title: 'all', subCategory: [] }]; }) };
+    expect(isReadableZscalerCloud(bad.data)).toBe(false);
+    const r = parseZscaler([zpa(), bad], opts());
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+    expect(r.components.find((c) => c.name === 'bad').severity).toBe(SEVERITY.UNKNOWN);
   });
 });
 

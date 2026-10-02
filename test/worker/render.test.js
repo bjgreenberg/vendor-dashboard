@@ -432,6 +432,51 @@ describe('renderDashboard — warnings shown to readers', () => {
   });
 });
 
+// Worklist #132: a row that could only be read in part keeps its verified
+// status, and the card says what is missing. The engine writes that note for
+// readers and puts it first, because the card shows one warning line.
+describe('renderDashboard — a vendor read only in part', () => {
+  const note = '1 of 4 data centres could not be read (EU2). The status shown is from the other 3.';
+  const record = {
+    vendor: 'Concur', service: 'Concur', severity: 'operational',
+    incidentName: '', description: 'All 11 services report normal.',
+    sourceUrl: 'https://open.concur.com/',
+    components: [
+      { name: 'Expense', severity: 'operational', description: '' },
+      { name: 'Data centre EU2', severity: 'unknown', description: 'Could not be read.' },
+    ],
+    warnings: [note],
+    checkedAt: '2026-10-02T12:00:00.000Z',
+  };
+  const card = () => {
+    const html = renderDashboard({ records: [record], meta: null });
+    return html.slice(html.indexOf('<article'), html.indexOf('</article>'));
+  };
+
+  it('the note reaches the card word for word', () => {
+    expect(humanizeWarning(note)).toBe(note);
+    expect(card()).toContain(`<p class="vs-warn">${note}</p>`);
+  });
+
+  it('the notes for one missing document and for many clouds pass through too', () => {
+    for (const text of [
+      'The component list could not be read. The status shown does not include it.',
+      '7 of 8 clouds could not be read (ZIA · zscalerone.net, ZIA · zscalertwo.net, ZIA · zscalerthree.net, ZIA · zscloud.net and 3 more). The status shown is from the other 1.',
+      "Concur's US2 data centre could not be read, so its status is not shown.",
+    ]) {
+      expect(humanizeWarning(text)).toBe(text);
+    }
+  });
+
+  it('the row still reads Operational, and the unread data centre is listed with the affected components', () => {
+    const html = card();
+    expect(html).toContain('vs-card--ok');
+    const affected = html.slice(html.indexOf('<ul class="vs-children">'), html.indexOf('</ul>'));
+    expect(affected).toContain('Data centre EU2');
+    expect(affected).not.toContain('Expense');
+  });
+});
+
 // This page defaults to dark, unlike the rest of the site which follows the
 // system. The theme key is SHARED with briangreenberg.net, so the default must
 // not be persisted - writing it would change the whole site's default.
