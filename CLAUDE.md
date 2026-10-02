@@ -112,37 +112,45 @@ a future non-Cloudflare deployment possible.
   worklist #129; `LAST_ATTEMPT_PATIENCE = 2.5` x `timeoutMs`). Statuspage's
   hosting sometimes accepts a request and sends 0 bytes; all three 10 s tries
   aborted and vendors read `unknown` for a cycle. Same three tries. Do NOT
-  add a "second pass" or a fourth request INSIDE THE SAME RUN: PR #158 tried
-  both (re-collect the vendor before the write; a second look at the fetch)
-  and review found a lost composite outage, budget and cap problems, and
-  misleading outcome logs, for no more patience than this gives. (Looking again A MINUTE LATER, after the write, is a different thing and
-  does exist: see the re-look bullet below.) Each fetch that answered after a failed
+  add a "second pass" or a fourth request BEFORE THE BATCH IS WRITTEN: PR
+  #158 tried both (re-collect the vendor before the write; a second look at
+  the fetch) and review found a lost composite outage, budget and cap
+  problems, and misleading outcome logs, for no more patience than this
+  gives. (Looking again a minute AFTER the write is a different thing and
+  does exist: the re-look bullet below.) Each fetch that answered after a failed
   try logs `fetch_retried_ok` (url, attempt, ms) BEFORE the D1 write; a
   recovered stall leaves no other trace and those `ms` values are the only
   evidence of how long stalls last, so keep the line and its position.
 - **A run looks again at its own failed vendors, one and two minutes later**
   (2026-10-02, worklist #129; `lookAgain` in `src/worker/index.js`). After
   the batch is written, the same invocation waits `RELOOK_DELAY_MS` (60 s)
-  and re-collects the vendors in `run.waitable`; up to `RELOOKS` (2) times.
-  Invariants:
-  - **A re-look only improves a row.** It writes a vendor only when every
-    required fetch answered and the status is not `unknown`. It never writes
-    `unknown`, and a composite that answered in part is not written.
+  and re-collects; up to `RELOOKS` (2) times. Invariants:
+  - **Who:** vendors in the batch's `run.waitable` whose streak is one check
+    old (`readNewStreaks`). The streak condition is the cap: an outage gets
+    its re-looks once, at its start. Without it a dead vendor is collected
+    three times a cycle for hours.
+  - **A re-look only improves a row.** It writes a vendor only when
+    `run.incomplete` does not list it (every source verified). It never
+    writes `unknown`, and a composite that answered in part is not written,
+    whether the missing source failed waitably or not.
   - **State stays in the run's memory.** Do NOT rebuild this as a queue in D1
     read by later runs: PR #160 tried that (candidate rows, a claim counter,
     a migration) and three review passes found a lost update, a double claim
     and a starved queue. In-run, none of those can happen.
-  - **`waitable` is decided in the engine, from the failure itself**
-    (`fetchWithRetry`: no answer, or a status in `WAITABLE_STATUS`). Do not
-    classify failures by reading `warnings` text.
-  - **`stampRun: false`** on the re-look's write: `run_meta.checked_at` means
-    "a batch was collected" and `/health` reads it.
+  - **`waitable` and `incomplete` are decided in the engine**, from the
+    failure itself. Do not classify failures by reading `warnings` text.
+  - **The re-look's write is `stampRun: false` and passes no `knownVendors`.**
+    `run_meta.checked_at` means "a batch was collected" and `/health` reads
+    it; a prune from a run that has waited minutes could use a vendor list a
+    deploy has changed.
   - **Shared `collectLogged` and `selfMonitor`** keep the batch and the
     re-looks from drifting; re-looks pass `unknownRate: false`.
-  - It never rejects (`recheck_failed` at ERROR, with vendors and look), and
-    a batch that throws takes no re-look.
-  A run with re-looks lasts up to ~4 min (15 min is the platform limit).
-  Tests set `env.RELOOK_DELAY_MS = 0`; one test pins the 60 s with fake timers.
+  - It never rejects (`recheck_failed` at ERROR, with vendors and look); a
+    batch that throws takes no re-look; a budget-exhausted re-look writes
+    nothing and ends the re-looks.
+  A run with re-looks lasts up to ~4 min (15 min is the platform limit), and
+  its logs arrive when it ends. Tests drive the waits with fake timers
+  (`settle()` in `test/worker/scheduled.test.js`); do not add an env knob.
 - **The retry budget is 20, not 10** (same date). Shards 7 and 9 hold seven
   and eight feeds and Statuspage stalls are correlated; at 10 the second
   tries ate the budget and most feeds never reached the patient third try.

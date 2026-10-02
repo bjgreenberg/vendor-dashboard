@@ -378,6 +378,11 @@ async function collectComposite(vendor, ctx) {
     ),
   );
 
+  // One unverified source makes the whole vendor incomplete, whatever the
+  // row's severity turns out to be: "degraded" from three sources and nothing
+  // from the fourth is not a full reading.
+  if (parts.some(({ record }) => record.severity === SEVERITY.UNKNOWN)) ctx.incomplete.add(name);
+
   const components = [];
   const warnings = [];
   const affected = [];
@@ -636,6 +641,9 @@ async function collectOne(vendor, ctx) {
  *   `waitable`: names of the vendors whose required fetch failed in a way that
  *   asking again a minute later could fix (see fetchWithRetry). A composite is
  *   listed when any one of its sources is, whatever its row's severity.
+ *   `incomplete`: names of the vendors that were NOT fully verified — the row
+ *   is unknown, or (a composite) at least one source is. A vendor absent from
+ *   this list was read in full.
  */
 export async function collect(config, ctx) {
   const {
@@ -701,10 +709,12 @@ export async function collect(config, ctx) {
   const retried = [];
   // Vendors whose required fetch failed in a way worth another look.
   const waitable = new Set();
+  // Composite vendors with at least one source that could not be verified.
+  const incomplete = new Set();
 
   const settled = await Promise.allSettled(
     config.vendors.map((v) => {
-      const ctx = { fetchFn: meteredFetch, now, timeoutMs, lastAttemptTimeoutMs, retryDelayMs, budget, retried, waitable };
+      const ctx = { fetchFn: meteredFetch, now, timeoutMs, lastAttemptTimeoutMs, retryDelayMs, budget, retried, waitable, incomplete };
       return v?.type === 'composite' ? collectComposite(v, ctx) : collectOne(v, ctx);
     }),
   );
@@ -714,6 +724,12 @@ export async function collect(config, ctx) {
       ? outcome.value
       : unknownRecord(config.vendors[i]?.name ?? 'unknown', `collector error: ${outcome.reason}`, { now }),
   );
+
+  // A plain vendor is incomplete exactly when its row is unknown; a composite
+  // was marked above, where its sources are still visible.
+  for (const r of records) {
+    if (r.severity === SEVERITY.UNKNOWN) incomplete.add(r.vendor);
+  }
 
   records.sort(compareRecords);
 
@@ -748,6 +764,7 @@ export async function collect(config, ctx) {
     retriedOk: retried.length,
     // In config order, so a caller's log line is stable.
     waitable: config.vendors.map((v) => v?.name).filter((name) => waitable.has(name)),
+    incomplete: config.vendors.map((v) => v?.name).filter((name) => incomplete.has(name)),
   };
 }
 

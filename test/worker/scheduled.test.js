@@ -32,16 +32,35 @@ const GREEN_STATUSPAGE = JSON.stringify({
 
 const shardVendors = selectShard(vendorConfig.vendors, SHARD, SHARD_COUNT);
 
+/**
+ * Run a scheduled() call to completion under fake timers.
+ *
+ * A run that sees a failed fetch waits (retry backoff, then a minute before
+ * each re-look). With fake timers those waits cost nothing and never make a
+ * test slow or flaky; this drains them until the run settles.
+ */
+async function settle(promise) {
+  let state = 'pending';
+  const tracked = promise.then(
+    (value) => { state = 'done'; return value; },
+    (error) => { state = 'failed'; throw error; },
+  );
+  tracked.catch(() => {}); // the caller awaits `tracked`; this only stops an unhandled-rejection warning
+  while (state === 'pending') await vi.advanceTimersByTimeAsync(1_000);
+  return tracked;
+}
+
 describe('scheduled() — one shard collected, written, self-monitored', () => {
   let db, logs, errors;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     db = makeD1();
     logs = vi.spyOn(console, 'log').mockImplementation(() => {});
     errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
   it('sanity: the chosen slot maps to the shard under test, and it has vendors', () => {
     expect(shardDueAt(new Date(AT_MS), SHARD_COUNT, 1)).toBe(SHARD);
@@ -82,7 +101,7 @@ describe('scheduled() — one shard collected, written, self-monitored', () => {
       return { ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => GREEN_STATUSPAGE };
     }));
 
-    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
+    await settle(worker.scheduled({ scheduledTime: AT_MS }, { DB: db }));
 
     const rows = (await db.prepare('SELECT * FROM snapshot').all()).results;
     for (const r of rows) expect(r.severity).toBe('operational');
@@ -96,12 +115,12 @@ describe('scheduled() — one shard collected, written, self-monitored', () => {
     expect(errors).not.toHaveBeenCalled();
   });
 
-  it('the Worker runs with the production deadlines: the third try gets 25 s', { timeout: 20_000 }, async () => {
+  it('the Worker runs with the production deadlines: the third try gets 25 s', async () => {
     const spy = vi.spyOn(AbortSignal, 'timeout');
     vi.stubGlobal('fetch', vi.fn(async () => {
       throw new Error('network down');
     }));
-    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db, RELOOK_DELAY_MS: 0 });
+    await settle(worker.scheduled({ scheduledTime: AT_MS }, { DB: db }));
     const deadlines = spy.mock.calls.map(([ms]) => ms);
     expect(deadlines).toContain(25_000);
     expect(new Set(deadlines)).toEqual(new Set([10_000, 25_000]));
@@ -119,18 +138,18 @@ describe('scheduled() — one shard collected, written, self-monitored', () => {
     }));
     const broken = { ...db, batch: async () => { throw new Error('D1 is down'); } };
 
-    await expect(worker.scheduled({ scheduledTime: AT_MS }, { DB: broken })).rejects.toThrow('D1 is down');
+    await expect(settle(worker.scheduled({ scheduledTime: AT_MS }, { DB: broken }))).rejects.toThrow('D1 is down');
 
     const events = logs.mock.calls.map(([line]) => JSON.parse(line));
     expect(events.some((e) => e.event === 'fetch_retried_ok' && e.url === stalled.url)).toBe(true);
   });
 
-  it('raises unknown_rate_high at ERROR when the whole shard fails — infrastructure, not coincidence', { timeout: 20_000 }, async () => {
+  it('raises unknown_rate_high at ERROR when the whole shard fails — infrastructure, not coincidence', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => {
       throw new Error('network down');
     }));
 
-    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db, RELOOK_DELAY_MS: 0 });
+    await settle(worker.scheduled({ scheduledTime: AT_MS }, { DB: db }));
 
     const rows = (await db.prepare('SELECT * FROM snapshot').all()).results;
     for (const r of rows) expect(r.severity).toBe('unknown');
@@ -146,21 +165,19 @@ describe('scheduled() — one shard collected, written, self-monitored', () => {
 // again, 15 minutes later, although the feed was back within a minute or two.
 // So the run that saw the failure looks again itself, a minute later and a
 // minute after that.
-// Generous timeout on purpose: a test here can run three full failing passes
-// (the batch and two re-looks) on the engine's real, jittered retry backoff,
-// up to ~1.9 s a pass. The 5 s default would make them flaky.
-describe('scheduled() — a vendor whose fetch failed is looked at again by the same run, a minute later', { timeout: 20_000 }, () => {
+describe('scheduled() — a vendor whose fetch failed is looked at again by the same run, a minute later', () => {
   let db, logs, errors;
   const OK = () => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => GREEN_STATUSPAGE });
-  const env = (over = {}) => ({ DB: db, RELOOK_DELAY_MS: 0, ...over });
   const own = shardVendors.find((v) => v.type === 'statuspage' && typeof v.url === 'string' && !v.scope);
   const events = () => logs.mock.calls.map(([line]) => JSON.parse(line));
   const alerts = () => errors.mock.calls.map(([line]) => JSON.parse(line));
   const relooks = () => events().filter((e) => e.event === 'recheck_complete');
+  const outcome = (e) => [e.look, e.recovered, e.still_failing, e.gave_up];
   const health = async () => (await db.prepare('SELECT vendor, failures FROM vendor_health ORDER BY vendor').all()).results;
   const snap = async (name) => db.prepare('SELECT severity, checked_at, warnings FROM snapshot WHERE vendor = ?').bind(name).first();
   const history = async (name) =>
     (await db.prepare('SELECT severity FROM history WHERE vendor = ? ORDER BY id').bind(name).all()).results.map((r) => r.severity);
+  const run = (env = { DB: db }, at = AT_MS) => settle(worker.scheduled({ scheduledTime: at }, env));
   /**
    * Stub fetch. `plan(n)` is asked for each call to `own.url` with its 1-based
    * call number: return 'stall', a status code, or nothing for a green 200.
@@ -179,42 +196,38 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
   };
 
   beforeEach(() => {
+    vi.useFakeTimers();
     db = makeD1();
     logs = vi.spyOn(console, 'log').mockImplementation(() => {});
     errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    // The engine jitters its retry backoff with Math.random. Pin it to the
-    // shortest wait: these tests are about re-looks, not about jitter, and a
-    // fixed value makes their duration the same on every run.
-    vi.spyOn(Math, 'random').mockReturnValue(0);
   });
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
   it('a feed that is back a minute later is read by the first re-look and written green', async () => {
     const calls = stubOwn((n) => (n <= 3 ? 'stall' : undefined)); // the batch's three tries stall
 
-    await worker.scheduled({ scheduledTime: AT_MS }, env());
+    await run();
 
     expect(calls.own).toBe(4);
     expect((await snap(own.name)).severity).toBe('operational');
     expect(await health()).toEqual([]);
     expect(await history(own.name)).toEqual(['unknown', 'operational']); // the board DID say unknown in between
     expect(events().find((e) => e.event === 'collection_complete')).toMatchObject({ unknown: 1 });
-    expect(relooks()).toEqual([
-      expect.objectContaining({ event: 'recheck_complete', shard: SHARD, look: 1, recovered: [own.name], still_unknown: [] }),
-    ]);
+    expect(relooks().map(outcome)).toEqual([[1, [own.name], [], []]]);
+    expect(relooks()[0]).toMatchObject({ event: 'recheck_complete', shard: SHARD });
   });
 
   it('a feed that comes back two minutes later is read by the second re-look', async () => {
     const calls = stubOwn((n) => (n <= 6 ? 'stall' : undefined));
 
-    await worker.scheduled({ scheduledTime: AT_MS }, env());
+    await run();
 
     expect(calls.own).toBe(7);
     expect((await snap(own.name)).severity).toBe('operational');
-    expect(relooks().map((e) => [e.look, e.recovered, e.still_unknown])).toEqual([
-      [1, [], [own.name]],
-      [2, [own.name], []],
+    expect(relooks().map(outcome)).toEqual([
+      [1, [], [own.name], []],
+      [2, [own.name], [], []],
     ]);
   });
 
@@ -223,62 +236,93 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     // does can undo a status, and the history keeps one row per real change.
     const calls = stubOwn(() => 'stall');
 
-    await worker.scheduled({ scheduledTime: AT_MS }, env());
+    await run();
 
     expect(calls.own).toBe(9); // the batch, then two re-looks, and no third
-    const row = await snap(own.name);
-    expect(row.severity).toBe('unknown');
+    expect((await snap(own.name)).severity).toBe('unknown');
     expect(await history(own.name)).toEqual(['unknown']);
     expect(await health()).toEqual([{ vendor: own.name, failures: 1 }]); // re-looks are not failed batch checks
-    expect(relooks().map((e) => [e.look, e.still_unknown])).toEqual([[1, [own.name]], [2, [own.name]]]);
+    expect(relooks().map(outcome)).toEqual([
+      [1, [], [own.name], []],
+      [2, [], [own.name], []],
+    ]);
     expect(alerts().some((a) => a.alert === 'unknown_rate_high')).toBe(false); // one vendor of four is not the batch failing
   });
 
-  it("a multi-feed vendor that answers only in part on a re-look keeps the outage its batch verified", async () => {
-    // US Government is four feeds. In the batch, Login.gov reports a major
-    // outage and Social Security stalls. On the re-look Login.gov stalls and
-    // Social Security answers "degraded". Writing that partial re-read would
-    // replace a verified major outage with "degraded". It must not be written.
+  it('an outage gets its re-looks once: a vendor that was already unknown is not looked at again', async () => {
+    // Otherwise a vendor that is down for hours would be collected three
+    // times a cycle, and hold its run open four minutes, until someone fixed it.
+    const calls = stubOwn(() => 'stall');
+    await run(); // the outage begins: batch + two re-looks
+    expect(calls.own).toBe(9);
+
+    await run({ DB: db }, AT_MS + 15 * 60_000); // the same batch, 15 minutes on, still down
+
+    expect(calls.own).toBe(12); // the batch's three tries and nothing more
+    expect(await health()).toEqual([{ vendor: own.name, failures: 2 }]);
+    expect(relooks()).toHaveLength(2); // both from the first run
+  });
+
+  it('a new outage, after a recovery, gets its re-looks again', async () => {
+    let down = true;
+    const calls = stubOwn(() => (down ? 'stall' : undefined));
+    await run();
+    down = false;
+    await run({ DB: db }, AT_MS + 15 * 60_000); // recovers in its own batch
+    expect(await health()).toEqual([]);
+    down = true;
+    const before = calls.own;
+
+    await run({ DB: db }, AT_MS + 30 * 60_000);
+
+    expect(calls.own - before).toBe(9);
+  });
+
+  it('a multi-feed vendor that answers only in part on a re-look is not written', async () => {
+    // US Government is four feeds. In the batch Social Security stalls, so the
+    // row is unknown. On each re-look Social Security answers "degraded", but
+    // Login.gov gives no status: it stalls on the first re-look and answers
+    // 429 on the second. "degraded" outranks "unknown", so the re-read's row
+    // would say degraded while one feed was never read. A reading with a feed
+    // missing is not an improvement, and it must not be written — whether the
+    // missing feed failed in a waitable way (the stall) or not (the 429).
     const gov = vendorConfig.vendors.find((v) => v.name === 'US Government');
     const [login, ssa] = gov.sources.map((s) => s.url);
-    const SHARD_GOV = shardDueAt(new Date(0), SHARD_COUNT, 1) === 0
-      ? [...Array(SHARD_COUNT).keys()].find((i) => selectShard(vendorConfig.vendors, i, SHARD_COUNT).includes(gov))
-      : undefined;
-    expect(SHARD_GOV).toBeDefined();
-    const page = (indicator, status) => JSON.stringify({
+    const shardGov = [...Array(SHARD_COUNT).keys()].find((i) => selectShard(vendorConfig.vendors, i, SHARD_COUNT).includes(gov));
+    const degraded = JSON.stringify({
       page: { url: 'https://status.example.com' },
-      status: { indicator, description: 'x' },
-      components: [{ id: 'c1', name: 'Service', status }],
+      status: { indicator: 'minor', description: 'x' },
+      components: [{ id: 'c1', name: 'Service', status: 'degraded_performance' }],
     });
-    const body = (text) => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => text });
     const n = {};
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       n[url] = (n[url] ?? 0) + 1;
       if (url === login) {
-        if (n[url] === 1) return body(page('critical', 'major_outage')); // the batch
-        throw new Error('The operation was aborted due to timeout'); // every re-look
+        if (n[url] === 1) return OK(); // the batch: healthy
+        if (n[url] <= 4) throw new Error('The operation was aborted due to timeout'); // re-look 1
+        return { ok: false, status: 429, headers: { get: () => '' }, text: async () => '' }; // re-look 2
       }
       if (url === ssa) {
         if (n[url] <= 3) throw new Error('The operation was aborted due to timeout'); // the batch's three tries
-        return body(page('minor', 'degraded_performance')); // the re-looks
+        return { ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => degraded };
       }
       return OK();
     }));
 
-    await worker.scheduled({ scheduledTime: (SHARD_COUNT + SHARD_GOV) * 60_000 }, env());
+    await run({ DB: db }, (SHARD_COUNT + shardGov) * 60_000);
 
-    expect((await snap(gov.name)).severity).toBe('major_outage');
-    expect(await history(gov.name)).toEqual(['major_outage']);
-    expect(relooks().map((e) => [e.look, e.recovered, e.still_unknown])).toEqual([
-      [1, [], [gov.name]],
-      [2, [], [gov.name]],
+    expect((await snap(gov.name)).severity).toBe('unknown'); // as the batch wrote it
+    expect(await history(gov.name)).toEqual(['unknown']);
+    expect(relooks().map(outcome)).toEqual([
+      [1, [], [gov.name], []], // Login.gov stalled: still worth a look
+      [2, [], [], [gov.name]], // Login.gov said 429: not read in full, and not waitable
     ]);
   });
 
   it('re-collects only the vendor that failed, never the healthy ones beside it', async () => {
     const calls = stubOwn((n) => (n <= 3 ? 'stall' : undefined));
 
-    await worker.scheduled({ scheduledTime: AT_MS }, env());
+    await run();
 
     const others = shardVendors.filter((v) => v.name !== own.name && typeof v.url === 'string');
     for (const v of others) expect(calls.others.filter((u) => u === v.url)).toHaveLength(1);
@@ -290,43 +334,61 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
   ])('does not look again at %s: waiting cannot fix it', async (_label, code, expectedCalls) => {
     const calls = stubOwn(() => code);
 
-    await worker.scheduled({ scheduledTime: AT_MS }, env());
+    await run();
 
     expect(calls.own).toBe(expectedCalls);
     expect(relooks()).toEqual([]);
     expect((await snap(own.name)).severity).toBe('unknown');
   });
 
-  it('stops looking once the stall has turned into something waiting cannot fix', async () => {
+  it('stops looking once the stall has turned into something waiting cannot fix, and says it gave up', async () => {
     const calls = stubOwn((n) => (n <= 3 ? 'stall' : 404)); // the first re-look gets a 404
 
-    await worker.scheduled({ scheduledTime: AT_MS }, env());
+    await run();
 
     expect(calls.own).toBe(4); // no second re-look
-    expect(relooks()).toEqual([expect.objectContaining({ look: 1, recovered: [], still_unknown: [] })]);
+    expect(relooks().map(outcome)).toEqual([[1, [], [], [own.name]]]);
     expect((await snap(own.name)).severity).toBe('unknown');
     expect(await history(own.name)).toEqual(['unknown']);
   });
 
-  it('a healthy batch takes no re-look and does not wait', async () => {
+  it('a healthy batch takes no re-look and sets no timer', async () => {
     stubOwn(() => undefined);
-    const started = Date.now();
 
-    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db }); // production delay: must not be reached
+    await worker.scheduled({ scheduledTime: AT_MS }, { DB: db }); // not settle(): it must finish with no timer advanced
 
-    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(vi.getTimerCount()).toBe(0);
     expect(relooks()).toEqual([]);
   });
 
-  it("a re-look does not stamp the run clock: 'last collection' stays the batch's", async () => {
+  it("a re-look does not stamp the run clock or prune: 'last collection' stays the batch's", async () => {
     stubOwn((n) => (n <= 3 ? 'stall' : undefined));
+    // A row for a vendor this (old) code does not know. A deploy can add one
+    // while a run is waiting to re-look; the re-look's write must not prune it.
+    await db.prepare("INSERT INTO snapshot (vendor, service, severity, checked_at) VALUES ('AddedByNewerDeploy', 'x', 'operational', '2026-10-02T12:00:00.000Z')").run();
+    let batchWrites = 0;
+    const afterBatch = {
+      ...db,
+      batch: async (statements) => {
+        const result = await db.batch(statements);
+        batchWrites += 1;
+        // The batch's own write prunes unknown names, as it always has. Put
+        // the row back, as the newer deploy's next batch would.
+        if (batchWrites === 1) {
+          db.sqlite.exec("INSERT OR REPLACE INTO snapshot (vendor, service, severity, checked_at) VALUES ('AddedByNewerDeploy', 'x', 'operational', '2026-10-02T12:00:00.000Z')");
+        }
+        return result;
+      },
+    };
 
-    await worker.scheduled({ scheduledTime: AT_MS }, env());
+    await run({ DB: afterBatch });
 
     const meta = await db.prepare('SELECT * FROM run_meta WHERE id = 1').first();
     const batch = events().find((e) => e.event === 'collection_complete');
     expect(meta.checked_at).toBe(batch.checked_at);
     expect(meta.unknown).toBe(0); // the counts are current
+    expect((await snap(own.name)).severity).toBe('operational');
+    expect(await snap('AddedByNewerDeploy')).not.toBeNull();
   });
 
   it('a re-look that breaks is loud, names the vendors and the look, and costs the batch nothing', async () => {
@@ -341,7 +403,7 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
       },
     };
 
-    await worker.scheduled({ scheduledTime: AT_MS }, env({ DB: flaky }));
+    await run({ DB: flaky });
 
     const rows = (await db.prepare('SELECT vendor, severity FROM snapshot').all()).results;
     expect(rows).toHaveLength(shardVendors.length); // the batch's write stands
@@ -357,16 +419,15 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     const calls = stubOwn(() => 'stall');
     const broken = { ...db, batch: async () => { throw new Error('D1 is down'); } };
 
-    await expect(worker.scheduled({ scheduledTime: AT_MS }, env({ DB: broken }))).rejects.toThrow('D1 is down');
+    await expect(run({ DB: broken })).rejects.toThrow('D1 is down');
 
     expect(calls.own).toBe(3);
     expect(relooks()).toEqual([]);
   });
 
-  it('waits one minute before each re-look in production', async () => {
-    vi.useFakeTimers();
+  it('waits one minute before each re-look', async () => {
     const calls = stubOwn(() => 'stall');
-    const done = worker.scheduled({ scheduledTime: AT_MS }, { DB: db }); // no override
+    const done = worker.scheduled({ scheduledTime: AT_MS }, { DB: db });
 
     await vi.advanceTimersByTimeAsync(55_000); // the batch (with its retry backoff) is long over
     expect(calls.own).toBe(3);
@@ -376,7 +437,7 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     expect(calls.own).toBe(6);
     await vi.advanceTimersByTimeAsync(10_000);
     expect(calls.own).toBe(9);
-    await done;
+    await settle(done);
   });
 });
 

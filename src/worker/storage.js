@@ -36,6 +36,7 @@ export async function writeRun(db, run, options = {}) {
   // Under sharding it would delete the other two shards' rows and leave the
   // board showing a third of the services -- the same class of failure as
   // finding M3, arrived at from the opposite direction.
+  const stamp = options.stampRun === false ? 0 : 1;
   const touched = run.records.map((r) => r.vendor);
   const placeholders = touched.map(() => '?').join(',');
 
@@ -142,19 +143,11 @@ export async function writeRun(db, run, options = {}) {
     // mock `batch()` never executes SQL. See test/worker/storage.test.js, which
     // now asserts against real SQLite.
     //
-    // `stampRun: false` (a re-look's write) refreshes the COUNTS only. The run
-    // clock and the run's warnings belong to the batch: /health and the stale
-    // banner read `checked_at` as "a batch was collected", and a re-look must
-    // not move it.
-    options.stampRun === false
-      ? db.prepare(
-          `UPDATE run_meta SET
-             total    = (SELECT COUNT(*) FROM snapshot),
-             impacted = (SELECT COUNT(*) FROM snapshot WHERE severity NOT IN ('operational', 'unknown')),
-             unknown  = (SELECT COUNT(*) FROM snapshot WHERE severity = 'unknown')
-           WHERE id = 1`,
-        )
-      : db
+    // `stampRun: false` (a re-look's write) refreshes the counts and keeps the
+    // run's clock and warnings as the batch left them: /health and the stale
+    // banner read `checked_at` as "a batch was collected". It is the SAME
+    // statement with a flag, so there is one definition of the counts.
+    db
       .prepare(
         `INSERT INTO run_meta (id, checked_at, total, impacted, unknown, warnings)
          SELECT 1, ?,
@@ -165,16 +158,40 @@ export async function writeRun(db, run, options = {}) {
            FROM snapshot
           WHERE true
          ON CONFLICT(id) DO UPDATE SET
-           checked_at = excluded.checked_at,
+           checked_at = CASE WHEN ? = 1 THEN excluded.checked_at ELSE run_meta.checked_at END,
            total      = excluded.total,
            impacted   = excluded.impacted,
            unknown    = excluded.unknown,
-           warnings   = excluded.warnings`,
+           warnings   = CASE WHEN ? = 1 THEN excluded.warnings ELSE run_meta.warnings END`,
       )
-      .bind(run.checkedAt, JSON.stringify(run.warnings ?? [])),
+      .bind(run.checkedAt, JSON.stringify(run.warnings ?? []), stamp, stamp),
   ];
 
   await db.batch(statements);
+}
+
+/**
+ * Which of these vendors have JUST gone unknown: their streak is one check old.
+ *
+ * Read right after a batch's write, this is what limits re-looks to the start
+ * of an outage. A vendor that has been down for hours fails every batch, and
+ * without this it would be collected three times a cycle for as long as it
+ * stayed down.
+ *
+ * @param {D1Database} db
+ * @param {string[]} vendors
+ * @returns {Promise<string[]>}
+ */
+export async function readNewStreaks(db, vendors) {
+  if (vendors.length === 0) return [];
+  const rows = await db
+    .prepare(
+      `SELECT vendor FROM vendor_health
+        WHERE failures = 1 AND vendor IN (${vendors.map(() => '?').join(',')})`,
+    )
+    .bind(...vendors)
+    .all();
+  return rows.results.map((r) => r.vendor);
 }
 
 /**

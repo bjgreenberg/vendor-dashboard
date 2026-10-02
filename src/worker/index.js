@@ -9,7 +9,7 @@
 
 import { collect, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
 import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
-import { writeRun, readSnapshot, readMeta, writeTruthCheck } from './storage.js';
+import { writeRun, readSnapshot, readMeta, writeTruthCheck, readNewStreaks } from './storage.js';
 import { siteAssetVersions } from './site-assets.js';
 import { renderLlmsTxt, renderMarkdown } from './llms.js';
 import { agentOf, countFetch, stats as aiFetchStats } from './ai-fetches.js';
@@ -25,19 +25,6 @@ const KNOWN_VENDOR_NAMES = vendorConfig.vendors.map((v) => v.name);
 /** How many times a run looks again at a vendor whose fetch failed, and how long it waits before each. */
 const RELOOKS = 2;
 const RELOOK_DELAY_MS = 60_000;
-
-/**
- * The wait before each re-look. `env.RELOOK_DELAY_MS` overrides the default
- * (tests set 0); anything that is not a non-negative number is ignored.
- *
- * @param {{RELOOK_DELAY_MS?: unknown}} env
- */
-function relookDelayMs(env) {
-  const override = Number(env?.RELOOK_DELAY_MS);
-  return env?.RELOOK_DELAY_MS != null && Number.isFinite(override) && override >= 0
-    ? override
-    : RELOOK_DELAY_MS;
-}
 
 /**
  * Scheduled collection.
@@ -143,7 +130,8 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
 
 /**
  * Look again, a minute later and a minute after that, at the vendors of THIS
- * batch whose fetch failed in a way that waiting might fix.
+ * batch that have just gone unknown because a fetch failed in a way that
+ * waiting might fix.
  *
  * WHY: the patient last try (10 s, 10 s, 25 s) cut unknown checks from 0.41%
  * to 0.06% in its first 16 hours, but a feed that stalls for longer than
@@ -152,84 +140,104 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
  * on 2026-10-02. Their feeds were answering again within a minute or two.
  *
  * WHY HERE, in the run that saw the failure, and not in the next minutes'
- * runs reading a queue from D1: everything it needs is already in memory.
- * Which vendors failed, and whether the failure is worth another look, come
- * from collect() itself (`run.waitable`), so there is no queue, no claim, no
- * second run racing for the same vendor, and no reason text to interpret. An
- * earlier draft did it across runs; three review passes on PR #160 found a
- * lost-update, a double-claim and a starved queue in it. A scheduled Worker
- * may run for 15 minutes and waiting costs no CPU, so the longest this adds
- * (two waits and two full sets of tries, about four minutes) is free. If the
- * platform ends the invocation early, the vendor simply waits for its batch.
+ * runs reading a queue from D1: which vendors failed, and whether the failure
+ * is worth another look, come from collect() itself (`run.waitable`), so
+ * there is no queue, no claim, no second run racing for the same vendor, and
+ * no reason text to interpret. An earlier draft did it across runs; three
+ * review passes on PR #160 found a lost update, a double claim and a starved
+ * queue in it. A scheduled Worker may run for 15 minutes and waiting costs no
+ * CPU, so the longest this adds (two waits and two full sets of tries, about
+ * four minutes) is affordable. If the platform ends the invocation early, the
+ * vendor simply waits for its batch, as it always did.
  *
- * THE RULE THAT MAKES IT SAFE: a re-look may only IMPROVE a row.
- *   - Every required fetch answered and the adapter verified a status
- *     -> that vendor's row is written, its streak ends.
- *   - Anything else -> nothing is written. `unknown` is never written here,
- *     and a composite that answered only in part is left as the batch (or an
- *     earlier re-look) wrote it, so a verified outage on one source cannot be
- *     lost to a re-read that missed that source.
- * The write does not stamp the run clock (`stampRun: false`): `checked_at`
- * means "a batch was collected", and /health reads it.
+ * WHO: a vendor that is `waitable` AND whose unknown streak is one check old
+ * (readNewStreaks). The second condition is the cap. A vendor that has been
+ * down for hours fails every batch; without it, each of those batches would
+ * take two more looks and hold its run open four minutes, for as long as the
+ * outage lasted. An outage gets its re-looks once, at the start.
  *
- * A vendor leaves the list as soon as it recovers, or as soon as its failure
- * is no longer waitable (a stall that has become a 404 is not waited out).
+ * THE RULE THAT MAKES IT SAFE: a re-look may only IMPROVE a row. It writes a
+ * vendor only when that vendor was verified IN FULL (`run.incomplete` does
+ * not list it): every source answered and the adapter understood each one.
+ * Otherwise it writes nothing. So `unknown` is never written here, and a
+ * vendor built from several feeds that answered only in part is left as the
+ * batch wrote it — a verified outage on one feed cannot be replaced by a
+ * milder reading that is missing that feed.
+ * The write does not stamp the run clock (`stampRun: false`), and it does not
+ * prune removed vendors: both belong to the batch, and a prune from a run
+ * that has been waiting for minutes would use a vendor list a deploy may have
+ * changed in the meantime.
+ *
+ * A vendor leaves the list when it recovers, or when its failure is no longer
+ * one that waiting fixes (a stall that has become a 404).
  *
  * It NEVER rejects: a re-look is a bonus. A failure in it is logged at ERROR,
- * with the vendors and the look, and ends the re-looks for this run.
+ * with the vendors and the look, and ends the re-looks for this run. So does
+ * a re-look that runs out of subrequest budget: it could not ask everyone, so
+ * nothing it read is written and no further look is taken.
  *
- * @param {{DB: D1Database, RELOOK_DELAY_MS?: unknown}} env
+ * Known cost: the invocation stays open, so its log lines (the batch's
+ * included) reach Workers Logs when the re-looks finish, not when the batch
+ * does.
+ *
+ * @param {{DB: D1Database}} env
  * @param {number} shard
  * @param {object[]} vendors the batch's vendors that collect() marked waitable
  */
 async function lookAgain(env, shard, vendors) {
-  let pending = vendors;
-  for (let look = 1; look <= RELOOKS && pending.length > 0; look += 1) {
-    const tag = { recheck: true, look };
-    try {
-      await new Promise((resolve) => setTimeout(resolve, relookDelayMs(env)));
+  let pending = [];
+  let look = 0;
+  try {
+    // Only vendors whose outage has just begun.
+    const fresh = new Set(await readNewStreaks(env.DB, vendors.map((v) => v.name)));
+    pending = vendors.filter((v) => fresh.has(v.name));
+
+    for (look = 1; look <= RELOOKS && pending.length > 0; look += 1) {
+      const tag = { recheck: true, look };
+      await new Promise((resolve) => setTimeout(resolve, RELOOK_DELAY_MS));
       const started = Date.now();
       const run = await collectLogged(pending, shard, tag);
       selfMonitor(run, shard, { unknownRate: false, tag });
 
+      const incomplete = new Set(run.incomplete);
       const stillWaitable = new Set(run.waitable);
-      // A budget-exhausted look verified nothing it can stand behind as a
-      // whole, and selfMonitor has said so: write nothing from it.
-      const recovered = run.budgetExhausted
-        ? []
-        : run.records.filter((r) => r.severity !== 'unknown' && !stillWaitable.has(r.vendor));
+      const recovered = run.budgetExhausted ? [] : run.records.filter((r) => !incomplete.has(r.vendor));
       if (recovered.length > 0) {
-        await writeRun(env.DB, { ...run, records: recovered }, {
-          knownVendors: KNOWN_VENDOR_NAMES,
-          stampRun: false,
-        });
+        await writeRun(env.DB, { ...run, records: recovered }, { stampRun: false });
       }
 
-      pending = pending.filter((v) => stillWaitable.has(v.name));
+      const names = (list) => list.map((v) => v.name).sort();
+      const before = pending;
+      pending = run.budgetExhausted ? [] : pending.filter((v) => stillWaitable.has(v.name));
+      const done = new Set([...recovered.map((r) => r.vendor), ...pending.map((v) => v.name)]);
       console.log(
         JSON.stringify({
           event: 'recheck_complete',
           shard,
           look,
+          // Read in full and written.
           recovered: recovered.map((r) => r.vendor).sort(),
-          still_unknown: pending.map((v) => v.name).sort(),
+          // Still failing in a way a minute might fix; looked at again if a look is left.
+          still_failing: names(pending),
+          // Not read in full, and no longer for a waitable reason: left for the batch.
+          gave_up: names(before.filter((v) => !done.has(v.name))),
           subrequests: run.subrequests,
           duration_ms: Date.now() - started,
         }),
       );
-    } catch (error) {
-      console.error(
-        JSON.stringify({
-          event: 'collection_alert',
-          shard,
-          ...tag,
-          alert: 'recheck_failed',
-          vendors: pending.map((v) => v.name).sort(),
-          detail: String(error?.message ?? error),
-        }),
-      );
-      return;
     }
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: 'collection_alert',
+        shard,
+        recheck: true,
+        look,
+        alert: 'recheck_failed',
+        vendors: (pending.length > 0 ? pending : vendors).map((v) => v.name).sort(),
+        detail: String(error?.message ?? error),
+      }),
+    );
   }
 }
 

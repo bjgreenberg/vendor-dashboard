@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { writeRun, readSnapshot } from '../../src/worker/storage.js';
+import { writeRun, readSnapshot, readNewStreaks } from '../../src/worker/storage.js';
 import { makeD1, record as rec, runOf as run } from '../helpers/d1.js';
 
 // These tests execute the REAL SQL against REAL SQLite.
@@ -363,5 +363,24 @@ describe('writeRun with stampRun: false — what a re-look writes (worklist #129
     await writeRun(db, run([rec('A', 'unknown')]));
     await writeRun(db, run([rec('A', 'operational')]), { stampRun: false });
     expect(db.sqlite.prepare('SELECT COUNT(*) n FROM vendor_health').get().n).toBe(0);
+  });
+});
+
+describe('readNewStreaks — which of these vendors have just gone unknown', () => {
+  const unknown = (vendor) => writeRun(db, run([rec(vendor, 'unknown')]));
+
+  it('returns only the asked-for vendors whose streak is one check old', async () => {
+    await unknown('New');
+    await unknown('Old');
+    await unknown('Old');
+    await unknown('NotAsked');
+    await writeRun(db, run([rec('Fine', 'operational')]));
+
+    expect(await readNewStreaks(db, ['New', 'Old', 'Fine'])).toEqual(['New']);
+  });
+
+  it('returns nothing for an empty list without touching the database', async () => {
+    const closed = { prepare: () => { throw new Error('should not be called'); } };
+    expect(await readNewStreaks(closed, [])).toEqual([]);
   });
 });

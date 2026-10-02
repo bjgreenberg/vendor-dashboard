@@ -725,5 +725,50 @@ describe('collect — which vendors are worth another look (waitable)', () => {
     );
     expect(res.records.find((r) => r.vendor === 'Multi').severity).toBe(SEVERITY.MAJOR_OUTAGE);
     expect(res.waitable).toEqual(['Multi']);
+    expect(res.incomplete).toEqual(['Multi']); // a major outage from one source, nothing from the other
+  });
+});
+
+// `incomplete`: the vendors that were NOT verified in full. A re-look writes
+// only vendors absent from it.
+describe('collect — which vendors were not read in full (incomplete)', () => {
+  const GH = readFileSync(new URL('../fixtures/GitHub.json', import.meta.url), 'utf8');
+  const ok = () => ({ ok: true, status: 200, text: async () => GH });
+  const multi = {
+    name: 'Multi',
+    type: 'composite',
+    sources: [
+      { group: 'A', type: 'statuspage', url: 'https://a' },
+      { group: 'B', type: 'statuspage', url: 'https://b' },
+    ],
+  };
+  const withB = (b) => collect(cfg([{ name: 'Fine', type: 'statuspage', url: 'https://fine' }, multi]), {
+    fetchFn: async (url) => (url === 'https://b' ? b() : ok()),
+    now,
+    retryDelayMs: 0,
+  });
+
+  it('lists a plain vendor exactly when its row is unknown', async () => {
+    const res = await collect(
+      cfg([
+        { name: 'Fine', type: 'statuspage', url: 'https://fine' },
+        { name: 'Gone', type: 'statuspage', url: 'https://gone' },
+      ]),
+      { fetchFn: async (url) => (url === 'https://gone' ? { ok: false, status: 404, text: async () => '' } : ok()), now, retryDelayMs: 0 },
+    );
+    expect(res.incomplete).toEqual(['Gone']);
+  });
+
+  it.each([
+    ['answers 429', async () => ({ ok: false, status: 429, text: async () => '' })],
+    ['answers 404', async () => ({ ok: false, status: 404, text: async () => '' })],
+    ['returns a payload that does not parse', async () => ({ ok: true, status: 200, text: async () => '<html>' })],
+    ['stalls', async () => { throw new Error('ECONNRESET'); }],
+  ])('lists a composite when one source %s, waitable or not', async (_label, b) => {
+    expect((await withB(b)).incomplete).toEqual(['Multi']);
+  });
+
+  it('lists nothing when every source of every vendor was verified', async () => {
+    expect((await withB(async () => ok())).incomplete).toEqual([]);
   });
 });
