@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { collect, isWaitableFailure, BUDGET_EXHAUSTED } from '../../src/engine/collect.js';
+import { collect } from '../../src/engine/collect.js';
 import { SEVERITY } from '../../src/engine/severity.js';
 
 const fixture = (n) => readFileSync(new URL(`../fixtures/${n}`, import.meta.url), 'utf8');
@@ -643,39 +643,87 @@ describe('collect — the last try is patient', () => {
   });
 });
 
-describe('isWaitableFailure — could asking again in a minute plausibly succeed?', () => {
+// `waitable`: the vendors whose required fetch failed in a way that asking
+// again a minute later could fix. The Worker's re-look reads it (worklist
+// #129). It is decided where the failure happens, from the failure itself,
+// never by reading the reason text back.
+describe('collect — which vendors are worth another look (waitable)', () => {
+  const GH = readFileSync(new URL('../fixtures/GitHub.json', import.meta.url), 'utf8');
+  const ok = () => ({ ok: true, status: 200, text: async () => GH });
+  const status = (code) => async () => ({ ok: false, status: code, text: async () => '' });
+  const one = (fetchFn, over = {}) =>
+    collect(cfg([{ name: 'V', type: 'statuspage', url: 'https://v' }]), { fetchFn, now, retryDelayMs: 0, ...over });
+
   it.each([
-    [['fetch failed: The operation was aborted due to timeout'], true],
-    [['fetch failed: ECONNRESET'], true],
-    [['Azure: fetch failed: socket hang up'], true], // a composite prefixes the source group
-    [['fetch returned HTTP 503'], true],
-    [['fetch returned HTTP 504'], true],
-    [['fetch returned HTTP 429'], false], // it asked us to slow down
-    [['fetch returned HTTP 404'], false],
-    [['fetch returned HTTP 401'], false],
-    [['response was not valid JSON'], false],
-    [['no adapter registered for type "nope"'], false],
-    [[`fetch failed: ${BUDGET_EXHAUSTED}`], false], // ours, not the vendor's
-    [['fetch failed: timeout', `collector: ${BUDGET_EXHAUSTED}`], false],
-    [[], false],
-    [undefined, false],
-    ['fetch failed: not an array', false],
-  ])('%j -> %s', (reasons, expected) => {
-    expect(isWaitableFailure(reasons)).toBe(expected);
+    ['a network error or deadline', async () => { throw new Error('ECONNRESET'); }, ['V']],
+    ['HTTP 503', status(503), ['V']],
+    ['HTTP 504', status(504), ['V']],
+    ['HTTP 408', status(408), ['V']],
+    ['HTTP 429 (it asked us to slow down)', status(429), []],
+    ['HTTP 404 (a retired route)', status(404), []],
+    ['HTTP 401', status(401), []],
+    ['a 200 that does not parse', async () => ({ ok: true, status: 200, text: async () => '<html>' }), []],
+    ['a healthy answer', async () => ok(), []],
+  ])('%s -> %j', async (_label, fetchFn, expected) => {
+    expect((await one(fetchFn)).waitable).toEqual(expected);
   });
 
-  it("judges the engine's own wording: a thrown fetch and a 503 are waitable, a 404 is not", async () => {
-    const reasonFor = async (fetchFn) =>
-      (await collect(cfg([{ name: 'V', type: 'statuspage', url: 'https://v' }]), { fetchFn, now, retryDelayMs: 0 })).records[0].warnings;
-    expect(isWaitableFailure(await reasonFor(async () => { throw new Error('ECONNRESET'); }))).toBe(true);
-    expect(isWaitableFailure(await reasonFor(async () => ({ ok: false, status: 503, text: async () => '' })))).toBe(true);
-    expect(isWaitableFailure(await reasonFor(async () => ({ ok: false, status: 404, text: async () => '' })))).toBe(false);
-    const starved = await collect(
-      cfg([{ name: 'A', type: 'statuspage', url: 'https://a' }, { name: 'B', type: 'statuspage', url: 'https://b' }]),
-      { fetchFn: async () => { throw new Error('ECONNRESET'); }, now, retryDelayMs: 0, subrequestBudget: 1 },
+  it('a vendor that answered on a retry is not waitable: it was read', async () => {
+    let calls = 0;
+    const res = await one(async () => {
+      calls += 1;
+      if (calls === 1) throw new Error('ECONNRESET');
+      return ok();
+    });
+    expect(res.waitable).toEqual([]);
+    expect(res.unknown).toBe(0);
+  });
+
+  it('a request our own budget refused is not the vendor failing to answer', async () => {
+    const vendors = ['A', 'B', 'C'].map((n) => ({ name: n, type: 'statuspage', url: `https://${n}` }));
+    const res = await collect(cfg(vendors), { fetchFn: async () => ok(), now, retryDelayMs: 0, subrequestBudget: 1 });
+    expect(res.budgetExhausted).toBe(true);
+    expect(res.unknown).toBe(2);
+    expect(res.waitable).toEqual([]);
+  });
+
+  it('a stalled primary is waitable even when its fallback answers 404', async () => {
+    const fetchFn = async (url) => {
+      if (url === 'https://primary') throw new Error('The operation was aborted due to timeout');
+      return { ok: false, status: 404, text: async () => '' };
+    };
+    const res = await collect(
+      cfg([{ name: 'V', type: 'statuspage', url: 'https://primary', fallbackUrls: ['https://backup'] }]),
+      { fetchFn, now, retryDelayMs: 0 },
     );
-    expect(starved.budgetExhausted).toBe(true);
-    const denied = starved.records.find((r) => r.warnings.some((w) => w.includes(BUDGET_EXHAUSTED)));
-    expect(isWaitableFailure(denied.warnings)).toBe(false);
+    expect(res.waitable).toEqual(['V']);
+  });
+
+  it('a composite vendor is waitable when any one of its sources is, even if the row is not unknown', async () => {
+    const OUTAGE = JSON.stringify({
+      page: { url: 'https://status.example.com' },
+      status: { indicator: 'critical', description: 'Major System Outage' },
+      components: [{ id: 'c1', name: 'API', status: 'major_outage' }],
+    });
+    const fetchFn = async (url) => {
+      if (url === 'https://b') throw new Error('ECONNRESET');
+      return { ok: true, status: 200, text: async () => OUTAGE };
+    };
+    const res = await collect(
+      cfg([
+        { name: 'Fine', type: 'statuspage', url: 'https://fine' },
+        {
+          name: 'Multi',
+          type: 'composite',
+          sources: [
+            { group: 'A', type: 'statuspage', url: 'https://a' },
+            { group: 'B', type: 'statuspage', url: 'https://b' },
+          ],
+        },
+      ]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(res.records.find((r) => r.vendor === 'Multi').severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(res.waitable).toEqual(['Multi']);
   });
 });

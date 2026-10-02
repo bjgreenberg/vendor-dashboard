@@ -142,11 +142,10 @@ export async function writeRun(db, run, options = {}) {
     // mock `batch()` never executes SQL. See test/worker/storage.test.js, which
     // now asserts against real SQLite.
     //
-    // `stampRun: false` (a re-check's write) refreshes the COUNTS only. The
-    // run clock and the run's warnings belong to the batch: /health and the
-    // stale banner read `checked_at` as "a batch was collected", and a
-    // one-vendor re-check that succeeds while batches are failing must not
-    // keep that clock fresh.
+    // `stampRun: false` (a re-look's write) refreshes the COUNTS only. The run
+    // clock and the run's warnings belong to the batch: /health and the stale
+    // banner read `checked_at` as "a batch was collected", and a re-look must
+    // not move it.
     options.stampRun === false
       ? db.prepare(
           `UPDATE run_meta SET
@@ -176,92 +175,6 @@ export async function writeRun(db, run, options = {}) {
   ];
 
   await db.batch(statements);
-}
-
-/**
- * Vendors that have just gone unknown and have looks left: the candidates
- * for the next minute's re-check (worklist #129).
- *
- * This reads; it does not judge. Whether a candidate's failure is the kind
- * worth asking about again is the engine's call (`isWaitableFailure`), made
- * by the caller on the `warnings` returned here.
- *
- * Fewest looks first, then longest-failing: every vendor that has just gone
- * unknown gets its first extra look before any gets its second.
- *
- * @param {D1Database} db
- * @param {{maxRechecks: number, exclude: string[], limit: number}} opts
- * @returns {Promise<{vendor: string, rechecks: number, warnings: string[]}[]>}
- */
-export async function readRecheckCandidates(db, { maxRechecks, exclude, limit }) {
-  const notExcluded =
-    exclude.length > 0 ? `AND h.vendor NOT IN (${exclude.map(() => '?').join(',')})` : '';
-  const rows = await db
-    .prepare(
-      `SELECT h.vendor, h.rechecks, s.warnings
-         FROM vendor_health h
-         JOIN snapshot s ON s.vendor = h.vendor
-        WHERE h.rechecks < ?
-          AND s.severity = 'unknown'
-          ${notExcluded}
-        ORDER BY h.rechecks ASC, h.failing_since ASC, h.vendor ASC
-        LIMIT ?`,
-    )
-    .bind(maxRechecks, ...exclude, limit)
-    .all();
-  return rows.results.map((r) => ({
-    vendor: r.vendor,
-    rechecks: r.rechecks,
-    warnings: safeParse(r.warnings, []),
-  }));
-}
-
-/**
- * Take one of a vendor's extra looks, BEFORE spending it.
- *
- * The UPDATE succeeds only if `rechecks` still has the value the caller just
- * read, so when two runs overlap (a slow batch pushes one run's re-check into
- * the next minute) only one of them gets the look; the other moves on. It
- * also means a look is counted whatever happens next, so a re-check that
- * fails, or cannot finish, can never loop.
- *
- * @param {D1Database} db
- * @param {string} vendor
- * @param {number} rechecks the value read by readRecheckCandidates
- * @returns {Promise<boolean>} true if this caller holds the look
- */
-export async function claimRecheck(db, vendor, rechecks) {
-  const row = await db
-    .prepare(
-      `UPDATE vendor_health SET rechecks = rechecks + 1
-        WHERE vendor = ? AND rechecks = ?
-        RETURNING vendor`,
-    )
-    .bind(vendor, rechecks)
-    .first();
-  return row != null;
-}
-
-/**
- * Record what a failed re-check learned: the latest reason, and nothing else.
- *
- * A failed re-check must not write a status. The row already says `unknown`,
- * and writing `unknown` again is how a slow re-check could overwrite the
- * green that a quicker one (or the vendor's own batch) had written in the
- * meantime. So this only updates the reason, and only on a row that is still
- * `unknown`; on a recovered vendor it changes nothing. The reason matters:
- * it is what the card shows, and what decides whether a second look is worth
- * taking (a stall that has turned into a 404 is not).
- *
- * @param {D1Database} db
- * @param {string} vendor
- * @param {string[]} warnings
- */
-export async function noteFailedRecheck(db, vendor, warnings) {
-  await db
-    .prepare(`UPDATE snapshot SET warnings = ? WHERE vendor = ? AND severity = 'unknown'`)
-    .bind(JSON.stringify(warnings), vendor)
-    .run();
 }
 
 /**

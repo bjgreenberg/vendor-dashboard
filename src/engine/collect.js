@@ -85,7 +85,7 @@ const DEFAULT_RETRY_BUDGET = 20;
 
 /**
  * Sanity ceiling on subrequests for one collect() call. (A Worker invocation
- * may make two: its batch, then a one-vendor re-check.)
+ * may make more than one: its batch, then re-looks at vendors that failed.)
  *
  * ORIGIN: the Workers free plan killed an invocation at 50 external
  * subrequests, so this budget existed to convert a fatal, silent, whole-run
@@ -100,35 +100,6 @@ export const DEFAULT_SUBREQUEST_BUDGET = 40;
 
 /** Marker so an exhausted budget is reported distinctly from a vendor outage. */
 export const BUDGET_EXHAUSTED = 'subrequest budget exhausted';
-
-/**
- * How a failed fetch is worded in a record's `warnings`. Exported so the one
- * reader that has to tell the kinds apart (`isWaitableFailure`, used by the
- * Worker's next-minute re-check) cannot drift from the writer below.
- */
-export const REASON_NO_ANSWER = 'fetch failed: ';
-export const REASON_HTTP_STATUS = 'fetch returned HTTP ';
-
-/**
- * Could asking again in a minute plausibly succeed?
- *
- * Yes when a fetch got no answer (a network error or a deadline) or the
- * server answered 5xx: both are the far end having a bad moment. No for 429
- * (it asked us to slow down), for 4xx (a retired or closed route), for a
- * payload that did not parse, and for our OWN exhausted subrequest budget,
- * which is worded as a failed fetch but is not the vendor's doing.
- *
- * `includes`, not `startsWith`: a composite vendor prefixes each reason with
- * its source's group ("Azure: fetch failed: …").
- *
- * @param {unknown} reasons a record's `warnings`
- * @returns {boolean}
- */
-export function isWaitableFailure(reasons) {
-  const list = Array.isArray(reasons) ? reasons.map(String) : [];
-  if (list.some((r) => r.includes(BUDGET_EXHAUSTED))) return false;
-  return list.some((r) => r.includes(REASON_NO_ANSWER) || r.includes(`${REASON_HTTP_STATUS}5`));
-}
 
 /**
  * Identify ourselves honestly.
@@ -197,6 +168,15 @@ const TEXT_ADAPTERS = {
  */
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
+/**
+ * Statuses worth ANOTHER LOOK a minute later (see `waitable` in collect()).
+ *
+ * The retryable ones, less 429. A 5xx, a 408 or a 425 is the far end having a
+ * bad moment, and a minute is often enough. A 429 is the far end asking us to
+ * slow down; coming back a minute later with three more tries is not that.
+ */
+const WAITABLE_STATUS = new Set([...RETRYABLE_STATUS].filter((code) => code !== 429));
+
 /** Attempts per vendor, including the first. */
 const MAX_ATTEMPTS = 3;
 
@@ -218,25 +198,24 @@ const MAX_ATTEMPTS = 3;
  *
  * @param {string[]} urls primary first, then fallbacks
  * @param {object} ctx
- * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string}>}
+ * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string, waitable: boolean}>}
  */
 async function fetchWithFallback(urls, ctx) {
   let lastReason = 'fetch failed';
+  // True if ANY url failed waitably, not only the last one tried: a stalled
+  // primary behind a fallback that answers 404 is still a stall.
+  let waitable = false;
   for (const url of urls) {
     const attempt = await fetchWithRetry(url, ctx);
     if (attempt.ok) return attempt;
     lastReason = attempt.reason;
+    waitable = waitable || attempt.waitable;
     // Only spend a fallback if the budget still allows it.
     if (ctx.budget.remaining <= 0) break;
   }
-  return { ok: false, reason: lastReason };
+  return { ok: false, reason: lastReason, waitable };
 }
 
-/**
- * @param {string} url
- * @param {object} ctx
- * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string}>}
- */
 /**
  * Decode a response body, honouring UTF-16.
  *
@@ -268,9 +247,21 @@ async function decodeBody(response) {
   return new TextDecoder(encoding).decode(buf);
 }
 
+/**
+ * @param {string} url
+ * @param {object} ctx
+ * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string, waitable: boolean}>}
+ *   `waitable`: the LAST try failed in a way that asking again a minute later
+ *   could fix — no answer at all (a network error or a deadline), or a status
+ *   in WAITABLE_STATUS. Decided here, from the failure itself, so nothing
+ *   downstream has to read the reason text to find out. Our own exhausted
+ *   subrequest budget is worded as a failed fetch but is not the vendor's
+ *   doing, and is never waitable.
+ */
 async function fetchWithRetry(url, ctx) {
   const { fetchFn, now, timeoutMs, lastAttemptTimeoutMs, retryDelayMs, budget, retried } = ctx;
   let lastReason = 'fetch failed';
+  let waitable = false;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     if (attempt > 1) {
@@ -301,9 +292,10 @@ async function fetchWithRetry(url, ctx) {
       });
 
       if (response && response.ok === false) {
-        lastReason = `${REASON_HTTP_STATUS}${response.status}`;
+        lastReason = `fetch returned HTTP ${response.status}`;
+        waitable = WAITABLE_STATUS.has(response.status);
         if (RETRYABLE_STATUS.has(response.status)) continue;
-        return { ok: false, reason: lastReason };
+        return { ok: false, reason: lastReason, waitable };
       }
 
       const body = await decodeBody(response);
@@ -317,11 +309,12 @@ async function fetchWithRetry(url, ctx) {
       return { ok: true, body };
     } catch (error) {
       // A network-level failure is transient by nature; retry it.
-      lastReason = `${REASON_NO_ANSWER}${error?.message ?? String(error)}`;
+      lastReason = `fetch failed: ${error?.message ?? String(error)}`;
+      waitable = error?.message !== BUDGET_EXHAUSTED;
     }
   }
 
-  return { ok: false, reason: lastReason };
+  return { ok: false, reason: lastReason, waitable };
 }
 
 /**
@@ -458,6 +451,9 @@ async function collectOne(vendor, ctx) {
   const urls = [vendor.url, ...(Array.isArray(vendor.fallbackUrls) ? vendor.fallbackUrls : [])];
   const attempt = await fetchWithFallback(urls, ctx);
   if (!attempt.ok) {
+    // A composite's sources carry the vendor's name, so one waitable source
+    // marks the whole vendor.
+    if (attempt.waitable) ctx.waitable.add(name);
     return unknownRecord(name, attempt.reason, opts);
   }
   const body = attempt.body;
@@ -636,7 +632,10 @@ async function collectOne(vendor, ctx) {
  * @param {() => Date} [ctx.now]
  * @param {number} [ctx.timeoutMs] deadline for each try but the last
  * @param {number} [ctx.lastAttemptTimeoutMs] deadline for the last try; default 2.5x timeoutMs, never shorter than it
- * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[], retried: {url: string, attempt: number, ms: number}[], retriedOk: number}>}
+ * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[], retried: {url: string, attempt: number, ms: number}[], retriedOk: number, waitable: string[]}>}
+ *   `waitable`: names of the vendors whose required fetch failed in a way that
+ *   asking again a minute later could fix (see fetchWithRetry). A composite is
+ *   listed when any one of its sources is, whatever its row's severity.
  */
 export async function collect(config, ctx) {
   const {
@@ -700,10 +699,12 @@ export async function collect(config, ctx) {
   const budget = { remaining: retryBudget };
   // One entry per fetch that failed at least once and then answered.
   const retried = [];
+  // Vendors whose required fetch failed in a way worth another look.
+  const waitable = new Set();
 
   const settled = await Promise.allSettled(
     config.vendors.map((v) => {
-      const ctx = { fetchFn: meteredFetch, now, timeoutMs, lastAttemptTimeoutMs, retryDelayMs, budget, retried };
+      const ctx = { fetchFn: meteredFetch, now, timeoutMs, lastAttemptTimeoutMs, retryDelayMs, budget, retried, waitable };
       return v?.type === 'composite' ? collectComposite(v, ctx) : collectOne(v, ctx);
     }),
   );
@@ -745,6 +746,8 @@ export async function collect(config, ctx) {
     budgetExhausted: meter.denied > 0,
     retried,
     retriedOk: retried.length,
+    // In config order, so a caller's log line is stable.
+    waitable: config.vendors.map((v) => v?.name).filter((name) => waitable.has(name)),
   };
 }
 

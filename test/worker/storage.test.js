@@ -1,11 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  writeRun,
-  readSnapshot,
-  readRecheckCandidates,
-  claimRecheck,
-  noteFailedRecheck,
-} from '../../src/worker/storage.js';
+import { writeRun, readSnapshot } from '../../src/worker/storage.js';
 import { makeD1, record as rec, runOf as run } from '../helpers/d1.js';
 
 // These tests execute the REAL SQL against REAL SQLite.
@@ -286,7 +280,7 @@ describe('history retention (audit L4)', () => {
 // rot of 2026-08-12 sat at `unknown` for hours with nothing counting.
 describe('vendor_health — endpoint-rot streak tracking', () => {
   const health = () =>
-    db.sqlite.prepare('SELECT vendor, failing_since, failures FROM vendor_health ORDER BY vendor').all();
+    db.sqlite.prepare('SELECT * FROM vendor_health ORDER BY vendor').all();
   const at = (ts) => ({ checkedAt: ts });
 
   it('an unknown collection starts a streak at that run time', async () => {
@@ -350,113 +344,24 @@ describe('vendor_health — endpoint-rot streak tracking', () => {
   });
 });
 
-describe('re-check storage (worklist #129)', () => {
-  const TIMEOUT = 'fetch failed: The operation was aborted due to timeout';
-  const unknownAt = (vendor, at, reason = TIMEOUT) =>
-    writeRun(db, run([rec(vendor, 'unknown', { checkedAt: at, warnings: [reason] })], { checkedAt: at }));
-  const candidates = (over = {}) => readRecheckCandidates(db, { maxRechecks: 2, exclude: [], limit: 10, ...over });
-  const names = async (over) => (await candidates(over)).map((c) => c.vendor);
-  const health = () => db.sqlite.prepare('SELECT vendor, failing_since, failures, rechecks FROM vendor_health ORDER BY vendor').all();
-  const looks = (vendor, n) => db.sqlite.prepare('UPDATE vendor_health SET rechecks = ? WHERE vendor = ?').run(n, vendor);
+describe('writeRun with stampRun: false — what a re-look writes (worklist #129)', () => {
+  it("writes the rows and refreshes the counts, but leaves the run's clock and warnings alone", async () => {
+    await writeRun(
+      db,
+      run([rec('A', 'unknown'), rec('B', 'operational')], { checkedAt: '2026-10-02T12:51:00.000Z', warnings: ['A: fetch failed: x'] }),
+    );
+    await writeRun(db, run([rec('A', 'operational')], { checkedAt: '2026-10-02T12:52:40.000Z', warnings: [] }), { stampRun: false });
 
-  describe('readRecheckCandidates', () => {
-    it('orders by fewest looks, then longest-failing, and honours maxRechecks and limit', async () => {
-      await unknownAt('Newest', '2026-10-02T12:53:00.000Z');
-      await unknownAt('Oldest', '2026-10-02T12:51:00.000Z');
-      await unknownAt('Middle', '2026-10-02T12:52:00.000Z');
-      await unknownAt('Looked', '2026-10-02T12:40:00.000Z');
-      looks('Looked', 1);
-      await unknownAt('Spent', '2026-10-02T06:00:00.000Z');
-      looks('Spent', 2);
-
-      expect(await names()).toEqual(['Oldest', 'Middle', 'Newest', 'Looked']); // Spent has had both
-      expect(await names({ limit: 2 })).toEqual(['Oldest', 'Middle']);
-      expect(await names({ maxRechecks: 3 })).toEqual(['Oldest', 'Middle', 'Newest', 'Looked', 'Spent']);
-    });
-
-    it("returns each candidate's looks and its parsed reasons, for the caller to judge", async () => {
-      await unknownAt('A', '2026-10-02T12:51:00.000Z', 'fetch returned HTTP 429');
-      expect(await candidates()).toEqual([{ vendor: 'A', rechecks: 0, warnings: ['fetch returned HTTP 429'] }]);
-    });
-
-    it('leaves out the excluded vendors', async () => {
-      await unknownAt('A', '2026-10-02T12:51:00.000Z');
-      await unknownAt('B', '2026-10-02T12:52:00.000Z');
-      expect(await names({ exclude: ['A'] })).toEqual(['B']);
-      expect(await names({ exclude: ['A', 'B'] })).toEqual([]);
-    });
-
-    it('returns nothing on a healthy board, and nothing once a vendor recovers', async () => {
-      expect(await candidates()).toEqual([]);
-      await unknownAt('A', '2026-10-02T12:51:00.000Z');
-      await writeRun(db, run([rec('A', 'operational')]));
-      expect(await candidates()).toEqual([]);
-    });
-
-    it("more failed checks by the vendor's own batch do not use up its looks", async () => {
-      // `failures` and `rechecks` are separate on purpose: three failed batch
-      // checks leave both looks unspent.
-      for (let i = 0; i < 3; i += 1) await unknownAt('A', `2026-10-02T12:5${i}:00.000Z`);
-      expect(health()).toEqual([{ vendor: 'A', failing_since: '2026-10-02T12:50:00.000Z', failures: 3, rechecks: 0 }]);
-      expect(await names()).toEqual(['A']);
-    });
+    const m = meta();
+    expect(m.checked_at).toBe('2026-10-02T12:51:00.000Z');
+    expect(JSON.parse(m.warnings)).toEqual(['A: fetch failed: x']);
+    expect(m).toMatchObject({ total: 2, unknown: 0, impacted: 0 });
+    expect(snap()).toEqual([{ vendor: 'A', severity: 'operational' }, { vendor: 'B', severity: 'operational' }]);
   });
 
-  describe('claimRecheck', () => {
-    it('takes one look, and only if nobody else took it since the read', async () => {
-      await unknownAt('A', '2026-10-02T12:51:00.000Z');
-      expect(await claimRecheck(db, 'A', 0)).toBe(true);
-      expect(await claimRecheck(db, 'A', 0)).toBe(false); // a second run that read the same value
-      expect(health()[0]).toMatchObject({ rechecks: 1, failures: 1 });
-      expect(await claimRecheck(db, 'A', 1)).toBe(true);
-      expect(health()[0]).toMatchObject({ rechecks: 2 });
-    });
-
-    it('cannot claim a vendor that has recovered', async () => {
-      await unknownAt('A', '2026-10-02T12:51:00.000Z');
-      await writeRun(db, run([rec('A', 'operational')]));
-      expect(await claimRecheck(db, 'A', 0)).toBe(false);
-      expect(health()).toEqual([]);
-    });
-
-    it('a new outage starts with both looks again', async () => {
-      await unknownAt('A', '2026-10-02T12:51:00.000Z');
-      await claimRecheck(db, 'A', 0);
-      await writeRun(db, run([rec('A', 'operational')]));
-      await unknownAt('A', '2026-10-02T14:00:00.000Z');
-      expect(health()[0]).toMatchObject({ failures: 1, rechecks: 0 });
-    });
-  });
-
-  describe('noteFailedRecheck', () => {
-    const row = (vendor) => db.sqlite.prepare('SELECT severity, warnings, checked_at FROM snapshot WHERE vendor = ?').get(vendor);
-
-    it('refreshes the reason on a row that is still unknown, and nothing else', async () => {
-      await unknownAt('A', '2026-10-02T12:51:00.000Z');
-      await noteFailedRecheck(db, 'A', ['fetch returned HTTP 404']);
-      expect(row('A')).toEqual({ severity: 'unknown', warnings: '["fetch returned HTTP 404"]', checked_at: '2026-10-02T12:51:00.000Z' });
-      expect(db.sqlite.prepare("SELECT COUNT(*) n FROM history WHERE vendor = 'A'").get().n).toBe(1);
-    });
-
-    it('does NOT touch a vendor that has recovered: a stale failing re-check cannot undo a recovery', async () => {
-      await unknownAt('A', '2026-10-02T12:51:00.000Z');
-      await writeRun(db, run([rec('A', 'operational', { warnings: [] })])); // a quicker re-check recovered it
-      await noteFailedRecheck(db, 'A', [TIMEOUT]); // the slow one finally gives up
-      expect(row('A')).toMatchObject({ severity: 'operational', warnings: '[]' });
-      expect(health()).toEqual([]);
-    });
-  });
-
-  describe('writeRun with stampRun: false', () => {
-    it("refreshes the counts but leaves the run's clock and warnings alone", async () => {
-      await writeRun(db, run([rec('A', 'unknown'), rec('B', 'operational')], { checkedAt: '2026-10-02T12:51:00.000Z', warnings: ['A: fetch failed: x'] }));
-      await writeRun(db, run([rec('A', 'operational')], { checkedAt: '2026-10-02T12:52:40.000Z', warnings: [] }), { stampRun: false });
-
-      const m = meta();
-      expect(m.checked_at).toBe('2026-10-02T12:51:00.000Z');
-      expect(JSON.parse(m.warnings)).toEqual(['A: fetch failed: x']);
-      expect(m).toMatchObject({ total: 2, unknown: 0, impacted: 0 });
-      expect(snap()).toEqual([{ vendor: 'A', severity: 'operational' }, { vendor: 'B', severity: 'operational' }]);
-    });
+  it('ends the streak of a vendor it recovers', async () => {
+    await writeRun(db, run([rec('A', 'unknown')]));
+    await writeRun(db, run([rec('A', 'operational')]), { stampRun: false });
+    expect(db.sqlite.prepare('SELECT COUNT(*) n FROM vendor_health').get().n).toBe(0);
   });
 });

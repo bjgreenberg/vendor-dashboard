@@ -115,41 +115,34 @@ a future non-Cloudflare deployment possible.
   add a "second pass" or a fourth request INSIDE THE SAME RUN: PR #158 tried
   both (re-collect the vendor before the write; a second look at the fetch)
   and review found a lost composite outage, budget and cap problems, and
-  misleading outcome logs, for no more patience than this gives. (A LATER
-  run looking again is a different thing and does exist: see the re-check
-  bullet below.) Each fetch that answered after a failed
+  misleading outcome logs, for no more patience than this gives. (Looking again A MINUTE LATER, after the write, is a different thing and
+  does exist: see the re-look bullet below.) Each fetch that answered after a failed
   try logs `fetch_retried_ok` (url, attempt, ms) BEFORE the D1 write; a
   recovered stall leaves no other trace and those `ms` values are the only
   evidence of how long stalls last, so keep the line and its position.
-- **A vendor that just went `unknown` is re-checked by the next minutes'
-  runs** (2026-10-02, worklist #129; `recheckUnknown` in
-  `src/worker/index.js`; `readRecheckCandidates`, `claimRecheck`,
-  `noteFailedRecheck` in `storage.js`; `isWaitableFailure` in the engine).
-  Once its own batch is done (written, empty or failed), each run collects
-  ONE vendor that is `unknown` for a waitable reason and has looks left.
-  Invariants, each of which a review pass on PR #160 found broken in an
-  earlier draft:
-  - **A re-check only improves a row.** Recovered -> `writeRun`. Failed again
-    -> `noteFailedRecheck` (the reason, on a row still `unknown`) and nothing
-    else. Never write `unknown` from a re-check: a slow failing one would
-    undo a quicker one's green.
-  - **Claim the look before spending it** (`claimRecheck`, a compare-and-set
-    on `vendor_health.rechecks`). Runs overlap when a batch is slow; without
-    the claim both take the same vendor, and a look that cannot finish loops.
-  - **Two looks per outage, counted in `rechecks`, not `failures`.**
-    `failures` still means consecutive failed checks by the vendor's own
-    batch (migration 0005 added the separate column for that reason).
-  - **One vendor per run, in its own `collect()`, after the batch.** Not
-    beside the batch and not several together: six outgoing connections, and
-    queued fetches' deadlines are already running.
-  - **Only waitable failures**: no answer, or 5xx. The wording lives in the
-    engine (`REASON_NO_ANSWER`, `REASON_HTTP_STATUS`, `BUDGET_EXHAUSTED`);
-    do not re-type those strings in SQL or in the Worker.
-  - **`stampRun: false`** on the re-check's write: `run_meta.checked_at`
-    means "a batch was collected" and `/health` reads it.
+- **A run looks again at its own failed vendors, one and two minutes later**
+  (2026-10-02, worklist #129; `lookAgain` in `src/worker/index.js`). After
+  the batch is written, the same invocation waits `RELOOK_DELAY_MS` (60 s)
+  and re-collects the vendors in `run.waitable`; up to `RELOOKS` (2) times.
+  Invariants:
+  - **A re-look only improves a row.** It writes a vendor only when every
+    required fetch answered and the status is not `unknown`. It never writes
+    `unknown`, and a composite that answered in part is not written.
+  - **State stays in the run's memory.** Do NOT rebuild this as a queue in D1
+    read by later runs: PR #160 tried that (candidate rows, a claim counter,
+    a migration) and three review passes found a lost update, a double claim
+    and a starved queue. In-run, none of those can happen.
+  - **`waitable` is decided in the engine, from the failure itself**
+    (`fetchWithRetry`: no answer, or a status in `WAITABLE_STATUS`). Do not
+    classify failures by reading `warnings` text.
+  - **`stampRun: false`** on the re-look's write: `run_meta.checked_at` means
+    "a batch was collected" and `/health` reads it.
   - **Shared `collectLogged` and `selfMonitor`** keep the batch and the
-    re-check from drifting; the re-check passes `unknownRate: false`.
-  - It never rejects (`recheck_failed` at ERROR).
+    re-looks from drifting; re-looks pass `unknownRate: false`.
+  - It never rejects (`recheck_failed` at ERROR, with vendors and look), and
+    a batch that throws takes no re-look.
+  A run with re-looks lasts up to ~4 min (15 min is the platform limit).
+  Tests set `env.RELOOK_DELAY_MS = 0`; one test pins the 60 s with fake timers.
 - **The retry budget is 20, not 10** (same date). Shards 7 and 9 hold seven
   and eight feeds and Statuspage stalls are correlated; at 10 the second
   tries ate the budget and most feeds never reached the patient third try.

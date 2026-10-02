@@ -7,17 +7,9 @@
  * or a Worker runtime.
  */
 
-import { collect, isWaitableFailure, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
+import { collect, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
 import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
-import {
-  writeRun,
-  readSnapshot,
-  readMeta,
-  writeTruthCheck,
-  readRecheckCandidates,
-  claimRecheck,
-  noteFailedRecheck,
-} from './storage.js';
+import { writeRun, readSnapshot, readMeta, writeTruthCheck } from './storage.js';
 import { siteAssetVersions } from './site-assets.js';
 import { renderLlmsTxt, renderMarkdown } from './llms.js';
 import { agentOf, countFetch, stats as aiFetchStats } from './ai-fetches.js';
@@ -29,14 +21,23 @@ const CRON_EVERY_MINUTES = 1;
 
 /** Every configured vendor's name: what lets storage prune rows for removed vendors. */
 const KNOWN_VENDOR_NAMES = vendorConfig.vendors.map((v) => v.name);
-const VENDOR_BY_NAME = new Map(vendorConfig.vendors.map((v) => [v.name, v]));
+
+/** How many times a run looks again at a vendor whose fetch failed, and how long it waits before each. */
+const RELOOKS = 2;
+const RELOOK_DELAY_MS = 60_000;
 
 /**
- * Extra looks a vendor gets per outage (`vendor_health.rechecks`). After
- * these it waits for its normal 15-minute turn, so a vendor that is really
- * down costs two extra checks, not one a minute.
+ * The wait before each re-look. `env.RELOOK_DELAY_MS` overrides the default
+ * (tests set 0); anything that is not a non-negative number is ignored.
+ *
+ * @param {{RELOOK_DELAY_MS?: unknown}} env
  */
-const RECHECK_LOOKS_PER_OUTAGE = 2;
+function relookDelayMs(env) {
+  const override = Number(env?.RELOOK_DELAY_MS);
+  return env?.RELOOK_DELAY_MS != null && Number.isFinite(override) && override >= 0
+    ? override
+    : RELOOK_DELAY_MS;
+}
 
 /**
  * Scheduled collection.
@@ -55,29 +56,25 @@ async function scheduled(controller, env) {
   const shard = shardDueAt(at, SHARD_COUNT, CRON_EVERY_MINUTES);
   const vendors = selectShard(vendorConfig.vendors, shard, SHARD_COUNT);
 
-  // The batch first, then the re-check, even when the batch threw: a failed
-  // batch is no reason to leave another vendor on the board as unknown. The
-  // re-check never rejects, so the batch's own error still escapes (see the
-  // note above on why a thrown run must be visible).
-  try {
-    await collectBatch(env, shard, vendors);
-  } finally {
-    await recheckUnknown(env.DB, vendors, shard);
-  }
+  // The batch, then another look at whichever of its vendors failed in a way
+  // a minute might fix. If the batch throws, that error escapes and there is
+  // no re-look: the note above on why a thrown run must be visible applies.
+  const waitable = new Set(await collectBatch(env, shard, vendors));
+  await lookAgain(env, shard, vendors.filter((v) => waitable.has(v.name)));
 }
 
 /**
  * collect(), plus the one log line that must not be lost.
  *
- * Shared by the batch and the re-check so the two cannot drift apart: each
- * fetch that failed at least once and then answered logs which try and how
- * long it took, BEFORE any D1 write. That line is the only trace a recovered
- * stall leaves, and a run that waited one out and then lost its write must
- * not lose the evidence too.
+ * Shared by the batch and the re-looks so they cannot drift apart: each fetch
+ * that failed at least once and then answered logs which try and how long it
+ * took, BEFORE any D1 write. That line is the only trace a recovered stall
+ * leaves, and a run that waited one out and then lost its write must not lose
+ * the evidence too.
  *
  * @param {object[]} vendors
  * @param {number} shard
- * @param {object} [tag] extra fields for the log line, e.g. {recheck: true}
+ * @param {object} [tag] extra fields for the log line, e.g. {recheck: true, look: 1}
  */
 async function collectLogged(vendors, shard, tag = {}) {
   const run = await collect({ ...vendorConfig, vendors }, { fetchFn: fetch.bind(globalThis) });
@@ -88,7 +85,7 @@ async function collectLogged(vendors, shard, tag = {}) {
 }
 
 /**
- * SELF-MONITORING, shared by the batch and the re-check.
+ * SELF-MONITORING, shared by the batch and the re-looks.
  *
  * The 2026-07-31 incident was not a gap in logging -- `collection_complete`
  * had been emitting `unknown: 17` every run for hours. The gap was that
@@ -101,8 +98,8 @@ async function collectLogged(vendors, shard, tag = {}) {
  * @param {object} run a collect() result
  * @param {number} shard
  * @param {{unknownRate: boolean, tag?: object}} opts `unknownRate` is for the
- *   batch only: one failing re-checked vendor is 1 of 1, and must not read as
- *   "the whole batch failed".
+ *   batch only. A re-look collects just the vendors that already failed, so
+ *   "most of them are still unknown" says nothing new.
  */
 function selfMonitor(run, shard, { unknownRate, tag = {} }) {
   const alerts = [];
@@ -145,7 +142,8 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
 }
 
 /**
- * Look again at ONE vendor that has just gone unknown.
+ * Look again, a minute later and a minute after that, at the vendors of THIS
+ * batch whose fetch failed in a way that waiting might fix.
  *
  * WHY: the patient last try (10 s, 10 s, 25 s) cut unknown checks from 0.41%
  * to 0.06% in its first 16 hours, but a feed that stalls for longer than
@@ -153,101 +151,85 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
  * its batch came round again 15 minutes later. NetSuite and Dropbox both did
  * on 2026-10-02. Their feeds were answering again within a minute or two.
  *
- * So each run, once its own batch is done (written, empty or failed),
- * collects one vendor that has just gone unknown for a reason that asking
- * again can fix (`isWaitableFailure`) and that still has looks left.
+ * WHY HERE, in the run that saw the failure, and not in the next minutes'
+ * runs reading a queue from D1: everything it needs is already in memory.
+ * Which vendors failed, and whether the failure is worth another look, come
+ * from collect() itself (`run.waitable`), so there is no queue, no claim, no
+ * second run racing for the same vendor, and no reason text to interpret. An
+ * earlier draft did it across runs; three review passes on PR #160 found a
+ * lost-update, a double-claim and a starved queue in it. A scheduled Worker
+ * may run for 15 minutes and waiting costs no CPU, so the longest this adds
+ * (two waits and two full sets of tries, about four minutes) is free. If the
+ * platform ends the invocation early, the vendor simply waits for its batch.
  *
- * THE RULE THAT MAKES IT SAFE: a re-check may only IMPROVE a row.
- *   - The vendor answers -> a normal writeRun: its real status, streak ended.
- *   - It fails again     -> the row's reason is refreshed and nothing else.
- *     `unknown` is never written here, so a slow failing re-check cannot
- *     overwrite the green that a quicker one (or the vendor's own batch)
- *     wrote in the meantime.
- * Nothing here can turn a row green without a real fetch and a payload the
- * adapter verified.
- *
- * The look is CLAIMED before it is spent (claimRecheck). Two runs can
- * overlap when a batch is slow; only one of them gets the vendor, and a look
- * is counted whatever happens next, so nothing here can loop.
- *
- * Why ONE vendor, in its OWN collect(), AFTER the batch:
- *   - one vendor has a whole subrequest and retry budget to itself, so a
- *     re-check cannot run out because of who it was grouped with;
- *   - a Worker holds six outgoing connections at once and further fetches
- *     queue with their deadlines already running. Two composite vendors
- *     together, or a stalled re-check beside the batch, would starve healthy
- *     feeds into timing out;
- *   - a still-stalled vendor cannot hold back the batch's write;
- *   - the batch's `unknown_rate_high` keeps meaning "this batch failed".
- * When several vendors go unknown together they are served one a minute,
- * each getting its first extra look before any gets its second.
- *
+ * THE RULE THAT MAKES IT SAFE: a re-look may only IMPROVE a row.
+ *   - Every required fetch answered and the adapter verified a status
+ *     -> that vendor's row is written, its streak ends.
+ *   - Anything else -> nothing is written. `unknown` is never written here,
+ *     and a composite that answered only in part is left as the batch (or an
+ *     earlier re-look) wrote it, so a verified outage on one source cannot be
+ *     lost to a re-read that missed that source.
  * The write does not stamp the run clock (`stampRun: false`): `checked_at`
- * means "a batch was collected", and /health must not read fresh because a
- * re-check succeeded while batches were failing.
+ * means "a batch was collected", and /health reads it.
  *
- * It NEVER rejects: a re-check is a bonus, and a failure in it must not cost
- * the batch its run. It logs the failure at ERROR instead.
+ * A vendor leaves the list as soon as it recovers, or as soon as its failure
+ * is no longer waitable (a stall that has become a 404 is not waited out).
  *
- * @param {D1Database} db
- * @param {object[]} batch this minute's own vendors, which are not re-checked
+ * It NEVER rejects: a re-look is a bonus. A failure in it is logged at ERROR,
+ * with the vendors and the look, and ends the re-looks for this run.
+ *
+ * @param {{DB: D1Database, RELOOK_DELAY_MS?: unknown}} env
  * @param {number} shard
+ * @param {object[]} vendors the batch's vendors that collect() marked waitable
  */
-async function recheckUnknown(db, batch, shard) {
-  const started = Date.now();
-  const tag = { recheck: true };
-  try {
-    const candidates = await readRecheckCandidates(db, {
-      maxRechecks: RECHECK_LOOKS_PER_OUTAGE,
-      exclude: batch.map((v) => v.name),
-      limit: 10,
-    });
-    // Still configured (a removed vendor's rows go at the next successful
-    // batch write, and must not block the queue until then), and unknown for
-    // a reason that asking again can fix.
-    const pick = candidates.find((c) => VENDOR_BY_NAME.has(c.vendor) && isWaitableFailure(c.warnings));
-    if (!pick) return;
-    if (!(await claimRecheck(db, pick.vendor, pick.rechecks))) return; // another run has it
+async function lookAgain(env, shard, vendors) {
+  let pending = vendors;
+  for (let look = 1; look <= RELOOKS && pending.length > 0; look += 1) {
+    const tag = { recheck: true, look };
+    try {
+      await new Promise((resolve) => setTimeout(resolve, relookDelayMs(env)));
+      const started = Date.now();
+      const run = await collectLogged(pending, shard, tag);
+      selfMonitor(run, shard, { unknownRate: false, tag });
 
-    const run = await collectLogged([VENDOR_BY_NAME.get(pick.vendor)], shard, tag);
-    const record = run.records[0];
+      const stillWaitable = new Set(run.waitable);
+      // A budget-exhausted look verified nothing it can stand behind as a
+      // whole, and selfMonitor has said so: write nothing from it.
+      const recovered = run.budgetExhausted
+        ? []
+        : run.records.filter((r) => r.severity !== 'unknown' && !stillWaitable.has(r.vendor));
+      if (recovered.length > 0) {
+        await writeRun(env.DB, { ...run, records: recovered }, {
+          knownVendors: KNOWN_VENDOR_NAMES,
+          stampRun: false,
+        });
+      }
 
-    let outcome;
-    if (record.severity !== 'unknown') {
-      await writeRun(db, run, { knownVendors: KNOWN_VENDOR_NAMES, stampRun: false });
-      outcome = 'recovered';
-    } else if (run.budgetExhausted) {
-      // Our fault, not the vendor's, and selfMonitor says so at ERROR. The
-      // look stays spent (it was claimed), so this cannot repeat every minute.
-      outcome = 'not_checked';
-    } else {
-      await noteFailedRecheck(db, pick.vendor, record.warnings);
-      outcome = 'still_unknown';
+      pending = pending.filter((v) => stillWaitable.has(v.name));
+      console.log(
+        JSON.stringify({
+          event: 'recheck_complete',
+          shard,
+          look,
+          recovered: recovered.map((r) => r.vendor).sort(),
+          still_unknown: pending.map((v) => v.name).sort(),
+          subrequests: run.subrequests,
+          duration_ms: Date.now() - started,
+        }),
+      );
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: 'collection_alert',
+          shard,
+          ...tag,
+          alert: 'recheck_failed',
+          vendors: pending.map((v) => v.name).sort(),
+          detail: String(error?.message ?? error),
+        }),
+      );
+      return;
     }
-
-    console.log(
-      JSON.stringify({
-        event: 'recheck_complete',
-        shard,
-        vendor: pick.vendor,
-        outcome,
-        severity: record.severity,
-        look: pick.rechecks + 1,
-        subrequests: run.subrequests,
-        duration_ms: Date.now() - started,
-      }),
-    );
-    selfMonitor(run, shard, { unknownRate: false, tag });
-  } catch (error) {
-    console.error(
-      JSON.stringify({
-        event: 'collection_alert',
-        shard,
-        ...tag,
-        alert: 'recheck_failed',
-        detail: String(error?.message ?? error),
-      }),
-    );
   }
 }
 
@@ -257,6 +239,7 @@ async function recheckUnknown(db, batch, shard) {
  * @param {{DB: D1Database}} env
  * @param {number} shard
  * @param {object[]} vendors
+ * @returns {Promise<string[]>} names of the vendors worth another look
  */
 async function collectBatch(env, shard, vendors) {
   const started = Date.now();
@@ -281,7 +264,7 @@ async function collectBatch(env, shard, vendors) {
     console.log(
       JSON.stringify({ event: 'shard_empty', shard, shard_count: SHARD_COUNT }),
     );
-    return;
+    return [];
   }
 
   const run = await collectLogged(vendors, shard);
@@ -312,6 +295,7 @@ async function collectBatch(env, shard, vendors) {
   );
 
   selfMonitor(run, shard, { unknownRate: true });
+  return run.waitable;
 }
 
 /**
