@@ -872,6 +872,25 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
     expect(res.records[0].severity).toBe(SEVERITY.DEGRADED);
   });
 
+  it("the same for Zscaler: a fallback's document is the first cloud, and that cloud is not asked again", async () => {
+    const zdx = fixture('Zscaler-zdx.json');
+    const calls = [];
+    const res = await collect(
+      cfg([{ name: 'Z', type: 'zscaler', url: 'https://a', fallbackUrls: ['https://a-mirror'], clouds: [{ label: 'A', url: 'https://a' }, { label: 'B', url: 'https://b' }] }]),
+      {
+        fetchFn: async (url) => {
+          calls.push(url);
+          if (url === 'https://a') throw new Error('The operation was aborted due to timeout');
+          return { ok: true, status: 200, text: async () => zdx };
+        },
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    expect(calls.filter((u) => u === 'https://a')).toHaveLength(3); // the three tries, and no fourth
+    expect(res.records[0].components.map((c) => [c.name, c.severity])).toEqual([['A', SEVERITY.OPERATIONAL], ['B', SEVERITY.OPERATIONAL]]);
+  });
+
   it('no vendor that reads data centres or clouds has a fallback, so the question does not arise in production', () => {
     // A fallback on such a vendor has to be the first data centre or cloud at
     // another address. Anything else (a different data centre, say) would be

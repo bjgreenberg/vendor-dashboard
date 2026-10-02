@@ -176,8 +176,10 @@ a future non-Cloudflare deployment possible.
     `relook_skipped` (`multi_document`, `no_new_streak`). Keep it: without
     it "left out on purpose" and "the run ended during its wait" look the
     same in the logs. `no_new_streak` covers both "already unknown before
-    this batch" and "its row is not unknown" (a multi-feed vendor read in
-    part). Not logged for a budget-exhausted batch or a failed streak read.
+    this batch" and "its row is not unknown" (a multi-feed vendor with one
+    feed stalled and another reporting trouble). Not logged for a
+    budget-exhausted batch, a batch whose write threw, or a failed streak
+    read (that `relook_failed` names every waitable vendor of the batch).
   - **`waitable` statuses are 500 to 599, 408 and 425.** Not 429, and not a
     code above 599 (a block, refused on purpose).
   - **No `fallbackUrls` on a vendor that reads data centres or clouds**

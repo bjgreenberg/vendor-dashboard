@@ -344,6 +344,38 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
       [1, [], [gov.name], []], // Login.gov stalled: still worth a look
       [2, [], [], [gov.name]], // Login.gov said 429: not read in full, and not waitable
     ]);
+    // Giving up is said with its reason, under the vendor's name, and with
+    // every warning the record carries (a multi-feed vendor has several, and
+    // the one that matters is not always the first).
+    const tagged = warns.mock.calls.map(([line]) => JSON.parse(line)).filter((w) => w.relook);
+    expect(tagged.every((w) => w.look === 2 && w.detail.startsWith(`${gov.name}: `))).toBe(true);
+    expect(tagged.map((w) => w.detail)).toContain(`${gov.name}: Login.gov: fetch returned HTTP 429`);
+    expect(tagged.length).toBeGreaterThan(1);
+  });
+
+  it('a multi-feed vendor with one feed stalled and another reporting trouble gets no re-look, and the log says why', async () => {
+    // The row is `degraded`, not `unknown`, so no unknown streak begins and
+    // there is nothing for a re-look to improve. (With the other feeds all
+    // healthy the row would be `unknown` and it would get its re-looks.)
+    const gov = vendorConfig.vendors.find((v) => v.name === 'US Government');
+    const [login, ssa] = gov.sources.map((s) => s.url);
+    const shardGov = [...Array(SHARD_COUNT).keys()].find((i) => selectShard(vendorConfig.vendors, i, SHARD_COUNT).includes(gov));
+    const degraded = JSON.stringify({
+      page: { url: 'https://status.example.com' },
+      status: { indicator: 'minor', description: 'x' },
+      components: [{ id: 'c1', name: 'Service', status: 'degraded_performance' }],
+    });
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url === ssa) throw new Error('The operation was aborted due to timeout');
+      if (url === login) return { ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => degraded };
+      return OK();
+    }));
+
+    await run({ DB: db }, (SHARD_COUNT + shardGov) * 60_000);
+
+    expect((await snap(gov.name)).severity).toBe('degraded');
+    expect(relooks()).toEqual([]);
+    expect(skipped()).toEqual([{ event: 'relook_skipped', shard: shardGov, multi_document: [], no_new_streak: [gov.name] }]);
   });
 
   it('re-collects only the vendor that failed, never the healthy ones beside it', async () => {
@@ -475,6 +507,31 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     expect(alerts()).toEqual([
       expect.objectContaining({ alert: 'relook_failed', look: 0, vendors: [own.name], detail: expect.stringContaining('D1 read failed') }),
     ]);
+  });
+
+  it('when the streaks cannot be read, every waitable vendor of the batch is named, the left-out one included', async () => {
+    // Zscaler would have been left out anyway (it reads several documents).
+    // With no `relook_skipped` line on this path, this is the only place it
+    // can be named.
+    const zscaler = vendorConfig.vendors.find((v) => v.name === 'Zscaler');
+    const shardZ = [...Array(SHARD_COUNT).keys()].find((i) => selectShard(vendorConfig.vendors, i, SHARD_COUNT).includes(zscaler));
+    const all = selectShard(vendorConfig.vendors, shardZ, SHARD_COUNT).map((v) => v.name).sort();
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('The operation was aborted due to timeout'); }));
+    const broken = {
+      ...db,
+      prepare: (sql) => {
+        if (/FROM vendor_health\s+WHERE failures = 1/.test(sql)) throw new Error('D1 read failed');
+        return db.prepare(sql);
+      },
+    };
+
+    await run({ DB: broken }, (SHARD_COUNT + shardZ) * 60_000);
+
+    expect(alerts().filter((a) => a.alert === 'relook_failed')).toEqual([
+      expect.objectContaining({ look: 0, vendors: all }),
+    ]);
+    expect(all).toContain(zscaler.name);
+    expect(skipped()).toEqual([]);
   });
 
   it('leaves alone a vendor that reads more than one document', async () => {

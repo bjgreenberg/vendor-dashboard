@@ -87,10 +87,10 @@ async function collectLogged(vendors, shard, tag = {}) {
  * @param {{batch: boolean, tag?: object}} opts `batch` is false for a
  *   re-look, which then skips two checks. A re-look collects just the vendors
  *   that already failed, so "most of them are still unknown" says nothing
- *   new. And for a vendor that is still failing, its warning is the batch's
- *   over again (the same failed fetch, up to twice more), so `lookAgain`
- *   logs only the warnings that say something new: those of a vendor it gave
- *   up on. The other alerts here are raised either way.
+ *   new. And for a vendor that is still failing, its warning is usually the
+ *   batch's over again (the same failed fetch, up to twice more), so
+ *   `lookAgain` logs warnings only for a vendor it gave up on, where the
+ *   reason is new. The other alerts here are raised either way.
  */
 function selfMonitor(run, shard, { batch, tag = {} }) {
   const alerts = [];
@@ -217,16 +217,18 @@ async function lookAgain(env, shard, vendors) {
     const fresh = new Set(await readNewStreaks(env.DB, eligible.map((v) => v.name)));
     pending = eligible.filter((v) => fresh.has(v.name));
   } catch (error) {
-    failed(0, eligible, error);
+    // Everyone this call was asked about, so that nobody waitable goes unnamed.
+    failed(0, vendors, error);
     return;
   }
 
   // A vendor that failed waitably and still gets no re-look is said so, with
   // the reason. Without this line a search for its `relook_complete` finds
   // nothing, and "left out on purpose" looks the same as "the run was ended
-  // during its wait". Two cases never reach this line: a batch that ran out
-  // of budget (no vendors are passed in), and a failed streak read (the
-  // `relook_failed` line above names the vendors it was asked about).
+  // during its wait". Three cases never reach this line: a batch that ran out
+  // of budget (no vendors are passed in), a batch whose own write threw (the
+  // invocation fails, loudly), and a failed streak read (the `relook_failed`
+  // line above names every vendor this call was asked about).
   if (pending.length < vendors.length) {
     console.log(
       JSON.stringify({
@@ -235,7 +237,8 @@ async function lookAgain(env, shard, vendors) {
         multi_document: names(vendors.filter((v) => !eligible.includes(v))), // reads more than one document
         // No unknown streak began with this batch: the vendor was already
         // unknown before it, or its row is not unknown at all (a vendor of
-        // several feeds, one stalled, the others read).
+        // several feeds where one stalled and another reported trouble, so
+        // the row reads that trouble).
         no_new_streak: names(eligible.filter((v) => !pending.includes(v))),
       }),
     );
@@ -275,16 +278,6 @@ async function lookAgain(env, shard, vendors) {
       }
 
       const { recovered, stillFailing, gaveUp } = classifyRelook(run, pending);
-      // Why a vendor was given up on is new information: the failure is no
-      // longer the kind the batch saw (a stall that became a 404), and the
-      // row still carries the batch's reason. Said once, here.
-      const lost = new Set(gaveUp.map((v) => v.name));
-      for (const r of run.records) {
-        if (!lost.has(r.vendor)) continue;
-        for (const w of r.warnings ?? []) {
-          console.warn(JSON.stringify({ event: 'collection_warning', ...tag, detail: `${r.vendor}: ${w}` }));
-        }
-      }
       let written = recovered;
       let unwritten = [];
       if (recovered.length > 0) {
@@ -306,6 +299,20 @@ async function lookAgain(env, shard, vendors) {
         gave_up: names(gaveUp),
         not_written: names(unwritten),
       });
+
+      // Why a vendor was given up on is new information: the failure is no
+      // longer the kind the batch saw (a stall that became a 404), and the
+      // row still carries the batch's reason. All of that vendor's warnings
+      // are logged, so for a vendor of several feeds the standing ones come
+      // along with the new one. After the write and the outcome line, so
+      // nothing here can cost a recovered vendor its row.
+      const lost = new Set(gaveUp.map((v) => v.name));
+      for (const r of run.records) {
+        if (!lost.has(r.vendor)) continue;
+        for (const w of r.warnings ?? []) {
+          console.warn(JSON.stringify({ event: 'collection_warning', ...tag, detail: `${r.vendor}: ${w}` }));
+        }
+      }
       pending = [...stillFailing, ...unwritten];
     } catch (error) {
       // This look is lost; the vendors keep their place and the next look,
