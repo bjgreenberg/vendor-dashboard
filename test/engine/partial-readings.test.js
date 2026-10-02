@@ -250,8 +250,7 @@ describe('vendors with one extra document', () => {
     const { row } = await one(v, fetchBy({ [v.incidentsUrl]: incidents }, fixture('Docusign-components.json')));
     expect(row.severity).toBe(SEVERITY.MAJOR_OUTAGE);
     expect(row.incidentName).toBe('eSignature down');
-    expect(row.warnings.join(' | ')).toMatch(/incident "Old one" carries no status/);
-    expect(row.warnings.join(' | ')).not.toMatch(/could not be read/);
+    expect(row.warnings).toEqual(['1 incident in the list carries no status, so it cannot be told from an active one']);
   });
 
   it('Docusign: an incident with no status and nothing else wrong is uncertainty, not health', async () => {
@@ -259,7 +258,7 @@ describe('vendors with one extra document', () => {
     const incidents = '{"incidents":[{"title":"x","impact":"service_disruption"}]}';
     const { row } = await one(v, fetchBy({ [v.incidentsUrl]: incidents }, fixture('Docusign-components.json')));
     expect(row.severity).toBe(SEVERITY.UNKNOWN);
-    expect(row.warnings).toEqual(['incident "x" carries no status']);
+    expect(row.warnings).toEqual(['1 incident in the list carries no status, so it cannot be told from an active one']);
   });
 
   it('Iorad: a component with a state and no name still shows and still votes, under a stand-in name', async () => {

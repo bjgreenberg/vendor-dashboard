@@ -215,8 +215,10 @@ a future non-Cloudflare deployment possible.
     `unknown` VOTE** (Concur: US2, the US vantage point; `dataCenters` means
     "must be read" for `concur-status`). The row cannot read green or
     maintenance from the others. It is NOT a veto: anything worse that was
-    verified (trouble in another data centre, a displayed banner) outranks
-    unknown and shows, with the collector's note naming US2. The first draft
+    verified where a data centre WAS read (trouble there, a displayed banner
+    beside it) outranks unknown and shows, with the collector's note naming
+    US2. With NO data centre read the adapter returns unknown before it
+    looks at the banner (older code, left alone; issue #164). The first draft
     forced the row to `unknown` and dropped the components; review showed
     that hid a verified EU outage. Worst wins, as it does for a vendor of
     several feeds. When the row IS unknown for this reason the card says
@@ -232,10 +234,13 @@ a future non-Cloudflare deployment possible.
     `incidents.every(has a status)` for Docusign; review showed one bad old
     incident then threw away the whole list, an active outage with it. A bad
     ENTRY is the adapter's job, and it fails that entry closed while keeping
-    the rest: a Docusign incident with no status is an `unknown` vote plus a
-    warning; a SorryApp component with no name shows as `Unnamed component`
-    and still votes; a Concur status word nobody knows is `unknown` plus a
-    warning. `isReadableZscalerCloud` is the same function the Zscaler
+    the rest: a Docusign incident with no status is an `unknown` vote plus
+    ONE warning with a count and none of the vendor's words (a title holding
+    "timed out" or "not found" would be rewritten by `humanizeWarning`); a
+    SorryApp component with no name shows as `Unnamed component`; a Concur
+    status word nobody knows is `unknown` plus a warning. Not covered: an
+    Instatus list with a `null` entry still throws (row unknown), and
+    SorryApp components vote only while the page reads operational. `isReadableZscalerCloud` is the same function the Zscaler
     adapter uses; `isReadableConcurDoc` lives beside the Concur adapter,
     which shows whatever the collector tells it was unread, so the card's
     count and the unknown components cannot disagree.

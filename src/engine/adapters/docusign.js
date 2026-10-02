@@ -172,11 +172,17 @@ export function parseDocusign(payload, options) {
     // An incident with no status cannot be told from an active one. It is an
     // unknown vote and a warning, and the incidents beside it still count:
     // refusing the whole list over one bad entry would hide a verified
-    // outage (found in review of PR #163).
-    for (const i of incidentList) {
-      if (i && typeof i === 'object' && typeof i.status === 'string') continue;
-      const label = toPlainText(String(i?.title ?? i?.id ?? 'unnamed')).slice(0, 80) || 'unnamed';
-      warnings.push(`incident "${label}" carries no status`);
+    // outage (found in review of PR #163). ONE warning, with a count and
+    // none of the vendor's words: a title can contain "timed out" or "not
+    // found", which the dashboard would rewrite into a different reason, and
+    // a renamed field would otherwise mean a hundred warnings a cycle.
+    const noStatus = incidentList.filter((i) => !(i && typeof i === 'object' && typeof i.status === 'string')).length;
+    if (noStatus > 0) {
+      warnings.push(
+        noStatus === 1
+          ? '1 incident in the list carries no status, so it cannot be told from an active one'
+          : `${noStatus} incidents in the list carry no status, so they cannot be told from active ones`,
+      );
       malformedIncident = SEVERITY.UNKNOWN;
     }
     let lead = null;

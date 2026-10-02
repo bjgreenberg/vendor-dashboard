@@ -491,6 +491,9 @@ describe('renderDashboard — a vendor read only in part', () => {
       'The component list could not be read. The status shown does not include it.',
       '7 of 8 clouds could not be read (ZIA · zscalerone.net, ZIA · zscalertwo.net, ZIA · zscalerthree.net, ZIA · zscloud.net and 3 more). The status shown is from the other 1.',
       "Concur's US2 data centre could not be read, so its status is not shown.",
+      '1 incident in the list carries no status, so it cannot be told from an active one',
+      '110 incidents in the list carry no status, so they cannot be told from active ones',
+      'unrecognised status "wobbly" on "Expense"',
     ]) {
       expect(humanizeWarning(text)).toBe(text);
     }

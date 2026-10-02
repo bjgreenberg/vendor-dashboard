@@ -107,17 +107,36 @@ describe('parseConcurStatus — fail-closed paths', () => {
   });
 });
 
-// Worklist #132. The collector tells the adapter which data centres it could
-// not read; the adapter shows them, keeps them out of the vote, and refuses to
-// judge the row at all when a required one is missing.
 describe('parseConcurStatus — a status word it does not know', () => {
   it('fails closed AND says so, so an Unknown card is never unexplained', () => {
     const r = parseConcurStatus([doc({ Expense: 'wobbly', Travel: 'normal' })], { vendor: 'Concur', now });
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
     expect(r.warnings).toEqual(['unrecognised status "wobbly" on "Expense"']);
   });
+
+  it('says it once when several data centres report the same word for the same service', () => {
+    const r = parseConcurStatus([doc({ Expense: 'wobbly' }), doc({ Expense: 'wobbly' }), doc({ Expense: 'normal' })], { vendor: 'Concur', now });
+    expect(r.warnings).toEqual(['unrecognised status "wobbly" on "Expense"']);
+  });
+
+  it('a very long status word is cut in the warning', () => {
+    const r = parseConcurStatus([doc({ Expense: 'w'.repeat(500) })], { vendor: 'Concur', now });
+    expect(r.warnings).toEqual([`unrecognised status "${'w'.repeat(40)}" on "Expense"`]);
+  });
+
+  it('with a required data centre also unread, that reason comes first: it is the line the card shows', () => {
+    const r = parseConcurStatus([doc({ Expense: 'wobbly' })], { vendor: 'Concur', dataCenters: ['US2'], unreadDataCenters: ['US2'], now });
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.warnings).toEqual([
+      "Concur's US2 data centre could not be read, so its status is not shown.",
+      'unrecognised status "wobbly" on "Expense"',
+    ]);
+  });
 });
 
+// Worklist #132. The collector tells the adapter which data centres it could
+// not read; the adapter shows them, and a required one among them counts as
+// an unknown vote.
 describe('parseConcurStatus — data centres that could not be read', () => {
   it('shows each as an unknown component, after the services, and does not let it vote', () => {
     const r = parseConcurStatus([doc({ Expense: 'normal', Travel: 'normal' })], {

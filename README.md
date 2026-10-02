@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-10-02 12:27 PM CDT
+Last updated: 2026-10-02 12:46 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -313,15 +313,17 @@ answer and hold nothing.
 > component and does not vote. Two exceptions, where the status cannot be
 > judged without the missing part:
 >
-> 1. **The first document does not answer** (three tries). The row is
->    `unknown` and nothing else is asked, as for every vendor. Concur's first
->    document is US2.
+> 1. **The first document does not answer** (three tries), **or answers
+>    with nothing readable in it.** The row is `unknown`, as for every
+>    vendor. Concur's first document is US2 and Zscaler's is its first cloud;
+>    for those two an answer with nothing in it is handled as one data centre
+>    or cloud that could not be read (the next point, and the table below).
 > 2. **A data centre the config names as required answers but holds no
 >    reading** (`dataCenters`; for Concur, US2, because the board judges from
 >    the United States). It counts as an `unknown` vote: the row cannot read
 >    green or maintenance from the others, and it is `unknown` unless
->    something worse was verified (trouble in another data centre, or a
->    displayed banner), which then shows.
+>    something worse was verified in a data centre that WAS read (trouble
+>    there, or a displayed banner beside it), which then shows.
 
 Before 2026-10-02 a missing Concur data centre or a missing component list
 was dropped without a word (Zscaler and Docusign did warn). Concur read plain
@@ -332,11 +334,12 @@ card said so.
 flowchart TD
     first["First document<br/>3 tries: 10 s, 10 s, 25 s"] -->|"no answer"| unk["Row: unknown"]
     first -->|"answers"| extra["Every further document<br/>1 try, 10 s"]
-    extra --> q{"Does every document,<br/>the first included,<br/>hold a reading?"}
-    q -->|"yes"| whole["Row: the verified status<br/>no note"]
-    q -->|"no"| req{"Is the one without a reading<br/>a required data centre?"}
+    extra --> q{"Which document<br/>holds no reading?"}
+    q -->|"none: all were read"| whole["Row: the verified status<br/>no note"]
+    q -->|"the first one<br/>(5 of the 7 vendors)"| unk
+    q -->|"a further one, or one<br/>data centre or cloud"| req{"Is it a required<br/>data centre?"}
     req -->|"no"| part["Row: the verified status<br/>Card: what could not be read<br/>Missing data centre or cloud: unknown component"]
-    req -->|"yes: Concur US2<br/>answered, but empty"| worse{"Anything worse verified?<br/>trouble elsewhere, or the banner"}
+    req -->|"yes: Concur US2<br/>answered, but empty"| worse{"Anything worse verified<br/>where a data centre was read?"}
     worse -->|"no"| unk
     worse -->|"yes"| part
 ```
@@ -357,17 +360,26 @@ document with no legend or no services. Each call site has to say what a
 reading looks like (`usable` in `readExtra`, `src/engine/collect.js`); there
 is no default, so a new extra document cannot skip the question.
 
-The check is about the document, not each entry in it. One bad entry never
-costs the rest: the adapter reads the list and fails that entry closed. A
-Docusign incident with no status is an `unknown` vote with a warning, and an
-Iorad component with no name shows as `Unnamed component` and still votes. An
-earlier draft refused the whole list instead, which would have thrown away an
-active incident standing next to the bad one.
+The check is about the document, not each entry in it. For Docusign and
+Iorad one bad entry does not cost the rest: the adapter reads the list and
+fails that entry closed. A Docusign incident with no status is an `unknown`
+vote with one warning that counts them, and an Iorad component with no name
+shows as `Unnamed component` and votes as any Iorad component does (that is,
+while the page itself reads operational). An earlier draft refused the whole
+list instead, which would have thrown away an active incident standing next
+to the bad one.
+
+Two gaps that are older than this section and still open: an Instatus
+component list containing a `null` entry makes that adapter throw, so the
+whole row is `unknown`; and when a SorryApp page reports a state other than
+operational, its components do not vote.
 
 Concur's issue banner is its own "something is wrong" flag. A displayed banner
 is a floor: the row reads at least `degraded` (it lifts `maintenance`, and a
 row that would be `unknown` only because US2 was empty), and the card shows
-the banner's own English text, after any affected services. Until
+the banner's own English text, after any affected services. The floor needs
+at least one data centre to have been read: with none read the row is
+`unknown` and the banner is not consulted. Until
 2026-10-02 the banner was never fetched for the configured vendor, so that
 floor did not exist in production. Concur words the banner as an alert under
 investigation, so this can show `degraded` for something Concur has not yet
