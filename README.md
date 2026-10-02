@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-10-01 02:22 PM CDT
+Last updated: 2026-10-02 10:04 AM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -90,6 +90,8 @@ flowchart TB
     a2 --> norm
     a3 --> norm
     norm --> d1[("D1<br/>snapshot + history<br/>+ vendor_health streaks")]
+    collect -.->|"a fetch failed in a way<br/>a minute might fix"| again["look again a minute later,<br/>then once more<br/>same run"]
+    again -.->|"answered: write it"| d1
     d1 --> render["render()<br/>escape on output"]
     render --> page["/service-status"]
     d1 --> api["/api/status<br/>unknownSince per failing vendor"]
@@ -169,17 +171,115 @@ catching a stall, and those `ms` values are the only record of how long real
 stalls last. `attempt: 2` is an ordinary retry. `retried_ok` on
 `collection_complete` is the count.
 
+#### Then the same run looks again, a minute later
+
+The patient last try cut `unknown` checks from 0.41% to 0.06% in its first 16
+hours (2 of 3,451). The two that got through were stalls longer than 46
+seconds, and each left its vendor on the board as `unknown` until its batch
+came round again, 15 minutes later, although the feed was answering again
+within a minute or two.
+
+So the run that saw the failure does not end there. It writes its batch, waits
+a minute, and collects again just the vendors that have **just** gone
+`unknown` because a fetch failed in a way that waiting might fix. If any are
+still failing it waits another minute after that look ends and looks once
+more. Then it stops, and a vendor still failing waits for its batch.
+
+> [!IMPORTANT]
+> A re-look may only **improve** a row. A vendor is written only when it was
+> read **whole, from one document per feed**: every feed answered, the adapter
+> understood each one, and no extra document was involved. Otherwise nothing
+> is written. A re-look never writes `unknown`, and a vendor built from
+> several feeds that answered only in part is left as it was.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant R as One run (this minute's batch)
+    participant V as Vendor status feed
+    participant D as D1 snapshot
+    participant L as Workers Logs
+
+    R->>V: three tries (10 s, 10 s, 25 s)
+    V--xR: silent for all three
+    R->>D: write the batch, this vendor unknown
+    R->>D: has it only just gone unknown?
+    D-->>R: yes, this is the start of the outage
+    Note over R: wait one minute
+    R->>V: look again, three tries
+    alt read in full
+        V-->>R: payload
+        R->>D: write the vendor's real status
+        R->>L: relook_complete, look 1, recovered
+    else still silent
+        V--xR: no answer
+        R->>L: relook_complete, look 1, still_failing
+        Note over R: wait a minute more, look once more, then stop
+    end
+```
+
+| Rule | Value | Why |
+|---|---|---|
+| Who gets a re-look | The batch's own vendors that are `waitable` (a required fetch got no answer, or any 5xx, a 408 or a 425) **and** whose `unknown` streak is one check old | The far end having a bad moment can be waited out; a 429, a 404 or a payload that did not parse will be the same in a minute. The streak condition is the cap: a vendor down for hours gets its re-looks once, at the start, not three collections a cycle until someone fixes it |
+| How it is decided | By the engine: `collect()` reports `waitable` and `incomplete` from the failure itself, and `src/engine/relook.js` decides who is a candidate and what a re-look found | Nothing reads a reason string back to work out what happened, and the policy is tested without a Worker |
+| How many re-looks | Two. The first a minute after the batch, the second a minute after the first ends | A feed that stalls is usually back within a minute or two |
+| When there is none at all | The batch ran out of subrequest budget | That is our fault, not the vendors, and such a batch starts no streaks. (A whole batch failing still gets its re-looks: feeds on one host stall together, and two batches hold nothing but Statuspage vendors. An outage on our side costs each batch its two re-looks once) |
+| Who never gets one | The 7 vendors that read more than one document: Coalition, Concur, Docusign, Google, Iorad, Stormboard, Zscaler | An extra document (a component list, a catalogue, one per data centre or cloud) can answer and be empty. The adapter then reads from the first document alone and says nothing, so a partial reading looks like a whole one (worklist #132), and a re-look that wrote it could turn a row green on part of the truth. The rule fails closed: the engine records every extra-document fetch (`usedExtraDocuments`), so a vendor that gains one tomorrow is kept out without anyone updating a list. The other 42 vendors, every Statuspage one among them, are read from one document per feed |
+| Where the state lives | In the run's memory | No queue in D1 and no second run racing for the same vendor. An earlier draft did this across runs and needed claims and counters; three review passes found races in it |
+| What a re-look writes | Only vendors read whole from one document per feed: their row, a history row, the board's counts. Never `unknown`, never the run clock, never a prune | A re-look cannot undo a status; `run_meta.checked_at` keeps meaning "a batch was collected", which `/health` reads; and a run that has waited minutes may hold a vendor list a deploy has since changed |
+| When a vendor leaves the list | When it is read in full, or when its failure is no longer one that waiting fixes | A stall that has turned into a 404 is not waited out |
+| If a re-look breaks | `collection_alert` / `relook_failed` at ERROR, with the vendors and the look. The next look, if one is left, tries again; a vendor that was read but could not be written keeps its place. The batch is already written | A re-look is a bonus, and a D1 hiccup should not cost a vendor that was just read its recovery |
+| If a re-look runs out of budget | `subrequest_budget_exhausted` at ERROR; its vendors are logged as `not_checked`; no further look | It could not ask everyone, so nothing it read is written |
+
+A run that takes re-looks lasts up to about four minutes. A scheduled Worker
+may run for 15 minutes and waiting costs no CPU. A healthy batch takes no
+re-look and sets no timer. If the platform ends a waiting run early, the
+vendor simply waits for its batch, as it did before.
+
+Each re-look logs `relook_complete` with the `look` (1 or 2) and five lists,
+always all five: `recovered` (read whole and written), `still_failing` (still
+failing in a way a minute might fix), `gave_up` (not read whole, and not for a
+waitable reason; left for the batch), `not_written` (read whole, but the
+write failed; they get the next look) and `not_checked` (our own budget ran
+out before they could be asked). The `history` table gains one row per
+recovery and none for a failed re-look, and `vendor_health.failures` still
+counts failed batch checks only.
+
 Known gaps:
 
 - The extra documents some vendors need after the first one (Concur's
   per-data-centre files, Zscaler's per-cloud files) are fetched once each with
-  the 10-second deadline.
+  the 10-second deadline. The first data centre and the first cloud are the
+  vendor's own `url`: that document gets the full three tries and is reused,
+  never fetched a second time.
 - "About 46 seconds" is for a vendor with one URL. A vendor with many extra
   documents could already run past the one-minute cron when they stall, and
   now runs 15 seconds longer. When two runs overlap, the older one can write
   last and step "last collection" back by a minute until the next run.
 - With a `fallbackUrls` entry, each URL gets the full 10, 10, 25 schedule in
   turn. No vendor in `config/vendors.json` uses a fallback today.
+- A vendor is `unknown` on the board from the moment its batch gives up until
+  a re-look reads it: about a minute or two, not zero.
+- Seven vendors get no re-look at all (see the table above). The same
+  partial-reading problem exists in their normal 15-minute check and is
+  worklist #132.
+- A stall that answers the first re-look with something waiting cannot fix (a
+  429, a 404, a page that does not parse) gets no second re-look.
+- A re-look collects all of the batch's failed vendors together, as the batch
+  did, so they share one subrequest budget and the Worker's six connections.
+- A vendor built from several feeds whose row is NOT `unknown` (one feed
+  stalled while another reported a problem) gets no re-look: its streak never
+  started, and the card already shows the problem.
+- A vendor that stalls in a batch that also ran out of subrequest budget gets
+  no re-look, because such a batch starts no streaks.
+- While a run waits to re-look, its log lines, the batch's included, have not
+  been delivered: Workers Logs gets them when the run ends, up to four minutes
+  later. (Stated from how `wrangler tail` behaves; not checked against
+  Cloudflare's documentation.)
+- Cloudflare updates its runtime a few times a week and gives running work 30
+  seconds to finish. A run caught in its one-minute wait is ended there. The
+  batch was already written, so the board is right; whether that run's log
+  lines survive is not established.
 
 ### Endpoints
 
@@ -340,7 +440,8 @@ emits a warning rather than silently ignoring it.
 | `src/engine/severity.js` | Ordered enum, vendor-vocabulary normalization |
 | `src/engine/scope.js` | Component/group allowlist + drift detection |
 | `src/engine/rollup.js` | Parent roll-up and progressive disclosure |
-| `src/engine/collect.js` | Orchestrator: concurrency, deadlines (the last try is patient), bounded retry |
+| `src/engine/collect.js` | Orchestrator: concurrency, deadlines (the last try is patient), bounded retry; reports which vendors are `waitable` and which were not read in full (`incomplete`) |
+| `src/engine/relook.js` | Re-look policy, pure: who may be looked at again, and what one re-look found |
 | `src/worker/` | Cloudflare bindings **only** — `scheduled()`, `fetch()`, D1, rendering |
 | `src/worker/site-assets.js` | Content-hashes the site's `site.css`, `theme.js` and `consent.js` (md5, first 10 hex, as the site's build does) so the page links the same `?v=` URLs as the site; 5-minute isolate cache, plain links as the fallback |
 | `config/` | Vendor configuration |
@@ -600,6 +701,10 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
 - **The last try waits longer** (10 s, 10 s, then 25 s; 2026-10-01). A stalled
   feed is read late rather than shown `unknown` for 15 minutes, with the same
   three tries. See [When a status feed stalls](#when-a-status-feed-stalls).
+- **A run looks again at the vendors whose fetch failed, one and two minutes
+  later** (2026-10-02), so the card clears in a minute or two when the feed is
+  back rather than at the vendor's next 15-minute turn. A re-look can only
+  improve a row.
 - **Retries share a run-wide budget** — originally because the free plan
   killed an invocation at 50 subrequests; kept on Workers Paid as a sanity
   bound that turns a retry storm into a loud, bounded failure.
@@ -646,7 +751,8 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
 | Paths 404 right after deploy | Propagation lag. Wait 20–30 s and retest before debugging |
 | Page layout lags a site CSS fix (e.g. header flush to the phone edge) | The page links the site's `/assets/site.css`, which the site serves `immutable` for a year. Since 2026-09-30 the Worker links it with the site's own `?v=<hash>`; if the served HTML shows a plain `/assets/site.css` link, the Worker could not fetch or hash the site's assets — check `wrangler tail` |
 | A vendor shows `unknown` | Read its `warnings` in `/service-status/api/status` — it names the HTTP status or parse failure |
-| A vendor flickers to `unknown` for one cycle with `fetch failed: The operation was aborted due to timeout` | Its feed sent nothing for longer than all three tries, the 25-second last one included. In Workers Logs, filter on `fetch_retried_ok`: lines with `attempt: 3` and `ms` over 10,000 are stalls the patient try caught, and their `ms` values say whether 25 seconds is enough. Many unknowns across platforms in the same minute mean the problem is on our side or the network's |
+| A vendor shows `unknown` for a minute or two, then clears | Its feed was silent for longer than all three tries and the same run read it on a re-look. In Workers Logs, filter on `relook_complete`: `recovered` lists the cards a re-look cleared, `still_failing` and `gave_up` the ones it did not |
+| A vendor stays `unknown` for a full cycle with `fetch failed: The operation was aborted due to timeout` | Its feed sent nothing for longer than all three tries, the 25-second last one included. In Workers Logs, filter on `fetch_retried_ok`: lines with `attempt: 3` and `ms` over 10,000 are stalls the patient try caught, and their `ms` values say whether 25 seconds is enough. Many unknowns across platforms in the same minute mean the problem is on our side or the network's |
 | Board reads "No status data" | The cron has not run yet, or is failing. Check `wrangler tail` and `run_meta` in D1 |
 | Want to link to one service's row | Every card has a slug id: `/service-status#cloudflare`, `#1password`. There is no visible `#` glyph (removed 2026-08-03: it was reported twice as a rendering artifact, on touch and on hover) |
 | `fetch-logos.mjs` says REFUSING TO SHIP | The committed manifest lists a logo for a configured vendor and this clone has no file for it — a bot wall refused the download (LinkedIn, NetSuite, OpenAI, SendGrid, Tableau have all done it). A refused download is not vendor removal, so the build stops instead of shipping a shrunken manifest. Restore `assets/icons` from a clone that has the files (the row below), or declare `iconUrl` for that vendor, then re-run |

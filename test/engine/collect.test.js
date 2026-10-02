@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { collect } from '../../src/engine/collect.js';
+import { collect, hasExtraDocuments } from '../../src/engine/collect.js';
 import { SEVERITY } from '../../src/engine/severity.js';
 
 const fixture = (n) => readFileSync(new URL(`../fixtures/${n}`, import.meta.url), 'utf8');
@@ -640,5 +640,283 @@ describe('collect — the last try is patient', () => {
       now,
     });
     expect(healthy.retriedOk).toBe(0);
+  });
+});
+
+// `waitable`: the vendors whose required fetch failed in a way that asking
+// again a minute later could fix. The Worker's re-look reads it (worklist
+// #129). It is decided where the failure happens, from the failure itself,
+// never by reading the reason text back.
+describe('collect — which vendors are worth another look (waitable)', () => {
+  const GH = readFileSync(new URL('../fixtures/GitHub.json', import.meta.url), 'utf8');
+  const ok = () => ({ ok: true, status: 200, text: async () => GH });
+  const status = (code) => async () => ({ ok: false, status: code, text: async () => '' });
+  const one = (fetchFn, over = {}) =>
+    collect(cfg([{ name: 'V', type: 'statuspage', url: 'https://v' }]), { fetchFn, now, retryDelayMs: 0, ...over });
+
+  it.each([
+    ['a network error or deadline', async () => { throw new Error('ECONNRESET'); }, ['V']],
+    ['HTTP 503', status(503), ['V']],
+    ['HTTP 504', status(504), ['V']],
+    ['HTTP 520 (a CDN error in front of the vendor)', status(520), ['V']],
+    ['HTTP 408', status(408), ['V']],
+    ['HTTP 425', status(425), ['V']],
+    ['HTTP 429 (it asked us to slow down)', status(429), []],
+    ['HTTP 404 (a retired route)', status(404), []],
+    ['HTTP 401', status(401), []],
+    ['a 200 that does not parse', async () => ({ ok: true, status: 200, text: async () => '<html>' }), []],
+    ['a healthy answer', async () => ok(), []],
+  ])('%s -> %j', async (_label, fetchFn, expected) => {
+    expect((await one(fetchFn)).waitable).toEqual(expected);
+  });
+
+  it('a vendor that answered on a retry is not waitable: it was read', async () => {
+    let calls = 0;
+    const res = await one(async () => {
+      calls += 1;
+      if (calls === 1) throw new Error('ECONNRESET');
+      return ok();
+    });
+    expect(res.waitable).toEqual([]);
+    expect(res.unknown).toBe(0);
+  });
+
+  it('a request our own budget refused is not the vendor failing to answer', async () => {
+    const vendors = ['A', 'B', 'C'].map((n) => ({ name: n, type: 'statuspage', url: `https://${n}` }));
+    const res = await collect(cfg(vendors), { fetchFn: async () => ok(), now, retryDelayMs: 0, subrequestBudget: 1 });
+    expect(res.budgetExhausted).toBe(true);
+    expect(res.unknown).toBe(2);
+    expect(res.waitable).toEqual([]);
+  });
+
+  it('a stalled primary is waitable even when its fallback answers 404', async () => {
+    const fetchFn = async (url) => {
+      if (url === 'https://primary') throw new Error('The operation was aborted due to timeout');
+      return { ok: false, status: 404, text: async () => '' };
+    };
+    const res = await collect(
+      cfg([{ name: 'V', type: 'statuspage', url: 'https://primary', fallbackUrls: ['https://backup'] }]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(res.waitable).toEqual(['V']);
+  });
+
+  it('a composite vendor is waitable when any one of its sources is, even if the row is not unknown', async () => {
+    const OUTAGE = JSON.stringify({
+      page: { url: 'https://status.example.com' },
+      status: { indicator: 'critical', description: 'Major System Outage' },
+      components: [{ id: 'c1', name: 'API', status: 'major_outage' }],
+    });
+    const fetchFn = async (url) => {
+      if (url === 'https://b') throw new Error('ECONNRESET');
+      return { ok: true, status: 200, text: async () => OUTAGE };
+    };
+    const res = await collect(
+      cfg([
+        { name: 'Fine', type: 'statuspage', url: 'https://fine' },
+        {
+          name: 'Multi',
+          type: 'composite',
+          sources: [
+            { group: 'A', type: 'statuspage', url: 'https://a' },
+            { group: 'B', type: 'statuspage', url: 'https://b' },
+          ],
+        },
+      ]),
+      { fetchFn, now, retryDelayMs: 0 },
+    );
+    expect(res.records.find((r) => r.vendor === 'Multi').severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    expect(res.waitable).toEqual(['Multi']);
+    expect(res.incomplete).toEqual(['Multi']); // a major outage from one source, nothing from the other
+  });
+});
+
+// `incomplete`: the vendors that were NOT verified in full. A re-look writes
+// only vendors absent from it.
+describe('collect — which vendors were not read in full (incomplete)', () => {
+  const GH = readFileSync(new URL('../fixtures/GitHub.json', import.meta.url), 'utf8');
+  const ok = () => ({ ok: true, status: 200, text: async () => GH });
+  const multi = {
+    name: 'Multi',
+    type: 'composite',
+    sources: [
+      { group: 'A', type: 'statuspage', url: 'https://a' },
+      { group: 'B', type: 'statuspage', url: 'https://b' },
+    ],
+  };
+  const withB = (b) => collect(cfg([{ name: 'Fine', type: 'statuspage', url: 'https://fine' }, multi]), {
+    fetchFn: async (url) => (url === 'https://b' ? b() : ok()),
+    now,
+    retryDelayMs: 0,
+  });
+
+  it('lists a plain vendor exactly when its row is unknown', async () => {
+    const res = await collect(
+      cfg([
+        { name: 'Fine', type: 'statuspage', url: 'https://fine' },
+        { name: 'Gone', type: 'statuspage', url: 'https://gone' },
+      ]),
+      { fetchFn: async (url) => (url === 'https://gone' ? { ok: false, status: 404, text: async () => '' } : ok()), now, retryDelayMs: 0 },
+    );
+    expect(res.incomplete).toEqual(['Gone']);
+  });
+
+  it.each([
+    ['answers 429', async () => ({ ok: false, status: 429, text: async () => '' })],
+    ['answers 404', async () => ({ ok: false, status: 404, text: async () => '' })],
+    ['returns a payload that does not parse', async () => ({ ok: true, status: 200, text: async () => '<html>' })],
+    ['stalls', async () => { throw new Error('ECONNRESET'); }],
+  ])('lists a composite when one source %s, waitable or not', async (_label, b) => {
+    expect((await withB(b)).incomplete).toEqual(['Multi']);
+  });
+
+  it('lists nothing when every source of every vendor was verified', async () => {
+    expect((await withB(async () => ok())).incomplete).toEqual([]);
+  });
+
+  // EXTRA DOCUMENTS. Several vendors need more than their first document. A
+  // missing one must not sink the vendor, but the vendor was not read in
+  // full, and until 2026-10-02 nothing said so.
+  describe('an extra document that could not be read', () => {
+    const page = (body) => ({ ok: true, status: 200, text: async () => body });
+    const failures = [
+      ['the fetch throws', async () => { throw new Error('The operation was aborted due to timeout'); }],
+      ['it answers 503 with a JSON body', async () => ({ ok: false, status: 503, text: async () => '{"error":"busy"}' })],
+      ['it does not parse', async () => page('<html>')],
+    ];
+    const cases = [
+      ['sorryapp components', { name: 'V', type: 'sorryapp', url: 'https://p', componentsUrl: 'https://x' }, 'Iorad-sorryapp.json'],
+      ['instatus components', { name: 'V', type: 'instatus', url: 'https://p', componentsUrl: 'https://x' }, 'Coalition-instatus.json'],
+      ['docusign incidents', { name: 'V', type: 'docusign', url: 'https://p', incidentsUrl: 'https://x' }, 'Docusign-components.json'],
+      ['a concur-status data centre', { name: 'V', type: 'concur-status', url: 'https://p', statusUrls: ['https://p', 'https://x'] }, 'Concur-status-history-us2.json'],
+      ['a zscaler cloud', { name: 'V', type: 'zscaler', url: 'https://p', clouds: [{ label: 'A', url: 'https://p' }, { label: 'B', url: 'https://x' }] }, 'Zscaler-zdx.json'],
+    ];
+
+    for (const [label, vendor, primaryFixture] of cases) {
+      for (const [how, extra] of failures) {
+        it(`${label}: ${how} -> the vendor is incomplete, and still has a row`, async () => {
+          const primary = fixture(primaryFixture);
+          const res = await collect(cfg([vendor]), {
+            fetchFn: async (url) => (url === 'https://x' ? extra() : page(primary)),
+            now,
+            retryDelayMs: 0,
+          });
+          expect(res.records).toHaveLength(1);
+          expect(res.incomplete).toEqual(['V']);
+        });
+      }
+    }
+
+    it.each([
+      ['sorryapp', { name: 'V', type: 'sorryapp', url: 'https://p', componentsUrl: 'https://x' }, 'Iorad-sorryapp.json'],
+      ['instatus', { name: 'V', type: 'instatus', url: 'https://p', componentsUrl: 'https://x' }, 'Coalition-instatus.json'],
+    ])('%s: a component document that parses but holds no component list is not a reading either', async (_label, vendor, primaryFixture) => {
+      const primary = fixture(primaryFixture);
+      const res = await collect(cfg([vendor]), {
+        fetchFn: async (url) => page(url === 'https://x' ? '{}' : primary),
+        now,
+        retryDelayMs: 0,
+      });
+      expect(res.incomplete).toEqual(['V']);
+    });
+  });
+
+  // Concur's `url` IS its first data centre (US2, the one in `dataCenters`).
+  // The first fetch gets three tries and a patient last one; fetching the
+  // same URL a second time, once and with no retry, could lose a document
+  // already in hand -- and the row was then judged without US2.
+  it('concur-status keeps the first data centre it already read, rather than fetching it again', async () => {
+    const doc = (status) => JSON.stringify({ data: { Expense: { Service: 'Expense', 'Current Status': { status, incidents: [] } } } });
+    const calls = [];
+    const res = await collect(
+      cfg([{ name: 'Concur', type: 'concur-status', url: 'https://us2', statusUrls: ['https://us2', 'https://eu2'] }]),
+      {
+        fetchFn: async (url) => {
+          calls.push(url);
+          if (url === 'https://eu2') return { ok: true, status: 200, text: async () => doc('normal') };
+          // US2 answers once, with trouble, and then stalls.
+          if (calls.filter((u) => u === 'https://us2').length > 1) throw new Error('The operation was aborted due to timeout');
+          return { ok: true, status: 200, text: async () => doc('degraded') };
+        },
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.DEGRADED);
+    expect(calls.filter((u) => u === 'https://us2')).toHaveLength(1);
+    expect(res.incomplete).toEqual([]);
+    // It still read a second document, so a re-look must not write it.
+    expect(res.usedExtraDocuments).toEqual(['Concur']);
+  });
+
+  it("Concur's url is one of its status URLs, so that document is not fetched twice", () => {
+    // The reuse above matches on the exact string. Edit one of the two and
+    // the single-try second fetch of that data centre comes back, silently.
+    const config = JSON.parse(readFileSync(new URL('../../config/vendors.json', import.meta.url), 'utf8'));
+    const concur = config.vendors.filter((v) => v.type === 'concur-status');
+    expect(concur).toHaveLength(1);
+    expect(concur[0].statusUrls).toContain(concur[0].url);
+  });
+
+  it('says which configured vendors read more than one document', async () => {
+    const config = JSON.parse(readFileSync(new URL('../../config/vendors.json', import.meta.url), 'utf8'));
+    const flagged = config.vendors.filter((v) => hasExtraDocuments(v)).map((v) => v.name).sort();
+    // These get no re-look. If this list changes, the Worker's re-look
+    // changes with it: check that is what you meant.
+    expect(flagged).toEqual(['Coalition (Control)', 'Concur', 'Docusign', 'Google', 'Iorad', 'Stormboard', 'Zscaler']);
+    expect(hasExtraDocuments({ name: 'Plain', type: 'statuspage', url: 'https://x' })).toBe(false);
+    expect(hasExtraDocuments(undefined)).toBe(false);
+    // A composite is one of them when any of its sources is.
+    expect(hasExtraDocuments({
+      name: 'Multi',
+      type: 'composite',
+      sources: [{ type: 'statuspage', url: 'https://a' }, { type: 'zscaler', url: 'https://z', clouds: [] }],
+    })).toBe(true);
+  });
+
+  it('usedExtraDocuments is set by the code that fetched the document, read or not, and only then', async () => {
+    const page = (body) => ({ ok: true, status: 200, text: async () => body });
+    const sorry = fixture('Iorad-sorryapp.json');
+    const res = await collect(
+      cfg([
+        { name: 'Plain', type: 'statuspage', url: 'https://plain' },
+        { name: 'ExtraOk', type: 'sorryapp', url: 'https://p1', componentsUrl: 'https://c1' },
+        { name: 'ExtraFails', type: 'sorryapp', url: 'https://p2', componentsUrl: 'https://c2' },
+        { name: 'PrimaryDown', type: 'sorryapp', url: 'https://p3', componentsUrl: 'https://c3' },
+      ]),
+      {
+        fetchFn: async (url) => {
+          if (url === 'https://plain') return page(fixture('GitHub.json'));
+          if (url === 'https://c1') return page('[]');
+          if (url === 'https://c2' || url === 'https://p3') throw new Error('ECONNRESET');
+          return page(sorry);
+        },
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    // PrimaryDown never got as far as its extra document.
+    expect(res.usedExtraDocuments).toEqual(['ExtraOk', 'ExtraFails']);
+  });
+
+  it.each([
+    ['an empty component list (sorryapp)', { name: 'V', type: 'sorryapp', url: 'https://p', componentsUrl: 'https://x' }, 'Iorad-sorryapp.json', '[]'],
+    ['an empty component list (instatus)', { name: 'V', type: 'instatus', url: 'https://p', componentsUrl: 'https://x' }, 'Coalition-instatus.json', '{"components":[]}'],
+    ['an empty data-centre document (concur-status)', { name: 'V', type: 'concur-status', url: 'https://p', statusUrls: ['https://p', 'https://x'] }, 'Concur-status-history-us2.json', '{}'],
+  ])('the hole `incomplete` cannot see, which `usedExtraDocuments` covers: %s', async (_label, vendor, primaryFixture, emptyBody) => {
+    // Worklist #132. The extra document answers 200 and parses, and holds no
+    // status. The adapter falls back to the first document without a word,
+    // so the row is not unknown and `incomplete` is empty. When the adapters
+    // report a partial reading this test should fail, and re-looks can be
+    // given back to the vendors that read more than one document.
+    const primary = fixture(primaryFixture);
+    const res = await collect(cfg([vendor]), {
+      fetchFn: async (url) => ({ ok: true, status: 200, text: async () => (url === 'https://x' ? emptyBody : primary) }),
+      now,
+      retryDelayMs: 0,
+    });
+    expect(res.records[0].severity).not.toBe(SEVERITY.UNKNOWN);
+    expect(res.incomplete).toEqual([]);
+    expect(res.usedExtraDocuments).toEqual(['V']);
   });
 });

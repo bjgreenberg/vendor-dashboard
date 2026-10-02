@@ -112,13 +112,70 @@ a future non-Cloudflare deployment possible.
   worklist #129; `LAST_ATTEMPT_PATIENCE = 2.5` x `timeoutMs`). Statuspage's
   hosting sometimes accepts a request and sends 0 bytes; all three 10 s tries
   aborted and vendors read `unknown` for a cycle. Same three tries. Do NOT
-  rebuild this as a "second pass" or a fourth request: PR #158 tried both
-  (re-collect the vendor; a second look at the fetch) and review found a lost
-  composite outage, budget and cap problems, and misleading outcome logs, for
-  no more patience than this gives. Each fetch that answered after a failed
+  add a "second pass" or a fourth request BEFORE THE BATCH IS WRITTEN: PR
+  #158 tried both (re-collect the vendor before the write; a second look at
+  the fetch) and review found a lost composite outage, budget and cap
+  problems, and misleading outcome logs, for no more patience than this
+  gives. (Looking again a minute AFTER the write is a different thing and
+  does exist: the re-look bullet below.) Each fetch that answered after a failed
   try logs `fetch_retried_ok` (url, attempt, ms) BEFORE the D1 write; a
   recovered stall leaves no other trace and those `ms` values are the only
   evidence of how long stalls last, so keep the line and its position.
+- **A run looks again at its own failed vendors: a minute after the batch,
+  then a minute after that look ends**
+  (2026-10-02, worklist #129; `lookAgain` in `src/worker/index.js`). After
+  the batch is written, the same invocation waits `RELOOK_DELAY_MS` (60 s)
+  and re-collects; up to `RELOOKS` (2) times. Invariants:
+  - **Who:** vendors in the batch's `run.waitable` whose streak is one check
+    old (`readNewStreaks`). The streak condition is the cap: an outage gets
+    its re-looks once, at its start. Without it a dead vendor is collected
+    three times a cycle for hours. **Nobody** when the batch ran out of
+    budget (`collectBatch` returns `[]`). Do NOT add "skip when the whole
+    batch failed": Statuspage stalls are correlated and two shards are all
+    Statuspage, so that guard skips the case re-looks exist for.
+  - **Never a vendor that reads more than one document** (today Coalition,
+    Concur, Docusign, Google, Iorad, Stormboard, Zscaler). An extra document
+    can answer 200 and be empty; the adapter then reads from the first one
+    alone and says nothing, so a partial reading looks whole (worklist #132).
+    Two layers: `hasExtraDocuments` (config keys) keeps them out of the
+    candidates to save requests, and `classifyRelook` refuses any vendor in
+    `run.usedExtraDocuments`, which `readExtra` sets on every call. The second
+    is the safety and it fails closed: a new adapter that calls `readExtra`
+    is excluded with no list to update. Give these vendors re-looks back only
+    when the adapters report a partial reading; three engine tests pin the
+    hole and will fail when it is closed.
+  - **A re-look only improves a row.** It writes a vendor only when it is in
+    neither `run.incomplete` nor `run.usedExtraDocuments`: every source
+    verified, one document each. It never writes `unknown`, and a composite that answered
+    in part is not written, whether the missing source failed waitably or
+    not. The policy is `src/engine/relook.js` (pure; keep it out of the
+    Worker, per the engine/worker boundary above).
+  - **Extra documents go through `readExtra` in `collectOne`.** It is the one
+    place that fetches a component list, catalogue, data-centre or cloud
+    document; it checks `res.ok`, parses, and on ANY failure records the
+    vendor in `incomplete`. Do not add another hand-rolled fetch-and-ignore
+    block: six of them, each swallowing its failure, are why a partial
+    reading used to look like a full one.
+  - **State stays in the run's memory.** Do NOT rebuild this as a queue in D1
+    read by later runs: PR #160 tried that (candidate rows, a claim counter,
+    a migration) and three review passes found a lost update, a double claim
+    and a starved queue. In-run, none of those can happen.
+  - **`waitable` and `incomplete` are decided in the engine**, from the
+    failure itself. Do not classify failures by reading `warnings` text.
+  - **The re-look's write is `stampRun: false` and passes no `knownVendors`.**
+    `run_meta.checked_at` means "a batch was collected" and `/health` reads
+    it; a prune from a run that has waited minutes could use a vendor list a
+    deploy has changed.
+  - **Shared `collectLogged` and `selfMonitor`** keep the batch and the
+    re-looks from drifting; re-looks pass `unknownRate: false`.
+  - It never rejects. A look that throws logs `relook_failed` at ERROR
+    (vendors and look) and the next look tries again; a batch that throws
+    takes no re-look; a budget-exhausted re-look writes nothing, logs the
+    vendors as `not_checked` and ends the re-looks.
+  One word everywhere: `lookAgain`, `RELOOKS`, `relook_complete`,
+  `relook_failed`, `relook: true`. A run with re-looks lasts up to ~4 min
+  (15 min is the platform limit), and its logs arrive when it ends. Tests drive the waits with fake timers
+  (`settle()` in `test/worker/scheduled.test.js`); do not add an env knob.
 - **The retry budget is 20, not 10** (same date). Shards 7 and 9 hold seven
   and eight feeds and Statuspage stalls are correlated; at 10 the second
   tries ate the budget and most feeds never reached the patient third try.
@@ -197,7 +254,7 @@ To actually verify a collection:
 
 ```sh
 # 1. The collector's own verdict, unfiltered — NOT --status=error.
-npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|fetch_retried_ok'
+npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|fetch_retried_ok|relook_complete'
 # 2. The board's aggregate state, over more than one cron cycle.
 curl -s https://briangreenberg.net/service-status/api/status \
   | python3 -c "import sys,json;from collections import Counter;d=json.load(sys.stdin);print(Counter(r['severity'] for r in d['records']))"

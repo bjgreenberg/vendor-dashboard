@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { writeRun, readSnapshot } from '../../src/worker/storage.js';
+import { writeRun, readSnapshot, readNewStreaks } from '../../src/worker/storage.js';
 import { makeD1, record as rec, runOf as run } from '../helpers/d1.js';
 
 // These tests execute the REAL SQL against REAL SQLite.
@@ -341,5 +341,46 @@ describe('vendor_health — endpoint-rot streak tracking', () => {
     await writeRun(db, run([rec('SendGrid', 'unknown')]));
     await writeRun(db, run([rec('Zoom', 'operational', at('2026-07-31T23:45:00.000Z'))]));
     expect(health().map((r) => r.vendor)).toEqual(['SendGrid']);
+  });
+});
+
+describe('writeRun with stampRun: false — what a re-look writes (worklist #129)', () => {
+  it("writes the rows and refreshes the counts, but leaves the run's clock and warnings alone", async () => {
+    await writeRun(
+      db,
+      run([rec('A', 'unknown'), rec('B', 'operational')], { checkedAt: '2026-10-02T12:51:00.000Z', warnings: ['A: fetch failed: x'] }),
+    );
+    await writeRun(db, run([rec('A', 'operational')], { checkedAt: '2026-10-02T12:52:40.000Z', warnings: [] }), { stampRun: false });
+
+    const m = meta();
+    expect(m.checked_at).toBe('2026-10-02T12:51:00.000Z');
+    expect(JSON.parse(m.warnings)).toEqual(['A: fetch failed: x']);
+    expect(m).toMatchObject({ total: 2, unknown: 0, impacted: 0 });
+    expect(snap()).toEqual([{ vendor: 'A', severity: 'operational' }, { vendor: 'B', severity: 'operational' }]);
+  });
+
+  it('ends the streak of a vendor it recovers', async () => {
+    await writeRun(db, run([rec('A', 'unknown')]));
+    await writeRun(db, run([rec('A', 'operational')]), { stampRun: false });
+    expect(db.sqlite.prepare('SELECT COUNT(*) n FROM vendor_health').get().n).toBe(0);
+  });
+});
+
+describe('readNewStreaks — which of these vendors have just gone unknown', () => {
+  const unknown = (vendor) => writeRun(db, run([rec(vendor, 'unknown')]));
+
+  it('returns only the asked-for vendors whose streak is one check old', async () => {
+    await unknown('New');
+    await unknown('Old');
+    await unknown('Old');
+    await unknown('NotAsked');
+    await writeRun(db, run([rec('Fine', 'operational')]));
+
+    expect(await readNewStreaks(db, ['New', 'Old', 'Fine'])).toEqual(['New']);
+  });
+
+  it('returns nothing for an empty list without touching the database', async () => {
+    const closed = { prepare: () => { throw new Error('should not be called'); } };
+    expect(await readNewStreaks(closed, [])).toEqual([]);
   });
 });

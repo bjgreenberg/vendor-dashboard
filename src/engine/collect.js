@@ -84,7 +84,8 @@ const DEFAULT_RETRY_DELAY_MS = 250;
 const DEFAULT_RETRY_BUDGET = 20;
 
 /**
- * Sanity ceiling on subrequests for one invocation.
+ * Sanity ceiling on subrequests for one collect() call. (A Worker invocation
+ * may make more than one: its batch, then re-looks at vendors that failed.)
  *
  * ORIGIN: the Workers free plan killed an invocation at 50 external
  * subrequests, so this budget existed to convert a fatal, silent, whole-run
@@ -96,6 +97,33 @@ const DEFAULT_RETRY_BUDGET = 20;
  * the plan ceiling without being visible as fetch calls here.
  */
 export const DEFAULT_SUBREQUEST_BUDGET = 40;
+
+/**
+ * The config keys that name a document beyond a vendor's first one.
+ * `collectOne` fetches each of them through `readExtra`, except an entry
+ * that IS the vendor's `url` (Concur's first data centre, Zscaler's first
+ * cloud): that document is already in hand and is reused.
+ */
+const EXTRA_DOCUMENT_KEYS = ['componentsUrl', 'incidentsUrl', 'statusUrls', 'clouds', 'bannerUrl'];
+
+/**
+ * Is this vendor configured to read more than one document?
+ *
+ * A cheap answer from config, for callers that want to skip such a vendor
+ * before spending requests on it. It is NOT the safety check: a key this list
+ * has not heard of would slip past it. The authoritative answer is
+ * `usedExtraDocuments` in a collect() result, which is set by the code that
+ * actually fetched the document.
+ *
+ * Checked on the vendor and on each source of a composite.
+ *
+ * @param {object} vendor a config entry
+ * @returns {boolean}
+ */
+export function hasExtraDocuments(vendor) {
+  const one = (v) => EXTRA_DOCUMENT_KEYS.some((key) => v?.[key] != null);
+  return one(vendor) || (Array.isArray(vendor?.sources) && vendor.sources.some(one));
+}
 
 /** Marker so an exhausted budget is reported distinctly from a vendor outage. */
 export const BUDGET_EXHAUSTED = 'subrequest budget exhausted';
@@ -167,6 +195,20 @@ const TEXT_ADAPTERS = {
  */
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
+/**
+ * Is this status worth ANOTHER LOOK a minute later (see `waitable` in
+ * collect())?
+ *
+ * Any 5xx, a 408 or a 425: the far end, or something in front of it, having a
+ * bad moment, and a minute is often enough. That is wider than
+ * RETRYABLE_STATUS on purpose (a CDN's 520 to 524 are not retried at once,
+ * but they do pass). Not a 429: that is the far end asking us to slow down,
+ * and coming back a minute later with three more tries is not slowing down.
+ *
+ * @param {number} status
+ */
+const isWaitableStatus = (status) => status >= 500 || status === 408 || status === 425;
+
 /** Attempts per vendor, including the first. */
 const MAX_ATTEMPTS = 3;
 
@@ -188,25 +230,24 @@ const MAX_ATTEMPTS = 3;
  *
  * @param {string[]} urls primary first, then fallbacks
  * @param {object} ctx
- * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string}>}
+ * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string, waitable: boolean}>}
  */
 async function fetchWithFallback(urls, ctx) {
   let lastReason = 'fetch failed';
+  // True if ANY url failed waitably, not only the last one tried: a stalled
+  // primary behind a fallback that answers 404 is still a stall.
+  let waitable = false;
   for (const url of urls) {
     const attempt = await fetchWithRetry(url, ctx);
     if (attempt.ok) return attempt;
     lastReason = attempt.reason;
+    waitable = waitable || attempt.waitable;
     // Only spend a fallback if the budget still allows it.
     if (ctx.budget.remaining <= 0) break;
   }
-  return { ok: false, reason: lastReason };
+  return { ok: false, reason: lastReason, waitable };
 }
 
-/**
- * @param {string} url
- * @param {object} ctx
- * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string}>}
- */
 /**
  * Decode a response body, honouring UTF-16.
  *
@@ -238,9 +279,21 @@ async function decodeBody(response) {
   return new TextDecoder(encoding).decode(buf);
 }
 
+/**
+ * @param {string} url
+ * @param {object} ctx
+ * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string, waitable: boolean}>}
+ *   `waitable`: the LAST try failed in a way that asking again a minute later
+ *   could fix — no answer at all (a network error or a deadline), or a status
+ *   that isWaitableStatus accepts. Decided here, from the failure itself, so nothing
+ *   downstream has to read the reason text to find out. Our own exhausted
+ *   subrequest budget is worded as a failed fetch but is not the vendor's
+ *   doing, and is never waitable.
+ */
 async function fetchWithRetry(url, ctx) {
   const { fetchFn, now, timeoutMs, lastAttemptTimeoutMs, retryDelayMs, budget, retried } = ctx;
   let lastReason = 'fetch failed';
+  let waitable = false;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     if (attempt > 1) {
@@ -272,8 +325,9 @@ async function fetchWithRetry(url, ctx) {
 
       if (response && response.ok === false) {
         lastReason = `fetch returned HTTP ${response.status}`;
+        waitable = isWaitableStatus(response.status);
         if (RETRYABLE_STATUS.has(response.status)) continue;
-        return { ok: false, reason: lastReason };
+        return { ok: false, reason: lastReason, waitable };
       }
 
       const body = await decodeBody(response);
@@ -288,10 +342,11 @@ async function fetchWithRetry(url, ctx) {
     } catch (error) {
       // A network-level failure is transient by nature; retry it.
       lastReason = `fetch failed: ${error?.message ?? String(error)}`;
+      waitable = error?.message !== BUDGET_EXHAUSTED;
     }
   }
 
-  return { ok: false, reason: lastReason };
+  return { ok: false, reason: lastReason, waitable };
 }
 
 /**
@@ -354,6 +409,11 @@ async function collectComposite(vendor, ctx) {
       ),
     ),
   );
+
+  // One unverified source makes the whole vendor incomplete, whatever the
+  // row's severity turns out to be: "degraded" from three sources and nothing
+  // from the fourth is not a full reading.
+  if (parts.some(({ record }) => record.severity === SEVERITY.UNKNOWN)) ctx.incomplete.add(name);
 
   const components = [];
   const warnings = [];
@@ -428,23 +488,57 @@ async function collectOne(vendor, ctx) {
   const urls = [vendor.url, ...(Array.isArray(vendor.fallbackUrls) ? vendor.fallbackUrls : [])];
   const attempt = await fetchWithFallback(urls, ctx);
   if (!attempt.ok) {
+    // A composite's sources carry the vendor's name, so one waitable source
+    // marks the whole vendor.
+    if (attempt.waitable) ctx.waitable.add(name);
     return unknownRecord(name, attempt.reason, opts);
   }
   const body = attempt.body;
+
+  // EXTRA DOCUMENTS. Some vendors need more than the first one: a component
+  // list, a catalogue, one document per data centre or per cloud. A missing
+  // one must not sink the vendor (the first document still stands), so every
+  // failure here returns `undefined` rather than throwing. But it is recorded:
+  // the vendor was NOT read in full, and `incomplete` says so. Before this
+  // helper each call site swallowed its own failure silently, so nothing
+  // downstream could tell a full reading from a partial one (worklist #132).
+  //
+  // What `incomplete` still cannot say: a document that answers 200, parses,
+  // and holds no status (an empty component list, an empty sections page).
+  // The adapters fall back to the first document without a word. So a caller
+  // that must be sure a reading is whole should ALSO require that the vendor
+  // read no extra document at all: `usedExtraDocuments`.
+  //
+  // "Failed" is any of: the fetch threw, the status was not ok (a 503 with a
+  // JSON body used to be parsed as if it were the document), or the body did
+  // not parse. `usable` lets a call site also reject a document that parsed
+  // but holds nothing it can use.
+  const readExtra = async (url, { parse = JSON.parse, usable = () => true } = {}) => {
+    // Recorded on every call, whether or not it succeeds: see
+    // `usedExtraDocuments` in collect()'s result.
+    ctx.usedExtra.add(name);
+    try {
+      const res = await fetchFn(url, {
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+      });
+      if (res?.ok === false) throw new Error(`HTTP ${res.status}`);
+      const doc = parse(await res.text());
+      if (!usable(doc)) throw new Error('document had nothing usable');
+      return doc;
+    } catch {
+      ctx.incomplete.add(name);
+      return undefined;
+    }
+  };
 
   try {
     if (isText) {
       // BetterStack renders its resource list from a separate /sections
       // fragment; the main page carries no resource names at all.
       if (vendor.type === 'betterstack' && vendor.componentsUrl) {
-        try {
-          const res = await fetchFn(vendor.componentsUrl, {
-            headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-          });
-          opts.sections = await res.text();
-        } catch {
-          /* advisory: the page-level state still stands */
-        }
+        // If it fails, the page-level state still stands.
+        const sections = await readExtra(vendor.componentsUrl, { parse: (text) => text });
+        if (sections !== undefined) opts.sections = sections;
       }
       return TEXT_ADAPTERS[vendor.type](body, opts);
     }
@@ -461,14 +555,9 @@ async function collectOne(vendor, ctx) {
     // if it fails, the page-level status still stands.
     // Google publishes its product catalogue separately from its incidents feed.
     if (vendor.type === 'google' && vendor.componentsUrl) {
-      try {
-        const res = await fetchFn(vendor.componentsUrl, {
-          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-        });
-        opts.products = JSON.parse(await res.text());
-      } catch {
-        /* catalogue is advisory; incidents still decide severity */
-      }
+      // The catalogue is advisory; incidents still decide severity.
+      const products = await readExtra(vendor.componentsUrl);
+      if (products !== undefined) opts.products = products;
     }
 
     // Docusign's health page splits the product tree (vendor.url) from the
@@ -476,26 +565,17 @@ async function collectOne(vendor, ctx) {
     // votes and supplies the card text, but if the fetch fails the components
     // still decide and the parser records a warning (opts.incidents undefined).
     if (vendor.type === 'docusign' && vendor.incidentsUrl) {
-      try {
-        const res = await fetchFn(vendor.incidentsUrl, {
-          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-        });
-        opts.incidents = JSON.parse(await res.text());
-      } catch {
-        /* advisory; parseDocusign warns and judges on components alone */
-      }
+      // If it fails, parseDocusign warns and judges on components alone.
+      const incidents = await readExtra(vendor.incidentsUrl);
+      if (incidents !== undefined) opts.incidents = incidents;
     }
 
     if (vendor.type === 'instatus' && vendor.componentsUrl) {
-      try {
-        const res = await fetchFn(vendor.componentsUrl, {
-          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-        });
-        const extra = JSON.parse(await res.text());
-        if (Array.isArray(extra?.components)) payload.components = extra.components;
-      } catch {
-        /* components are advisory; page.status still decides severity */
-      }
+      // If it fails, page.status still decides, on its own.
+      const extra = await readExtra(vendor.componentsUrl, {
+        usable: (doc) => Array.isArray(doc?.components),
+      });
+      if (extra !== undefined) payload.components = extra.components;
     }
 
     // SorryApp splits its component list onto a second endpoint, advertised in
@@ -503,33 +583,30 @@ async function collectOne(vendor, ctx) {
     // page-level status and NOTHING underneath, so a reader cannot see what the
     // vendor even covers -- the same gap found on Oracle, IBM and Seismic.
     if (vendor.type === 'sorryapp' && vendor.componentsUrl) {
-      try {
-        const res = await fetchFn(vendor.componentsUrl, {
-          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-        });
-        const extra = JSON.parse(await res.text());
-        const list = Array.isArray(extra) ? extra : extra?.components;
-        if (Array.isArray(list)) payload.components = list;
-      } catch {
-        /* components are advisory; page state still decides severity */
-      }
+      // If it fails, the page state still decides, on its own.
+      const extra = await readExtra(vendor.componentsUrl, {
+        usable: (doc) => Array.isArray(doc) || Array.isArray(doc?.components),
+      });
+      if (extra !== undefined) payload.components = Array.isArray(extra) ? extra : extra.components;
     }
 
     // concur-status reads one document PER DATA CENTRE and merges them.
     // Reading only us2 would report Concur healthy while EU customers were
     // down; the four together are still 38x cheaper than the 23.3 MB incidents
-    // feed they replace.
+    // feed they replace. The first data centre IS vendor.url: its document
+    // (already fetched, with retries) is reused, as for Zscaler below. Fetching
+    // it again, once and with no retry, could lose a document already in hand,
+    // and the row was then judged without the US data centre.
     if (vendor.type === 'concur-status' && Array.isArray(vendor.statusUrls)) {
       const docs = [];
       for (const u of vendor.statusUrls) {
-        try {
-          const res = await fetchFn(u, {
-            headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-          });
-          docs.push(JSON.parse(await res.text()));
-        } catch {
-          /* a missing data centre must not sink the others */
+        if (u === vendor.url) {
+          docs.push(payload);
+          continue;
         }
+        // A missing data centre must not sink the others.
+        const doc = await readExtra(u);
+        if (doc !== undefined) docs.push(doc);
       }
       payload = docs;
     }
@@ -548,14 +625,9 @@ async function collectOne(vendor, ctx) {
           docs.push({ label: cloud?.label, data: payload });
           continue;
         }
-        try {
-          const res = await fetchFn(cloud?.url, {
-            headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-          });
-          docs.push({ label: cloud?.label, data: JSON.parse(await res.text()) });
-        } catch {
-          docs.push({ label: cloud?.label, data: null });
-        }
+        // A missing cloud is a null document, which the parser reports.
+        const data = await readExtra(cloud?.url);
+        docs.push({ label: cloud?.label, data: data === undefined ? null : data });
       }
       payload = docs;
     }
@@ -564,26 +636,16 @@ async function collectOne(vendor, ctx) {
     // the status page's network log. Without it the row listed services only
     // while something was broken, and showed nothing at all when healthy.
     if (vendor.type === 'concur' && vendor.componentsUrl) {
-      try {
-        const res = await fetchFn(vendor.componentsUrl, {
-          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-        });
-        opts.serviceCatalogue = JSON.parse(await res.text());
-      } catch {
-        /* catalogue is advisory; incidents still decide severity */
-      }
+      // The catalogue is advisory; incidents still decide severity.
+      const catalogue = await readExtra(vendor.componentsUrl);
+      if (catalogue !== undefined) opts.serviceCatalogue = catalogue;
     }
 
     // Concur needs a second, optional payload; a failed banner must not sink it.
     if (vendor.type === 'concur' && vendor.bannerUrl) {
-      try {
-        const bannerRes = await fetchFn(vendor.bannerUrl, {
-          headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-        });
-        opts.banner = JSON.parse(await bannerRes.text());
-      } catch {
-        /* banner is advisory; absence is not a failure */
-      }
+      // A failed banner must not sink the vendor.
+      const banner = await readExtra(vendor.bannerUrl);
+      if (banner !== undefined) opts.banner = banner;
     }
 
     return JSON_ADAPTERS[vendor.type](payload, opts);
@@ -606,7 +668,17 @@ async function collectOne(vendor, ctx) {
  * @param {() => Date} [ctx.now]
  * @param {number} [ctx.timeoutMs] deadline for each try but the last
  * @param {number} [ctx.lastAttemptTimeoutMs] deadline for the last try; default 2.5x timeoutMs, never shorter than it
- * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[], retried: {url: string, attempt: number, ms: number}[], retriedOk: number}>}
+ * @returns {Promise<{records: any[], checkedAt: string, total: number, impacted: number, unknown: number, warnings: string[], retried: {url: string, attempt: number, ms: number}[], retriedOk: number, waitable: string[], incomplete: string[], usedExtraDocuments: string[]}>}
+ *   `waitable`: names of the vendors whose required fetch failed in a way that
+ *   asking again a minute later could fix (see fetchWithRetry). A composite is
+ *   listed when any one of its sources is, whatever its row's severity.
+ *   `incomplete`: names of the vendors that were NOT read in full — the row
+ *   is unknown, a composite has an unverified source, or an extra document
+ *   could not be read. One hole remains: an extra document that answers 200
+ *   and parses but is EMPTY of status is not detected (worklist #132).
+ *   `usedExtraDocuments`: names of the vendors for which any extra document
+ *   was fetched, successfully or not. A vendor in neither list was read whole
+ *   from one document per source, with no hole to fall through.
  */
 export async function collect(config, ctx) {
   const {
@@ -670,10 +742,18 @@ export async function collect(config, ctx) {
   const budget = { remaining: retryBudget };
   // One entry per fetch that failed at least once and then answered.
   const retried = [];
+  // Vendors whose required fetch failed in a way worth another look.
+  const waitable = new Set();
+  // Vendors that were not read in full: an extra document that could not be
+  // read (readExtra), a composite with an unverified source, and (added
+  // below) any vendor whose row is unknown.
+  const incomplete = new Set();
+  // Vendors for which an extra document was fetched at all.
+  const usedExtra = new Set();
 
   const settled = await Promise.allSettled(
     config.vendors.map((v) => {
-      const ctx = { fetchFn: meteredFetch, now, timeoutMs, lastAttemptTimeoutMs, retryDelayMs, budget, retried };
+      const ctx = { fetchFn: meteredFetch, now, timeoutMs, lastAttemptTimeoutMs, retryDelayMs, budget, retried, waitable, incomplete, usedExtra };
       return v?.type === 'composite' ? collectComposite(v, ctx) : collectOne(v, ctx);
     }),
   );
@@ -683,6 +763,12 @@ export async function collect(config, ctx) {
       ? outcome.value
       : unknownRecord(config.vendors[i]?.name ?? 'unknown', `collector error: ${outcome.reason}`, { now }),
   );
+
+  // A plain vendor is incomplete exactly when its row is unknown; a composite
+  // was marked above, where its sources are still visible.
+  for (const r of records) {
+    if (r.severity === SEVERITY.UNKNOWN) incomplete.add(r.vendor);
+  }
 
   records.sort(compareRecords);
 
@@ -715,6 +801,10 @@ export async function collect(config, ctx) {
     budgetExhausted: meter.denied > 0,
     retried,
     retriedOk: retried.length,
+    // In config order, so a caller's log line is stable.
+    waitable: config.vendors.map((v) => v?.name).filter((name) => waitable.has(name)),
+    incomplete: config.vendors.map((v) => v?.name).filter((name) => incomplete.has(name)),
+    usedExtraDocuments: config.vendors.map((v) => v?.name).filter((name) => usedExtra.has(name)),
   };
 }
 
