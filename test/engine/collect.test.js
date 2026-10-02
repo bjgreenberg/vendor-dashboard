@@ -659,6 +659,8 @@ describe('collect — which vendors are worth another look (waitable)', () => {
     ['HTTP 503', status(503), ['V']],
     ['HTTP 504', status(504), ['V']],
     ['HTTP 520 (a CDN error in front of the vendor)', status(520), ['V']],
+    ['HTTP 599 (the top of the 5xx range)', status(599), ['V']],
+    ['HTTP 999 (a non-standard block code: refused on purpose)', status(999), []],
     ['HTTP 408', status(408), ['V']],
     ['HTTP 425', status(425), ['V']],
     ['HTTP 429 (it asked us to slow down)', status(429), []],
@@ -847,6 +849,52 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
     expect(res.incomplete).toEqual([]);
     // It still read a second document, so a re-look must not write it.
     expect(res.usedExtraDocuments).toEqual(['Concur']);
+  });
+
+  // The reuse is only right when the document in hand came from `url` itself.
+  // With a `fallbackUrls` entry it could be the fallback's, and that must not
+  // stand in for the first data centre or cloud (issue #161). No configured
+  // vendor has a fallback on these types today.
+  it('concur-status read through a fallback does not pass the fallback off as its first data centre', async () => {
+    const doc = (status) => JSON.stringify({ data: { Expense: { Service: 'Expense', 'Current Status': { status, incidents: [] } } } });
+    const calls = [];
+    const res = await collect(
+      cfg([{ name: 'Concur', type: 'concur-status', url: 'https://us2', fallbackUrls: ['https://alt'], statusUrls: ['https://us2', 'https://eu2'] }]),
+      {
+        fetchFn: async (url) => {
+          calls.push(url);
+          // US2 refuses the first request (the primary), then answers with trouble.
+          if (url === 'https://us2') {
+            return calls.filter((u) => u === url).length === 1
+              ? { ok: false, status: 404, text: async () => '' }
+              : { ok: true, status: 200, text: async () => doc('degraded') };
+          }
+          return { ok: true, status: 200, text: async () => doc('normal') }; // the fallback and EU2
+        },
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.DEGRADED);
+    expect(calls.filter((u) => u === 'https://us2')).toHaveLength(2);
+  });
+
+  it('zscaler read through a fallback does not pass the fallback off as its first cloud', async () => {
+    const zdx = fixture('Zscaler-zdx.json');
+    const calls = [];
+    await collect(
+      cfg([{ name: 'Z', type: 'zscaler', url: 'https://a', fallbackUrls: ['https://alt'], clouds: [{ label: 'A', url: 'https://a' }, { label: 'B', url: 'https://b' }] }]),
+      {
+        fetchFn: async (url) => {
+          calls.push(url);
+          if (url === 'https://a' && calls.filter((u) => u === url).length === 1) return { ok: false, status: 404, text: async () => '' };
+          return { ok: true, status: 200, text: async () => zdx };
+        },
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    expect(calls.filter((u) => u === 'https://a')).toHaveLength(2);
   });
 
   it("Concur's url is one of its status URLs, so that document is not fetched twice", () => {

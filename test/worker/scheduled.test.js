@@ -184,12 +184,13 @@ describe('scheduled() — one shard collected, written, self-monitored', () => {
 // So the run that saw the failure looks again itself, a minute later and a
 // minute after that.
 describe('scheduled() — a vendor whose fetch failed is looked at again by the same run, a minute later', () => {
-  let db, logs, errors;
+  let db, logs, errors, warns;
   const OK = () => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => GREEN_STATUSPAGE });
   const own = shardVendors.find((v) => v.type === 'statuspage' && typeof v.url === 'string' && !v.scope);
   const events = () => logs.mock.calls.map(([line]) => JSON.parse(line));
   const alerts = () => errors.mock.calls.map(([line]) => JSON.parse(line));
   const relooks = () => events().filter((e) => e.event === 'relook_complete');
+  const skipped = () => events().filter((e) => e.event === 'relook_skipped');
   const outcome = (e) => [e.look, e.recovered, e.still_failing, e.gave_up];
   const health = async () => (await db.prepare('SELECT vendor, failures FROM vendor_health ORDER BY vendor').all()).results;
   const snap = async (name) => db.prepare('SELECT severity, checked_at, warnings FROM snapshot WHERE vendor = ?').bind(name).first();
@@ -218,7 +219,7 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     db = makeD1();
     logs = vi.spyOn(console, 'log').mockImplementation(() => {});
     errors = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    warns = vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
@@ -265,6 +266,11 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
       [2, [], [own.name], []],
     ]);
     expect(alerts().some((a) => a.alert === 'unknown_rate_high')).toBe(false); // one vendor of four is not the batch failing
+    // The batch warned about the failed fetch. The re-looks found the same
+    // thing and wrote nothing, so they do not say it twice more.
+    const warned = warns.mock.calls.map(([line]) => JSON.parse(line)).filter((w) => w.detail.startsWith(`${own.name}:`));
+    expect(warned).toHaveLength(1);
+    expect(warned[0].relook).toBeUndefined();
   });
 
   it('an outage gets its re-looks once: a vendor that was already unknown is not looked at again', async () => {
@@ -279,6 +285,9 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     expect(calls.own).toBe(12); // the batch's three tries and nothing more
     expect(await health()).toEqual([{ vendor: own.name, failures: 2 }]);
     expect(relooks()).toHaveLength(2); // both from the first run
+    // And the second run says why it took none, so a search for this vendor's
+    // re-look finds an answer instead of silence.
+    expect(skipped()).toEqual([{ event: 'relook_skipped', shard: SHARD, multi_document: [], streak_not_new: [own.name] }]);
   });
 
   it('a new outage, after a recovery, gets its re-looks again', async () => {
@@ -377,6 +386,7 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
 
     expect(vi.getTimerCount()).toBe(0);
     expect(relooks()).toEqual([]);
+    expect(skipped()).toEqual([]); // nothing failed, so there is nothing to explain
   });
 
   it("a re-look does not stamp the run clock or prune: 'last collection' stays the batch's", async () => {
@@ -482,6 +492,7 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     expect(await health()).toContainEqual({ vendor: zscaler.name, failures: 1 }); // a fresh streak, and still no re-look
     expect(primary).toBe(3);
     expect(relooks().flatMap((e) => [...e.recovered, ...e.still_failing, ...e.gave_up])).not.toContain(zscaler.name);
+    expect(skipped()).toEqual([{ event: 'relook_skipped', shard: shardZ, multi_document: [zscaler.name], streak_not_new: [] }]);
   });
 
   it('a batch whose own write fails takes no re-look: its error escapes as before', async () => {

@@ -102,7 +102,9 @@ export const DEFAULT_SUBREQUEST_BUDGET = 40;
  * The config keys that name a document beyond a vendor's first one.
  * `collectOne` fetches each of them through `readExtra`, except an entry
  * that IS the vendor's `url` (Concur's first data centre, Zscaler's first
- * cloud): that document is already in hand and is reused.
+ * cloud): that document is already in hand and is reused. `bannerUrl` is
+ * fetched for type `concur` only; it is listed because a vendor that
+ * configures one is treated as multi-document either way.
  */
 const EXTRA_DOCUMENT_KEYS = ['componentsUrl', 'incidentsUrl', 'statusUrls', 'clouds', 'bannerUrl'];
 
@@ -199,15 +201,17 @@ const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
  * Is this status worth ANOTHER LOOK a minute later (see `waitable` in
  * collect())?
  *
- * Any 5xx, a 408 or a 425: the far end, or something in front of it, having a
- * bad moment, and a minute is often enough. That is wider than
+ * Any 5xx (500 to 599), a 408 or a 425: the far end, or something in front of
+ * it, having a bad moment, and a minute is often enough. That is wider than
  * RETRYABLE_STATUS on purpose (a CDN's 520 to 524 are not retried at once,
  * but they do pass). Not a 429: that is the far end asking us to slow down,
  * and coming back a minute later with three more tries is not slowing down.
+ * Not a code above 599 either: those are not HTTP (999 is a common bot
+ * block), and a host that refused us on purpose is the 429 case again.
  *
  * @param {number} status
  */
-const isWaitableStatus = (status) => status >= 500 || status === 408 || status === 425;
+const isWaitableStatus = (status) => (status >= 500 && status <= 599) || status === 408 || status === 425;
 
 /** Attempts per vendor, including the first. */
 const MAX_ATTEMPTS = 3;
@@ -230,7 +234,8 @@ const MAX_ATTEMPTS = 3;
  *
  * @param {string[]} urls primary first, then fallbacks
  * @param {object} ctx
- * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string, waitable: boolean}>}
+ * @returns {Promise<{ok: true, body: string, url: string} | {ok: false, reason: string, waitable: boolean}>}
+ *   `url`: the one that answered, which is not always the first.
  */
 async function fetchWithFallback(urls, ctx) {
   let lastReason = 'fetch failed';
@@ -282,7 +287,7 @@ async function decodeBody(response) {
 /**
  * @param {string} url
  * @param {object} ctx
- * @returns {Promise<{ok: true, body: string} | {ok: false, reason: string, waitable: boolean}>}
+ * @returns {Promise<{ok: true, body: string, url: string} | {ok: false, reason: string, waitable: boolean}>}
  *   `waitable`: the LAST try failed in a way that asking again a minute later
  *   could fix — no answer at all (a network error or a deadline), or a status
  *   that isWaitableStatus accepts. Decided here, from the failure itself, so nothing
@@ -338,7 +343,7 @@ async function fetchWithRetry(url, ctx) {
       // stalls last. The url is ours, from config; nothing of the vendor's
       // payload is recorded.
       if (attempt > 1) retried.push({ url, attempt, ms: now().getTime() - startedAt });
-      return { ok: true, body };
+      return { ok: true, body, url };
     } catch (error) {
       // A network-level failure is transient by nature; retry it.
       lastReason = `fetch failed: ${error?.message ?? String(error)}`;
@@ -596,11 +601,13 @@ async function collectOne(vendor, ctx) {
     // feed they replace. The first data centre IS vendor.url: its document
     // (already fetched, with retries) is reused, as for Zscaler below. Fetching
     // it again, once and with no retry, could lose a document already in hand,
-    // and the row was then judged without the US data centre.
+    // and the row was then judged without the US data centre. The match is on
+    // the URL that ANSWERED: had a fallback answered instead, its document is
+    // not that data centre's, and every status URL is fetched.
     if (vendor.type === 'concur-status' && Array.isArray(vendor.statusUrls)) {
       const docs = [];
       for (const u of vendor.statusUrls) {
-        if (u === vendor.url) {
+        if (u === attempt.url) {
           docs.push(payload);
           continue;
         }
@@ -614,14 +621,15 @@ async function collectOne(vendor, ctx) {
     // Zscaler publishes one document PER CLOUD, and the document does not name
     // its own cloud, so config pairs each URL with a display label. The first
     // configured cloud IS vendor.url — its document (already fetched, with
-    // retries) is reused rather than fetched twice. The remaining clouds are
+    // retries) is reused rather than fetched twice, when that URL is the one
+    // that answered (not a fallback). The remaining clouds are
     // fetched once each; a missing cloud must not sink the others, so a
     // failure is recorded as a null document for the parser to report as
     // unknown-with-warning.
     if (vendor.type === 'zscaler' && Array.isArray(vendor.clouds)) {
       const docs = [];
       for (const cloud of vendor.clouds) {
-        if (cloud?.url === vendor.url) {
+        if (cloud?.url === attempt.url) {
           docs.push({ label: cloud?.label, data: payload });
           continue;
         }

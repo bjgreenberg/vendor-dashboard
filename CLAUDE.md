@@ -167,7 +167,18 @@ a future non-Cloudflare deployment possible.
     it; a prune from a run that has waited minutes could use a vendor list a
     deploy has changed.
   - **Shared `collectLogged` and `selfMonitor`** keep the batch and the
-    re-looks from drifting; re-looks pass `unknownRate: false`.
+    re-looks from drifting; re-looks pass `batch: false`, which skips the
+    unknown-rate alert and the `collection_warning` lines (both would only
+    repeat the batch).
+  - **A waitable vendor that gets no re-look is logged**, once, on
+    `relook_skipped` (`multi_document`, `streak_not_new`). Keep it: without
+    it "left out on purpose" and "the run ended during its wait" look the
+    same in the logs.
+  - **`waitable` statuses are 500 to 599, 408 and 425.** Not 429, and not a
+    code above 599 (a block, refused on purpose).
+  - **The first-document reuse (Concur, Zscaler) matches the URL that
+    answered**, not `vendor.url`: a `fallbackUrls` document must never stand
+    in for the first data centre or cloud.
   - It never rejects. A look that throws logs `relook_failed` at ERROR
     (vendors and look) and the next look tries again; a batch that throws
     takes no re-look; a budget-exhausted re-look writes nothing, logs the
@@ -254,7 +265,7 @@ To actually verify a collection:
 
 ```sh
 # 1. The collector's own verdict, unfiltered — NOT --status=error.
-npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|fetch_retried_ok|relook_complete'
+npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|fetch_retried_ok|relook_(complete|skipped)'
 # 2. The board's aggregate state, over more than one cron cycle.
 curl -s https://briangreenberg.net/service-status/api/status \
   | python3 -c "import sys,json;from collections import Counter;d=json.load(sys.stdin);print(Counter(r['severity'] for r in d['records']))"

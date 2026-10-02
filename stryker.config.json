@@ -38,6 +38,7 @@
     "src/engine/severity.js",
     "src/engine/shard.js",
     "src/engine/collect.js",
+    "src/engine/relook.js",
     "src/engine/scope.js",
     "src/worker/storage.js"
   ],

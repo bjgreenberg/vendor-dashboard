@@ -84,11 +84,14 @@ async function collectLogged(vendors, shard, tag = {}) {
  *
  * @param {object} run a collect() result
  * @param {number} shard
- * @param {{unknownRate: boolean, tag?: object}} opts `unknownRate` is for the
- *   batch only. A re-look collects just the vendors that already failed, so
- *   "most of them are still unknown" says nothing new.
+ * @param {{batch: boolean, tag?: object}} opts `batch` is false for a
+ *   re-look, which then skips two checks that would only repeat the batch. A
+ *   re-look collects just the vendors that already failed, so "most of them
+ *   are still unknown" says nothing new; and its warnings are the batch's
+ *   warnings over again (the same failed fetch, up to twice more), about rows
+ *   the re-look did not write. The alerts above are raised either way.
  */
-function selfMonitor(run, shard, { unknownRate, tag = {} }) {
+function selfMonitor(run, shard, { batch, tag = {} }) {
   const alerts = [];
 
   if (run.budgetExhausted) {
@@ -100,7 +103,7 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
 
   // A whole shard failing is infrastructure (budget, DNS, egress), not 14
   // vendors coincidentally breaking at once.
-  if (unknownRate && run.total > 0 && run.unknown / run.total >= 0.5) {
+  if (batch && run.total > 0 && run.unknown / run.total >= 0.5) {
     alerts.push({
       alert: 'unknown_rate_high',
       detail: `${run.unknown}/${run.total} vendors unresolved in shard ${shard}`,
@@ -123,6 +126,7 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
   }
 
   // Surface config drift and staleness rather than letting it accumulate silently.
+  if (!batch) return;
   for (const warning of run.warnings) {
     console.warn(JSON.stringify({ event: 'collection_warning', ...tag, detail: warning }));
   }
@@ -216,13 +220,28 @@ async function lookAgain(env, shard, vendors) {
     return;
   }
 
+  // A vendor that failed waitably and still gets no re-look is said so, with
+  // the reason. Without this line a search for its `relook_complete` finds
+  // nothing, and "left out on purpose" looks the same as "the run was ended
+  // during its wait".
+  if (pending.length < vendors.length) {
+    console.log(
+      JSON.stringify({
+        event: 'relook_skipped',
+        shard,
+        multi_document: names(vendors.filter((v) => !eligible.includes(v))), // reads more than one document
+        streak_not_new: names(eligible.filter((v) => !pending.includes(v))), // not the first failed check of this outage
+      }),
+    );
+  }
+
   for (let look = 1; look <= RELOOKS && pending.length > 0; look += 1) {
     const tag = { relook: true, look };
     try {
       await new Promise((resolve) => setTimeout(resolve, RELOOK_DELAY_MS));
       const started = Date.now();
       const run = await collectLogged(pending, shard, tag);
-      selfMonitor(run, shard, { unknownRate: false, tag });
+      selfMonitor(run, shard, { batch: false, tag });
 
       // Every relook_complete line carries the same five lists.
       const line = (lists) =>
@@ -341,7 +360,7 @@ async function collectBatch(env, shard, vendors) {
     }),
   );
 
-  selfMonitor(run, shard, { unknownRate: true });
+  selfMonitor(run, shard, { batch: true });
 
   // Who is worth another look? Nobody, when the batch ran out of subrequest
   // budget: that is an operator fault, and such a batch starts no streaks, so
