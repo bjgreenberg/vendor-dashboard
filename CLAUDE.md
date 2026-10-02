@@ -6,7 +6,7 @@ live in the global `~/.claude/CLAUDE.md`; this file is repo-specific.
 
 ## What this is
 
-A Cloudflare Worker that polls ~47 SaaS/cloud vendors' public status endpoints
+A Cloudflare Worker that polls about 49 SaaS/cloud vendors' public status endpoints
 every 15 minutes, writes a snapshot to D1, and serves a dashboard at
 `briangreenberg.net/service-status`.
 
@@ -167,7 +167,26 @@ a future non-Cloudflare deployment possible.
     it; a prune from a run that has waited minutes could use a vendor list a
     deploy has changed.
   - **Shared `collectLogged` and `selfMonitor`** keep the batch and the
-    re-looks from drifting; re-looks pass `unknownRate: false`.
+    re-looks from drifting; re-looks pass `batch: false`, which skips the
+    unknown-rate alert and the `collection_warning` lines (both would only
+    repeat the batch). `lookAgain` then logs the warnings of the vendors it
+    GAVE UP on, tagged `relook: true`: that reason is new, and the row still
+    carries the batch's.
+  - **A waitable vendor that gets no re-look is logged**, once, on
+    `relook_skipped` (`multi_document`, `no_new_streak`). Keep it: without
+    it "left out on purpose" and "the run ended during its wait" look the
+    same in the logs. `no_new_streak` covers both "already unknown before
+    this batch" and "its row is not unknown" (a multi-feed vendor with one
+    feed stalled and another reporting trouble). Not logged for a
+    budget-exhausted batch, a batch whose write threw, or a failed streak
+    read (that `relook_failed` names every waitable vendor of the batch).
+  - **`waitable` statuses are 500 to 599, 408 and 425.** Not 429, and not a
+    code above 599 (a block, refused on purpose).
+  - **No `fallbackUrls` on a vendor that reads data centres or clouds**
+    (Concur, Zscaler; a config test pins it). A fallback is the same feed at
+    another address, so its document would be reused as the first data
+    centre or cloud. PR #162 first tried discarding it and fetching the
+    first URL again; review showed that could lose the only reading of US2.
   - It never rejects. A look that throws logs `relook_failed` at ERROR
     (vendors and look) and the next look tries again; a batch that throws
     takes no re-look; a budget-exhausted re-look writes nothing, logs the
@@ -254,7 +273,7 @@ To actually verify a collection:
 
 ```sh
 # 1. The collector's own verdict, unfiltered — NOT --status=error.
-npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|fetch_retried_ok|relook_complete'
+npx wrangler tail --format=json | grep -E 'collection_(complete|alert)|fetch_retried_ok|relook_(complete|skipped)'
 # 2. The board's aggregate state, over more than one cron cycle.
 curl -s https://briangreenberg.net/service-status/api/status \
   | python3 -c "import sys,json;from collections import Counter;d=json.load(sys.stdin);print(Counter(r['severity'] for r in d['records']))"
@@ -290,8 +309,9 @@ clears streaks of removed vendors — do not "fix" either.
 - ⚠️ **Never declare `custom_domain` in `wrangler.jsonc`.** Wrangler skips the
   changeset preview and force-overrides DNS when stdout is not a TTY — on the
   zone the live site depends on. Routes are declared with `zone_name`.
-- The `limits` block is **paid-plan only**; this account is on Workers Free.
-  It is commented out, not deleted, with the free ceilings documented.
+- The `limits` block in `wrangler.jsonc` is **paid-plan only**, and it is
+  declared on purpose (Workers Paid since 2026-08-02): if the plan lapses,
+  the next deploy fails loudly instead of collection reverting to 10 ms kills.
 - `scripts/render-diagrams.sh` must stay **bash 3.2 compatible** (no `mapfile`;
   guard empty-array expansion under `set -u`) — stock macOS bash bit this on
   2026-07-10; CI's bash 5 hides it.

@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-10-02 10:04 AM CDT
+Last updated: 2026-10-02 11:53 AM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -220,7 +220,7 @@ sequenceDiagram
 
 | Rule | Value | Why |
 |---|---|---|
-| Who gets a re-look | The batch's own vendors that are `waitable` (a required fetch got no answer, or any 5xx, a 408 or a 425) **and** whose `unknown` streak is one check old | The far end having a bad moment can be waited out; a 429, a 404 or a payload that did not parse will be the same in a minute. The streak condition is the cap: a vendor down for hours gets its re-looks once, at the start, not three collections a cycle until someone fixes it |
+| Who gets a re-look | The batch's own vendors that are `waitable` (a required fetch got no answer, or a 500 to 599, a 408 or a 425) **and** whose `unknown` streak is one check old | The far end having a bad moment can be waited out; a 429, a 404, a non-standard block code such as 999, or a payload that did not parse will be the same in a minute. The streak condition is the cap: a vendor down for hours gets its re-looks once, at the start, not three collections a cycle until someone fixes it |
 | How it is decided | By the engine: `collect()` reports `waitable` and `incomplete` from the failure itself, and `src/engine/relook.js` decides who is a candidate and what a re-look found | Nothing reads a reason string back to work out what happened, and the policy is tested without a Worker |
 | How many re-looks | Two. The first a minute after the batch, the second a minute after the first ends | A feed that stalls is usually back within a minute or two |
 | When there is none at all | The batch ran out of subrequest budget | That is our fault, not the vendors, and such a batch starts no streaks. (A whole batch failing still gets its re-looks: feeds on one host stall together, and two batches hold nothing but Statuspage vendors. An outage on our side costs each batch its two re-looks once) |
@@ -244,6 +244,25 @@ write failed; they get the next look) and `not_checked` (our own budget ran
 out before they could be asked). The `history` table gains one row per
 recovery and none for a failed re-look, and `vendor_health.failures` still
 counts failed batch checks only.
+
+A vendor that failed waitably and gets no re-look is named on one
+`relook_skipped` line, with the reason: `multi_document` (it reads more than
+one document) or `no_new_streak` (no unknown streak began with this batch:
+the vendor was already unknown before it, or its row is not unknown at all,
+as when one feed of a multi-feed vendor stalls while another reports
+trouble, so the row reads that trouble). A batch with no waitable failure
+logs neither line. Three cases log no `relook_skipped`: a batch that ran out
+of subrequest budget, a batch whose own write failed (the run fails, loudly),
+and a failed read of the streaks (`relook_failed`, look 0, names every
+waitable vendor of the batch).
+
+A re-look does not repeat the batch's `collection_warning` for a vendor that
+is still failing: it is usually the same failed fetch said up to twice more
+(a stall that turns into a 503 is still "failing", and that change is not
+logged). It does log the warnings of a vendor it gave up on, tagged
+`relook: true`, because that reason is new (a stall that became a 404) and
+the row still carries the batch's. For a multi-feed vendor that means all of
+its warnings, the standing ones included.
 
 Known gaps:
 
@@ -751,7 +770,7 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
 | Paths 404 right after deploy | Propagation lag. Wait 20–30 s and retest before debugging |
 | Page layout lags a site CSS fix (e.g. header flush to the phone edge) | The page links the site's `/assets/site.css`, which the site serves `immutable` for a year. Since 2026-09-30 the Worker links it with the site's own `?v=<hash>`; if the served HTML shows a plain `/assets/site.css` link, the Worker could not fetch or hash the site's assets — check `wrangler tail` |
 | A vendor shows `unknown` | Read its `warnings` in `/service-status/api/status` — it names the HTTP status or parse failure |
-| A vendor shows `unknown` for a minute or two, then clears | Its feed was silent for longer than all three tries and the same run read it on a re-look. In Workers Logs, filter on `relook_complete`: `recovered` lists the cards a re-look cleared, `still_failing` and `gave_up` the ones it did not |
+| A vendor shows `unknown` for a minute or two, then clears | Its feed was silent for longer than all three tries and the same run read it on a re-look. In Workers Logs, filter on `relook_complete`: `recovered` lists the cards a re-look cleared, `still_failing` and `gave_up` the ones it did not. A vendor that got no re-look is on a `relook_skipped` line with the reason |
 | A vendor stays `unknown` for a full cycle with `fetch failed: The operation was aborted due to timeout` | Its feed sent nothing for longer than all three tries, the 25-second last one included. In Workers Logs, filter on `fetch_retried_ok`: lines with `attempt: 3` and `ms` over 10,000 are stalls the patient try caught, and their `ms` values say whether 25 seconds is enough. Many unknowns across platforms in the same minute mean the problem is on our side or the network's |
 | Board reads "No status data" | The cron has not run yet, or is failing. Check `wrangler tail` and `run_meta` in D1 |
 | Want to link to one service's row | Every card has a slug id: `/service-status#cloudflare`, `#1password`. There is no visible `#` glyph (removed 2026-08-03: it was reported twice as a rendering artifact, on touch and on hover) |

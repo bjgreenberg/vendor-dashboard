@@ -184,12 +184,13 @@ describe('scheduled() — one shard collected, written, self-monitored', () => {
 // So the run that saw the failure looks again itself, a minute later and a
 // minute after that.
 describe('scheduled() — a vendor whose fetch failed is looked at again by the same run, a minute later', () => {
-  let db, logs, errors;
+  let db, logs, errors, warns;
   const OK = () => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => GREEN_STATUSPAGE });
   const own = shardVendors.find((v) => v.type === 'statuspage' && typeof v.url === 'string' && !v.scope);
   const events = () => logs.mock.calls.map(([line]) => JSON.parse(line));
   const alerts = () => errors.mock.calls.map(([line]) => JSON.parse(line));
   const relooks = () => events().filter((e) => e.event === 'relook_complete');
+  const skipped = () => events().filter((e) => e.event === 'relook_skipped');
   const outcome = (e) => [e.look, e.recovered, e.still_failing, e.gave_up];
   const health = async () => (await db.prepare('SELECT vendor, failures FROM vendor_health ORDER BY vendor').all()).results;
   const snap = async (name) => db.prepare('SELECT severity, checked_at, warnings FROM snapshot WHERE vendor = ?').bind(name).first();
@@ -218,7 +219,7 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     db = makeD1();
     logs = vi.spyOn(console, 'log').mockImplementation(() => {});
     errors = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    warns = vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
@@ -265,6 +266,11 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
       [2, [], [own.name], []],
     ]);
     expect(alerts().some((a) => a.alert === 'unknown_rate_high')).toBe(false); // one vendor of four is not the batch failing
+    // The batch warned about the failed fetch. The re-looks found the same
+    // thing and wrote nothing, so they do not say it twice more.
+    const warned = warns.mock.calls.map(([line]) => JSON.parse(line)).filter((w) => w.detail.startsWith(`${own.name}:`));
+    expect(warned).toHaveLength(1);
+    expect(warned[0].relook).toBeUndefined();
   });
 
   it('an outage gets its re-looks once: a vendor that was already unknown is not looked at again', async () => {
@@ -279,6 +285,9 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     expect(calls.own).toBe(12); // the batch's three tries and nothing more
     expect(await health()).toEqual([{ vendor: own.name, failures: 2 }]);
     expect(relooks()).toHaveLength(2); // both from the first run
+    // And the second run says why it took none, so a search for this vendor's
+    // re-look finds an answer instead of silence.
+    expect(skipped()).toEqual([{ event: 'relook_skipped', shard: SHARD, multi_document: [], no_new_streak: [own.name] }]);
   });
 
   it('a new outage, after a recovery, gets its re-looks again', async () => {
@@ -335,6 +344,38 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
       [1, [], [gov.name], []], // Login.gov stalled: still worth a look
       [2, [], [], [gov.name]], // Login.gov said 429: not read in full, and not waitable
     ]);
+    // Giving up is said with its reason, under the vendor's name, and with
+    // every warning the record carries (a multi-feed vendor has several, and
+    // the one that matters is not always the first).
+    const tagged = warns.mock.calls.map(([line]) => JSON.parse(line)).filter((w) => w.relook);
+    expect(tagged.every((w) => w.look === 2 && w.detail.startsWith(`${gov.name}: `))).toBe(true);
+    expect(tagged.map((w) => w.detail)).toContain(`${gov.name}: Login.gov: fetch returned HTTP 429`);
+    expect(tagged.length).toBeGreaterThan(1);
+  });
+
+  it('a multi-feed vendor with one feed stalled and another reporting trouble gets no re-look, and the log says why', async () => {
+    // The row is `degraded`, not `unknown`, so no unknown streak begins and
+    // there is nothing for a re-look to improve. (With the other feeds all
+    // healthy the row would be `unknown` and it would get its re-looks.)
+    const gov = vendorConfig.vendors.find((v) => v.name === 'US Government');
+    const [login, ssa] = gov.sources.map((s) => s.url);
+    const shardGov = [...Array(SHARD_COUNT).keys()].find((i) => selectShard(vendorConfig.vendors, i, SHARD_COUNT).includes(gov));
+    const degraded = JSON.stringify({
+      page: { url: 'https://status.example.com' },
+      status: { indicator: 'minor', description: 'x' },
+      components: [{ id: 'c1', name: 'Service', status: 'degraded_performance' }],
+    });
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url === ssa) throw new Error('The operation was aborted due to timeout');
+      if (url === login) return { ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => degraded };
+      return OK();
+    }));
+
+    await run({ DB: db }, (SHARD_COUNT + shardGov) * 60_000);
+
+    expect((await snap(gov.name)).severity).toBe('degraded');
+    expect(relooks()).toEqual([]);
+    expect(skipped()).toEqual([{ event: 'relook_skipped', shard: shardGov, multi_document: [], no_new_streak: [gov.name] }]);
   });
 
   it('re-collects only the vendor that failed, never the healthy ones beside it', async () => {
@@ -368,6 +409,13 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     expect(relooks().map(outcome)).toEqual([[1, [], [], [own.name]]]);
     expect((await snap(own.name)).severity).toBe('unknown');
     expect(await history(own.name)).toEqual(['unknown']);
+    // Why it gave up is said once. The row still carries the batch's reason
+    // (a timeout), so without this line nothing anywhere would say "404".
+    const warned = warns.mock.calls.map(([line]) => JSON.parse(line)).filter((w) => w.detail.startsWith(`${own.name}:`));
+    expect(warned).toEqual([
+      { event: 'collection_warning', detail: expect.stringContaining('aborted due to timeout') },
+      { event: 'collection_warning', relook: true, look: 1, detail: `${own.name}: fetch returned HTTP 404` },
+    ]);
   });
 
   it('a healthy batch takes no re-look and sets no timer', async () => {
@@ -377,6 +425,7 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
 
     expect(vi.getTimerCount()).toBe(0);
     expect(relooks()).toEqual([]);
+    expect(skipped()).toEqual([]); // nothing failed, so there is nothing to explain
   });
 
   it("a re-look does not stamp the run clock or prune: 'last collection' stays the batch's", async () => {
@@ -460,6 +509,31 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     ]);
   });
 
+  it('when the streaks cannot be read, every waitable vendor of the batch is named, the left-out one included', async () => {
+    // Zscaler would have been left out anyway (it reads several documents).
+    // With no `relook_skipped` line on this path, this is the only place it
+    // can be named.
+    const zscaler = vendorConfig.vendors.find((v) => v.name === 'Zscaler');
+    const shardZ = [...Array(SHARD_COUNT).keys()].find((i) => selectShard(vendorConfig.vendors, i, SHARD_COUNT).includes(zscaler));
+    const all = selectShard(vendorConfig.vendors, shardZ, SHARD_COUNT).map((v) => v.name).sort();
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('The operation was aborted due to timeout'); }));
+    const broken = {
+      ...db,
+      prepare: (sql) => {
+        if (/FROM vendor_health\s+WHERE failures = 1/.test(sql)) throw new Error('D1 read failed');
+        return db.prepare(sql);
+      },
+    };
+
+    await run({ DB: broken }, (SHARD_COUNT + shardZ) * 60_000);
+
+    expect(alerts().filter((a) => a.alert === 'relook_failed')).toEqual([
+      expect.objectContaining({ look: 0, vendors: all }),
+    ]);
+    expect(all).toContain(zscaler.name);
+    expect(skipped()).toEqual([]);
+  });
+
   it('leaves alone a vendor that reads more than one document', async () => {
     // Zscaler reads one document per cloud. A document can answer and be
     // empty, and the adapter then reads from the rest without a word, so a
@@ -482,6 +556,24 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
     expect(await health()).toContainEqual({ vendor: zscaler.name, failures: 1 }); // a fresh streak, and still no re-look
     expect(primary).toBe(3);
     expect(relooks().flatMap((e) => [...e.recovered, ...e.still_failing, ...e.gave_up])).not.toContain(zscaler.name);
+    expect(skipped()).toEqual([{ event: 'relook_skipped', shard: shardZ, multi_document: [zscaler.name], no_new_streak: [] }]);
+  });
+
+  it('in one batch, some vendors are looked at again and one is left out: both are said', async () => {
+    // Zscaler's batch also holds plain Statuspage vendors. Everything stalls.
+    const zscaler = vendorConfig.vendors.find((v) => v.name === 'Zscaler');
+    const shardZ = [...Array(SHARD_COUNT).keys()].find((i) => selectShard(vendorConfig.vendors, i, SHARD_COUNT).includes(zscaler));
+    const others = selectShard(vendorConfig.vendors, shardZ, SHARD_COUNT).filter((v) => v !== zscaler).map((v) => v.name).sort();
+    expect(others.length).toBeGreaterThan(0);
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('The operation was aborted due to timeout'); }));
+
+    await run({ DB: db }, (SHARD_COUNT + shardZ) * 60_000);
+
+    expect(skipped()).toEqual([{ event: 'relook_skipped', shard: shardZ, multi_document: [zscaler.name], no_new_streak: [] }]);
+    expect(relooks().map(outcome)).toEqual([
+      [1, [], others, []],
+      [2, [], others, []],
+    ]);
   });
 
   it('a batch whose own write fails takes no re-look: its error escapes as before', async () => {

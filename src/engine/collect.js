@@ -102,7 +102,9 @@ export const DEFAULT_SUBREQUEST_BUDGET = 40;
  * The config keys that name a document beyond a vendor's first one.
  * `collectOne` fetches each of them through `readExtra`, except an entry
  * that IS the vendor's `url` (Concur's first data centre, Zscaler's first
- * cloud): that document is already in hand and is reused.
+ * cloud): that document is already in hand and is reused. `bannerUrl` is
+ * fetched for type `concur` only, although the configured Concur vendor is
+ * `concur-status` and sets one: a known gap, tracked in worklist #132.
  */
 const EXTRA_DOCUMENT_KEYS = ['componentsUrl', 'incidentsUrl', 'statusUrls', 'clouds', 'bannerUrl'];
 
@@ -199,15 +201,17 @@ const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
  * Is this status worth ANOTHER LOOK a minute later (see `waitable` in
  * collect())?
  *
- * Any 5xx, a 408 or a 425: the far end, or something in front of it, having a
- * bad moment, and a minute is often enough. That is wider than
+ * Any 5xx (500 to 599), a 408 or a 425: the far end, or something in front of
+ * it, having a bad moment, and a minute is often enough. That is wider than
  * RETRYABLE_STATUS on purpose (a CDN's 520 to 524 are not retried at once,
  * but they do pass). Not a 429: that is the far end asking us to slow down,
  * and coming back a minute later with three more tries is not slowing down.
+ * Not a code above 599 either: those are not HTTP (999 is a common bot
+ * block), and a host that refused us on purpose is the 429 case again.
  *
  * @param {number} status
  */
-const isWaitableStatus = (status) => status >= 500 || status === 408 || status === 425;
+const isWaitableStatus = (status) => (status >= 500 && status <= 599) || status === 408 || status === 425;
 
 /** Attempts per vendor, including the first. */
 const MAX_ATTEMPTS = 3;
@@ -596,7 +600,10 @@ async function collectOne(vendor, ctx) {
     // feed they replace. The first data centre IS vendor.url: its document
     // (already fetched, with retries) is reused, as for Zscaler below. Fetching
     // it again, once and with no retry, could lose a document already in hand,
-    // and the row was then judged without the US data centre.
+    // and the row was then judged without the US data centre. A fallback is
+    // the same feed at another address (fetchWithFallback), so a document
+    // that came from one is still this data centre's; no configured vendor
+    // of this type has a fallback, and a config test keeps it that way.
     if (vendor.type === 'concur-status' && Array.isArray(vendor.statusUrls)) {
       const docs = [];
       for (const u of vendor.statusUrls) {

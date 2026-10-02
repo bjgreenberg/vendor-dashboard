@@ -659,6 +659,8 @@ describe('collect — which vendors are worth another look (waitable)', () => {
     ['HTTP 503', status(503), ['V']],
     ['HTTP 504', status(504), ['V']],
     ['HTTP 520 (a CDN error in front of the vendor)', status(520), ['V']],
+    ['HTTP 599 (the top of the 5xx range)', status(599), ['V']],
+    ['HTTP 999 (a non-standard block code: refused on purpose)', status(999), []],
     ['HTTP 408', status(408), ['V']],
     ['HTTP 425', status(425), ['V']],
     ['HTTP 429 (it asked us to slow down)', status(429), []],
@@ -847,6 +849,56 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
     expect(res.incomplete).toEqual([]);
     // It still read a second document, so a re-look must not write it.
     expect(res.usedExtraDocuments).toEqual(['Concur']);
+  });
+
+  // `fallbackUrls` means the SAME feed at another address (see
+  // fetchWithFallback). So when a fallback answers, its document IS the first
+  // data centre's, and it is kept. An earlier draft of this PR threw it away
+  // and fetched the first URL again, once: a stalled US2 then left the row
+  // green with the only reading of US2 discarded.
+  it('a fallback is the same feed at another address: its document is the first data centre', async () => {
+    const doc = (status) => JSON.stringify({ data: { Expense: { Service: 'Expense', 'Current Status': { status, incidents: [] } } } });
+    const res = await collect(
+      cfg([{ name: 'Concur', type: 'concur-status', url: 'https://us2', fallbackUrls: ['https://us2-mirror'], statusUrls: ['https://us2', 'https://eu2'] }]),
+      {
+        fetchFn: async (url) => {
+          if (url === 'https://us2') throw new Error('The operation was aborted due to timeout');
+          return { ok: true, status: 200, text: async () => doc(url === 'https://us2-mirror' ? 'degraded' : 'normal') };
+        },
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.DEGRADED);
+  });
+
+  it("the same for Zscaler: a fallback's document is the first cloud, and that cloud is not asked again", async () => {
+    const zdx = fixture('Zscaler-zdx.json');
+    const calls = [];
+    const res = await collect(
+      cfg([{ name: 'Z', type: 'zscaler', url: 'https://a', fallbackUrls: ['https://a-mirror'], clouds: [{ label: 'A', url: 'https://a' }, { label: 'B', url: 'https://b' }] }]),
+      {
+        fetchFn: async (url) => {
+          calls.push(url);
+          if (url === 'https://a') throw new Error('The operation was aborted due to timeout');
+          return { ok: true, status: 200, text: async () => zdx };
+        },
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    expect(calls.filter((u) => u === 'https://a')).toHaveLength(3); // the three tries, and no fourth
+    expect(res.records[0].components.map((c) => [c.name, c.severity])).toEqual([['A', SEVERITY.OPERATIONAL], ['B', SEVERITY.OPERATIONAL]]);
+  });
+
+  it('no vendor that reads data centres or clouds has a fallback, so the question does not arise in production', () => {
+    // A fallback on such a vendor has to be the first data centre or cloud at
+    // another address. Anything else (a different data centre, say) would be
+    // read under the wrong name. Adding one needs that thought first.
+    const config = JSON.parse(readFileSync(new URL('../../config/vendors.json', import.meta.url), 'utf8'));
+    const multi = config.vendors.filter((v) => Array.isArray(v.statusUrls) || Array.isArray(v.clouds));
+    expect(multi.map((v) => v.name).sort()).toEqual(['Concur', 'Zscaler']);
+    for (const v of multi) expect(v.fallbackUrls, v.name).toBeUndefined();
   });
 
   it("Concur's url is one of its status URLs, so that document is not fetched twice", () => {
