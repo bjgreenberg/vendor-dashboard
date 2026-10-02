@@ -2,12 +2,13 @@
  * Cloudflare Worker entry point.
  *
  * Thin by design: this file wires Cloudflare bindings to the runtime-agnostic
- * engine and reads no vendor payload itself. Everything that decides whether a
+ * engine and does no status logic of its own. Everything that decides whether a
  * vendor is healthy lives in src/engine/ and is unit-tested without a network
  * or a Worker runtime.
  */
 
-import { collect, readsSeveralVotingDocuments, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
+import { collect, DEFAULT_SUBREQUEST_BUDGET } from '../engine/collect.js';
+import { relookCandidates, classifyRelook } from '../engine/relook.js';
 import { selectShard, shardDueAt, SHARD_COUNT } from '../engine/shard.js';
 import { writeRun, readSnapshot, readMeta, writeTruthCheck, readNewStreaks } from './storage.js';
 import { siteAssetVersions } from './site-assets.js';
@@ -146,8 +147,7 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
  * review passes on PR #160 found a lost update, a double claim and a starved
  * queue in it. A scheduled Worker may run for 15 minutes and waiting costs no
  * CPU, so what this adds is affordable: two waits and two full sets of tries,
- * about four minutes for a one-document vendor and up to about eight for one
- * that reads many documents in turn (Zscaler). If the platform ends the invocation early, the
+ * about four minutes. If the platform ends the invocation early, the
  * vendor simply waits for its batch, as it always did.
  *
  * WHO: a vendor that is `waitable` AND whose unknown streak is one check old
@@ -156,10 +156,11 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
  * take two more looks and hold its run open four minutes, for as long as the
  * outage lasted. An outage gets its re-looks once, at the start.
  *
- * THE RULE THAT MAKES IT SAFE: a re-look may only IMPROVE a row. It writes a
- * vendor only when that vendor was verified IN FULL (`run.incomplete` does
- * not list it): every source answered and the adapter understood each one.
- * Otherwise it writes nothing. So `unknown` is never written here, and a
+ * THE RULE THAT MAKES IT SAFE: a re-look may only IMPROVE a row (decided by
+ * classifyRelook in the engine). It writes a vendor only when that vendor was
+ * read IN FULL (`run.incomplete` does not list it): every source and every
+ * extra document answered and the adapter understood each one. Otherwise it
+ * writes nothing. So `unknown` is never written here, and a
  * vendor built from several feeds that answered only in part is left as the
  * batch wrote it — a verified outage on one feed cannot be replaced by a
  * milder reading that is missing that feed.
@@ -173,11 +174,12 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
  *
  * It NEVER rejects: a re-look is a bonus. A failure in one look is logged at
  * ERROR, with the vendors and the look, and the next look (if one is left)
- * tries again. A re-look that runs out of subrequest budget ends them: it
+ * tries again. That includes a failed write: a vendor that was read but not
+ * written keeps its place. A re-look that runs out of subrequest budget ends them: it
  * could not ask everyone, so nothing it read is written.
  *
  * NOT for vendors whose status comes from several voting documents (Concur,
- * Zscaler, Docusign): see readsSeveralVotingDocuments in the engine.
+ * Zscaler, Docusign): see relookCandidates in the engine.
  *
  * Known cost: the invocation stays open, so its log lines (the batch's
  * included) reach Workers Logs when the re-looks finish, not when the batch
@@ -189,7 +191,7 @@ function selfMonitor(run, shard, { unknownRate, tag = {} }) {
  */
 async function lookAgain(env, shard, vendors) {
   const names = (list) => list.map((v) => v.name).sort();
-  const failed = (look, pending, error) =>
+  const failed = (look, affected, error) =>
     console.error(
       JSON.stringify({
         event: 'collection_alert',
@@ -197,14 +199,12 @@ async function lookAgain(env, shard, vendors) {
         relook: true,
         look,
         alert: 'relook_failed',
-        vendors: names(pending),
+        vendors: names(affected),
         detail: String(error?.message ?? error),
       }),
     );
 
-  // A vendor whose status comes from several voting documents is left alone:
-  // a partial reading of it cannot yet be told from a full one (#132).
-  const eligible = vendors.filter((v) => !readsSeveralVotingDocuments(v));
+  const eligible = relookCandidates(vendors);
   let pending;
   try {
     // Only vendors whose outage has just begun.
@@ -223,45 +223,55 @@ async function lookAgain(env, shard, vendors) {
       const run = await collectLogged(pending, shard, tag);
       selfMonitor(run, shard, { unknownRate: false, tag });
 
+      // Every relook_complete line carries the same four lists.
+      const line = (lists) =>
+        console.log(
+          JSON.stringify({
+            event: 'relook_complete',
+            shard,
+            look,
+            recovered: [], // read in full and written
+            still_failing: [], // still failing in a way a minute might fix
+            gave_up: [], // not read in full, and no longer for a waitable reason
+            not_checked: [], // our own budget ran out before they could be asked
+            ...lists,
+            subrequests: run.subrequests,
+            duration_ms: Date.now() - started,
+          }),
+        );
+
       if (run.budgetExhausted) {
         // It could not ask everyone, so nothing it read is written and no
-        // further look is taken. selfMonitor has raised the alert; this line
-        // says which vendors were left unread.
-        console.log(JSON.stringify({ event: 'relook_complete', shard, look, not_checked: names(pending), subrequests: run.subrequests }));
+        // further look is taken. selfMonitor has raised the alert.
+        line({ not_checked: names(pending) });
         return;
       }
 
-      const incomplete = new Set(run.incomplete);
-      const stillWaitable = new Set(run.waitable);
-      // Read in full, and (belt and braces) not unknown: a missing or
-      // misnamed `incomplete` must never let an unknown row be written.
-      const recovered = run.records.filter((r) => !incomplete.has(r.vendor) && r.severity !== 'unknown');
+      const { recovered, stillFailing, gaveUp } = classifyRelook(run, pending);
+      let written = recovered;
+      let unwritten = [];
       if (recovered.length > 0) {
-        await writeRun(env.DB, { ...run, records: recovered }, { stampRun: false });
+        try {
+          await writeRun(env.DB, { ...run, records: recovered }, { stampRun: false });
+        } catch (error) {
+          // Read, but not written. They keep their place, so the next look
+          // (if one is left) reads and writes them again.
+          const read = new Set(recovered.map((r) => r.vendor));
+          unwritten = pending.filter((v) => read.has(v.name));
+          written = [];
+          failed(look, unwritten, error);
+        }
       }
 
-      const before = pending;
-      pending = pending.filter((v) => stillWaitable.has(v.name));
-      const done = new Set([...recovered.map((r) => r.vendor), ...pending.map((v) => v.name)]);
-      console.log(
-        JSON.stringify({
-          event: 'relook_complete',
-          shard,
-          look,
-          // Read in full and written.
-          recovered: recovered.map((r) => r.vendor).sort(),
-          // Still failing in a way a minute might fix; looked at again if a look is left.
-          still_failing: names(pending),
-          // Not read in full, and no longer for a waitable reason: left for the batch.
-          gave_up: names(before.filter((v) => !done.has(v.name))),
-          subrequests: run.subrequests,
-          duration_ms: Date.now() - started,
-        }),
-      );
+      line({
+        recovered: written.map((r) => r.vendor).sort(),
+        still_failing: names(stillFailing),
+        gave_up: names(gaveUp),
+      });
+      pending = [...stillFailing, ...unwritten];
     } catch (error) {
       // This look is lost; the vendors keep their place and the next look,
-      // if one is left, tries again. A write that failed on a D1 hiccup
-      // should not cost a vendor that had just been read its recovery.
+      // if one is left, tries again.
       failed(look, pending, error);
     }
   }

@@ -431,10 +431,14 @@ describe('scheduled() — a vendor whose fetch failed is looked at again by the 
         detail: expect.stringContaining('D1 hiccup'),
       }),
     ]);
-    // The lost look does not end the re-looks: the second reads the vendor
-    // again and its write goes through.
+    // The reading that could not be written is not lost: the vendor keeps
+    // its place, the second look reads it again and that write goes through.
     expect((await snap(own.name)).severity).toBe('operational');
-    expect(relooks().map(outcome)).toEqual([[2, [own.name], [], []]]);
+    expect(relooks().map(outcome)).toEqual([
+      [1, [], [], []], // read, but not written: it is in the alert, not in `recovered`
+      [2, [own.name], [], []],
+    ]);
+    for (const e of relooks()) expect(Object.keys(e)).toEqual(expect.arrayContaining(['recovered', 'still_failing', 'gave_up', 'not_checked']));
   });
 
   it('a re-look that cannot read the streaks is loud and takes no look', async () => {

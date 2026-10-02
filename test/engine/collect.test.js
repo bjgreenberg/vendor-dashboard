@@ -774,7 +774,54 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
     expect((await withB(async () => ok())).incomplete).toEqual([]);
   });
 
-  it('says which configured vendors read several voting documents, where it cannot vouch for a full reading', async () => {
+  // EXTRA DOCUMENTS. Several vendors need more than their first document. A
+  // missing one must not sink the vendor, but the vendor was not read in
+  // full, and until 2026-10-02 nothing said so.
+  describe('an extra document that could not be read', () => {
+    const page = (body) => ({ ok: true, status: 200, text: async () => body });
+    const failures = [
+      ['the fetch throws', async () => { throw new Error('The operation was aborted due to timeout'); }],
+      ['it answers 503 with a JSON body', async () => ({ ok: false, status: 503, text: async () => '{"error":"busy"}' })],
+      ['it does not parse', async () => page('<html>')],
+    ];
+    const cases = [
+      ['sorryapp components', { name: 'V', type: 'sorryapp', url: 'https://p', componentsUrl: 'https://x' }, 'Iorad-sorryapp.json'],
+      ['instatus components', { name: 'V', type: 'instatus', url: 'https://p', componentsUrl: 'https://x' }, 'Coalition-instatus.json'],
+      ['docusign incidents', { name: 'V', type: 'docusign', url: 'https://p', incidentsUrl: 'https://x' }, 'Docusign-components.json'],
+      ['a concur-status data centre', { name: 'V', type: 'concur-status', url: 'https://p', statusUrls: ['https://p', 'https://x'] }, 'Concur-status-history-us2.json'],
+      ['a zscaler cloud', { name: 'V', type: 'zscaler', url: 'https://p', clouds: [{ label: 'A', url: 'https://p' }, { label: 'B', url: 'https://x' }] }, 'Zscaler-zdx.json'],
+    ];
+
+    for (const [label, vendor, primaryFixture] of cases) {
+      for (const [how, extra] of failures) {
+        it(`${label}: ${how} -> the vendor is incomplete, and still has a row`, async () => {
+          const primary = fixture(primaryFixture);
+          const res = await collect(cfg([vendor]), {
+            fetchFn: async (url) => (url === 'https://x' ? extra() : page(primary)),
+            now,
+            retryDelayMs: 0,
+          });
+          expect(res.records).toHaveLength(1);
+          expect(res.incomplete).toEqual(['V']);
+        });
+      }
+    }
+
+    it.each([
+      ['sorryapp', { name: 'V', type: 'sorryapp', url: 'https://p', componentsUrl: 'https://x' }, 'Iorad-sorryapp.json'],
+      ['instatus', { name: 'V', type: 'instatus', url: 'https://p', componentsUrl: 'https://x' }, 'Coalition-instatus.json'],
+    ])('%s: a component document that parses but holds no component list is not a reading either', async (_label, vendor, primaryFixture) => {
+      const primary = fixture(primaryFixture);
+      const res = await collect(cfg([vendor]), {
+        fetchFn: async (url) => page(url === 'https://x' ? '{}' : primary),
+        now,
+        retryDelayMs: 0,
+      });
+      expect(res.incomplete).toEqual(['V']);
+    });
+  });
+
+  it('says which configured vendors a full reading cannot yet be told from a partial one for', async () => {
     const config = JSON.parse(readFileSync(new URL('../../config/vendors.json', import.meta.url), 'utf8'));
     const flagged = config.vendors.filter((v) => readsSeveralVotingDocuments(v)).map((v) => v.name).sort();
     // Concur: one document per data centre. Zscaler: one per cloud. Docusign:
@@ -783,18 +830,22 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
     expect(flagged).toEqual(['Concur', 'Docusign', 'Zscaler']);
     expect(readsSeveralVotingDocuments({ name: 'Plain', type: 'statuspage', url: 'https://x' })).toBe(false);
     expect(readsSeveralVotingDocuments(undefined)).toBe(false);
+    // A composite is one of them when any of its sources is.
+    expect(readsSeveralVotingDocuments({
+      name: 'Multi',
+      type: 'composite',
+      sources: [{ type: 'statuspage', url: 'https://a' }, { type: 'zscaler', url: 'https://z', clouds: [] }],
+    })).toBe(true);
   });
 
-  it('why those vendors are set apart: Concur reads healthy with a data-centre document unread, and nothing says so', async () => {
-    // This is worklist #132, pinned so it cannot be forgotten: when it is
-    // fixed, this test should fail and readsSeveralVotingDocuments can go.
+  it('why those vendors are set apart: an EMPTY data-centre document still counts as read, and Concur reads healthy', async () => {
+    // This is worklist #132, pinned so it cannot be forgotten: when the
+    // adapter reports a partial reading, this test should fail and
+    // readsSeveralVotingDocuments can go.
     const vendor = { name: 'Concur', type: 'concur-status', url: 'https://c/s1', statusUrls: ['https://c/s1', 'https://c/s2'] };
     const us2 = fixture('Concur-status-history-us2.json');
     const partial = await collect(cfg([vendor]), {
-      fetchFn: async (url) => {
-        if (url === 'https://c/s2') throw new Error('The operation was aborted due to timeout');
-        return { ok: true, status: 200, text: async () => us2 };
-      },
+      fetchFn: async (url) => ({ ok: true, status: 200, text: async () => (url === 'https://c/s2' ? '{}' : us2) }),
       now,
       retryDelayMs: 0,
     });

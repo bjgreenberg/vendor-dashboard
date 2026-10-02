@@ -134,15 +134,24 @@ a future non-Cloudflare deployment possible.
     batch failed": Statuspage stalls are correlated and two shards are all
     Statuspage, so that guard skips the case re-looks exist for.
   - **Never Concur, Zscaler or Docusign** (`readsSeveralVotingDocuments` in
-    the engine). Their adapters keep going when a document is missing and do
-    not report it, so `incomplete` cannot be trusted for them and a re-look
-    could write a partial reading as green. Remove this exclusion only when
+    the engine, used by `relookCandidates`). `readExtra` catches a document
+    that fails; their adapters still drop one that answers and is EMPTY, so
+    `incomplete` is not the whole truth for them and a re-look could write a
+    partial reading as green. Remove this exclusion only when
     worklist #132 gives the adapters a "partial" signal; an engine test pins
     the gap and will fail when it is fixed.
   - **A re-look only improves a row.** It writes a vendor only when
-    `run.incomplete` does not list it (every source verified). It never
-    writes `unknown`, and a composite that answered in part is not written,
-    whether the missing source failed waitably or not.
+    `run.incomplete` does not list it: every source verified and every extra
+    document read. It never writes `unknown`, and a composite that answered
+    in part is not written, whether the missing source failed waitably or
+    not. The policy is `src/engine/relook.js` (pure; keep it out of the
+    Worker, per the engine/worker boundary above).
+  - **Extra documents go through `readExtra` in `collectOne`.** It is the one
+    place that fetches a component list, catalogue, data-centre or cloud
+    document; it checks `res.ok`, parses, and on ANY failure records the
+    vendor in `incomplete`. Do not add another hand-rolled fetch-and-ignore
+    block: six of them, each swallowing its failure, are why a partial
+    reading used to look like a full one.
   - **State stays in the run's memory.** Do NOT rebuild this as a queue in D1
     read by later runs: PR #160 tried that (candidate rows, a claim counter,
     a migration) and three review passes found a lost update, a double claim
@@ -161,8 +170,7 @@ a future non-Cloudflare deployment possible.
     vendors as `not_checked` and ends the re-looks.
   One word everywhere: `lookAgain`, `RELOOKS`, `relook_complete`,
   `relook_failed`, `relook: true`. A run with re-looks lasts up to ~4 min
-  (~8 for Zscaler; 15 min is the platform limit), and its logs arrive when it
-  ends. Tests drive the waits with fake timers
+  (15 min is the platform limit), and its logs arrive when it ends. Tests drive the waits with fake timers
   (`settle()` in `test/worker/scheduled.test.js`); do not add an env knob.
 - **The retry budget is 20, not 10** (same date). Shards 7 and 9 hold seven
   and eight feeds and Statuspage stalls are correlated; at 10 the second
