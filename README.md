@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-10-02 09:52 AM CDT
+Last updated: 2026-10-02 10:04 AM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -249,7 +249,9 @@ Known gaps:
 
 - The extra documents some vendors need after the first one (Concur's
   per-data-centre files, Zscaler's per-cloud files) are fetched once each with
-  the 10-second deadline.
+  the 10-second deadline. The first data centre and the first cloud are the
+  vendor's own `url`: that document gets the full three tries and is reused,
+  never fetched a second time.
 - "About 46 seconds" is for a vendor with one URL. A vendor with many extra
   documents could already run past the one-minute cron when they stall, and
   now runs 15 seconds longer. When two runs overlap, the older one can write

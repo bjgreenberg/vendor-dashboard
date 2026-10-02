@@ -591,10 +591,17 @@ async function collectOne(vendor, ctx) {
     // concur-status reads one document PER DATA CENTRE and merges them.
     // Reading only us2 would report Concur healthy while EU customers were
     // down; the four together are still 38x cheaper than the 23.3 MB incidents
-    // feed they replace.
+    // feed they replace. The first data centre IS vendor.url: its document
+    // (already fetched, with retries) is reused, as for Zscaler below. Fetching
+    // it again, once and with no retry, could lose a document already in hand,
+    // and the row was then judged without the US data centre.
     if (vendor.type === 'concur-status' && Array.isArray(vendor.statusUrls)) {
       const docs = [];
       for (const u of vendor.statusUrls) {
+        if (u === vendor.url) {
+          docs.push(payload);
+          continue;
+        }
         // A missing data centre must not sink the others.
         const doc = await readExtra(u);
         if (doc !== undefined) docs.push(doc);

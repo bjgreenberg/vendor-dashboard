@@ -821,6 +821,34 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
     });
   });
 
+  // Concur's `url` IS its first data centre (US2, the one in `dataCenters`).
+  // The first fetch gets three tries and a patient last one; fetching the
+  // same URL a second time, once and with no retry, could lose a document
+  // already in hand -- and the row was then judged without US2.
+  it('concur-status keeps the first data centre it already read, rather than fetching it again', async () => {
+    const doc = (status) => JSON.stringify({ data: { Expense: { Service: 'Expense', 'Current Status': { status, incidents: [] } } } });
+    const calls = [];
+    const res = await collect(
+      cfg([{ name: 'Concur', type: 'concur-status', url: 'https://us2', statusUrls: ['https://us2', 'https://eu2'] }]),
+      {
+        fetchFn: async (url) => {
+          calls.push(url);
+          if (url === 'https://eu2') return { ok: true, status: 200, text: async () => doc('normal') };
+          // US2 answers once, with trouble, and then stalls.
+          if (calls.filter((u) => u === 'https://us2').length > 1) throw new Error('The operation was aborted due to timeout');
+          return { ok: true, status: 200, text: async () => doc('degraded') };
+        },
+        now,
+        retryDelayMs: 0,
+      },
+    );
+    expect(res.records[0].severity).toBe(SEVERITY.DEGRADED);
+    expect(calls.filter((u) => u === 'https://us2')).toHaveLength(1);
+    expect(res.incomplete).toEqual([]);
+    // It still read a second document, so a re-look must not write it.
+    expect(res.usedExtraDocuments).toEqual(['Concur']);
+  });
+
   it('says which configured vendors read more than one document', async () => {
     const config = JSON.parse(readFileSync(new URL('../../config/vendors.json', import.meta.url), 'utf8'));
     const flagged = config.vendors.filter((v) => hasExtraDocuments(v)).map((v) => v.name).sort();
