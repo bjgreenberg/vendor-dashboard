@@ -849,6 +849,15 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
     expect(res.usedExtraDocuments).toEqual(['Concur']);
   });
 
+  it("Concur's url is one of its status URLs, so that document is not fetched twice", () => {
+    // The reuse above matches on the exact string. Edit one of the two and
+    // the single-try second fetch of that data centre comes back, silently.
+    const config = JSON.parse(readFileSync(new URL('../../config/vendors.json', import.meta.url), 'utf8'));
+    const concur = config.vendors.filter((v) => v.type === 'concur-status');
+    expect(concur).toHaveLength(1);
+    expect(concur[0].statusUrls).toContain(concur[0].url);
+  });
+
   it('says which configured vendors read more than one document', async () => {
     const config = JSON.parse(readFileSync(new URL('../../config/vendors.json', import.meta.url), 'utf8'));
     const flagged = config.vendors.filter((v) => hasExtraDocuments(v)).map((v) => v.name).sort();

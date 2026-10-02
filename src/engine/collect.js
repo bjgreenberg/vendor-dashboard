@@ -100,7 +100,9 @@ export const DEFAULT_SUBREQUEST_BUDGET = 40;
 
 /**
  * The config keys that name a document beyond a vendor's first one.
- * `collectOne` fetches each of them through `readExtra`.
+ * `collectOne` fetches each of them through `readExtra`, except an entry
+ * that IS the vendor's `url` (Concur's first data centre, Zscaler's first
+ * cloud): that document is already in hand and is reused.
  */
 const EXTRA_DOCUMENT_KEYS = ['componentsUrl', 'incidentsUrl', 'statusUrls', 'clouds', 'bannerUrl'];
 
