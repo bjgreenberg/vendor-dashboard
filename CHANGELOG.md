@@ -47,6 +47,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   is never constrained by them. All three chains are dev tooling; the Worker
   bundle is unchanged. Drop the overrides once upstream moves.
 
+## [2.6.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.5.0...v2.6.0) (2026-10-08)
+
+
+### Features
+
+* **truth-check:** one script, two runners — hume hourly as primary, GitHub cron as backstop ([#145](https://github.com/bjgreenberg/vendor-dashboard/issues/145)) ([357fd05](https://github.com/bjgreenberg/vendor-dashboard/commit/357fd050ec840c9298667330bccf4b2be0daef9c))
+* **truth-check:** say what "36 of 49" means and name the unchecked vendors ([#150](https://github.com/bjgreenberg/vendor-dashboard/issues/150)) ([6276fb7](https://github.com/bjgreenberg/vendor-dashboard/commit/6276fb7fc8ae2f074dbe14101b5ae061a4e1a54c))
+* **truth-check:** second opinions for the 13 uncovered vendors (49 of 49) ([#152](https://github.com/bjgreenberg/vendor-dashboard/issues/152)) ([69b8496](https://github.com/bjgreenberg/vendor-dashboard/commit/69b8496bd312931edd34d4149480f2cc56a601c6))
+* **worker:** /service-status/llms.txt and the page as Markdown (index.md) ([#154](https://github.com/bjgreenberg/vendor-dashboard/issues/154)) ([c80ba96](https://github.com/bjgreenberg/vendor-dashboard/commit/c80ba96190bc155e7aaadc638dda928254d13811))
+* **worker:** count AI-crawler fetches of /service-status/llms.txt and index.md ([#156](https://github.com/bjgreenberg/vendor-dashboard/issues/156)) ([6a2fad4](https://github.com/bjgreenberg/vendor-dashboard/commit/6a2fad430c1db44b82fa4a7cc767f322c02b00ab))
+
+
+### Bug Fixes
+
+* **azure:** read "Service degradation" and trust incident posts between updates ([#151](https://github.com/bjgreenberg/vendor-dashboard/issues/151)) ([4d4507f](https://github.com/bjgreenberg/vendor-dashboard/commit/4d4507f4aa59e93b826dc4025ba32d6c801fbd08))
+* **deps:** lockfile moves fast-uri, undici and brace-expansion past their advisories ([#149](https://github.com/bjgreenberg/vendor-dashboard/issues/149)) ([cf7d6d1](https://github.com/bjgreenberg/vendor-dashboard/commit/cf7d6d11ffde64981b835e05817dc081fcc99d17))
+* **engine:** a vendor read only in part keeps its status and says so ([#163](https://github.com/bjgreenberg/vendor-dashboard/issues/163)) ([4f0eae3](https://github.com/bjgreenberg/vendor-dashboard/commit/4f0eae3889a0aa37a8315535348a69c6c141e335))
+* **engine:** make the last try at a status feed patient (10 s, 10 s, 25 s) ([#158](https://github.com/bjgreenberg/vendor-dashboard/issues/158)) ([678866c](https://github.com/bjgreenberg/vendor-dashboard/commit/678866c5c3c8d3b13512fef41db8d7dfd25bd571))
+* **worker:** link the site's assets by content hash so a site fix reaches the page ([#153](https://github.com/bjgreenberg/vendor-dashboard/issues/153)) ([5040c97](https://github.com/bjgreenberg/vendor-dashboard/commit/5040c97d817938719f17755cc78aac45ae18b29b))
+* **worker:** look again a minute later at a vendor whose status fetch failed ([#160](https://github.com/bjgreenberg/vendor-dashboard/issues/160)) ([93198a7](https://github.com/bjgreenberg/vendor-dashboard/commit/93198a7628d10e3f035babfe033e505effde612e))
+* **worker:** re-look follow-ups from the reviews of [#160](https://github.com/bjgreenberg/vendor-dashboard/issues/160) ([#162](https://github.com/bjgreenberg/vendor-dashboard/issues/162)) ([ad2c801](https://github.com/bjgreenberg/vendor-dashboard/commit/ad2c8013d414a115b6c42b1696ddbba8cc56429d))
+
 ## [2.5.0](https://github.com/bjgreenberg/vendor-dashboard/compare/v2.4.0...v2.5.0) (2026-09-22)
 
 
