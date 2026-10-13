@@ -44,9 +44,17 @@ ORIGIN="${ORIGIN:-https://vendor-dashboard.gsysd.workers.dev/service-status}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-bjgreenberg/vendor-dashboard}"
 
 mkdir -p "$(dirname "$LOG")"
-# Cap the log BEFORE appending (rotate-then-append; nothing holds it open).
+# Cap the log BEFORE appending (rotate-then-append; nothing holds it open:
+# every write below is an append from this run, and launchd's stdout/stderr
+# go to the separate .launchd.log). Rotate by RENAMING the file to .1, never
+# by rewriting it in place: a log shipper (vlagent, #200) follows the file by
+# inode and offset, and a rewrite (`tail -c N > tmp && mv tmp LOG`) hands it a
+# new inode full of lines it already shipped, so it ships them again. A rename
+# keeps the shipped inode intact as .1 and starts a fresh, empty log. History
+# lives in .1 (one generation, chmod 600 carried by the rename) and is
+# overwritten at each rotation.
 if [ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt "$LOG_MAX_BYTES" ]; then
-  tail -c "$LOG_MAX_BYTES" "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
+  mv -f "$LOG" "$LOG.1" || true
 fi
 touch "$LOG"; chmod 600 "$LOG"
 

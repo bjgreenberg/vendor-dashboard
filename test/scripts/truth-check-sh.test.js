@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, chmodSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, chmodSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -219,6 +219,43 @@ esac; exit 44`,
     expect(r.code).not.toBe(0);
     expect(existsSync(stampFile())).toBe(false);
     expect(readFileSync(logFile(), 'utf8')).toMatch(/ERROR: truth check failed/);
+  });
+
+  // A log shipper (vlagent, #200) tails this file by inode and offset. A
+  // rewrite in place (`tail -c N > tmp && mv tmp LOG`) gives it a new inode
+  // full of lines it has already shipped, and it ships them again. Rotation
+  // must RENAME the file: the old inode lives on as LOG.1, untouched, and the
+  // log starts empty.
+  it('an over-cap log is renamed to .1 (same inode, content intact) and a fresh 600 log starts', () => {
+    stubs();
+    secrets('pat', 'tok');
+    const history = 'HISTORY line\n'.repeat(Math.ceil((1024 * 1024) / 13) + 10);
+    writeFileSync(logFile(), history);
+    chmodSync(logFile(), 0o600);
+    const inode = statSync(logFile()).ino;
+    const r = run(HUME, { ...env(), TRUTH_CHECK_HOST: 'socrates' });
+    expect(r.code, r.err).toBe(0);
+    const rotated = `${logFile()}.1`;
+    expect(statSync(rotated).ino).toBe(inode);
+    expect(readFileSync(rotated, 'utf8')).toBe(history);
+    expect(statSync(rotated).mode & 0o777).toBe(0o600);
+    expect(statSync(logFile()).ino).not.toBe(inode);
+    expect(readFileSync(logFile(), 'utf8')).not.toMatch(/HISTORY/);
+    expect(readFileSync(logFile(), 'utf8')).toMatch(/not the always-on host/);
+    expect(statSync(logFile()).mode & 0o777).toBe(0o600);
+    expect(existsSync(`${logFile()}.tmp`)).toBe(false);
+  });
+
+  it('a log under the cap is appended to in place, never rotated', () => {
+    stubs();
+    secrets('pat', 'tok');
+    writeFileSync(logFile(), 'earlier run\n');
+    const inode = statSync(logFile()).ino;
+    const r = run(HUME, { ...env(), TRUTH_CHECK_HOST: 'socrates' });
+    expect(r.code, r.err).toBe(0);
+    expect(statSync(logFile()).ino).toBe(inode);
+    expect(readFileSync(logFile(), 'utf8')).toMatch(/^earlier run\n.*not the always-on host/s);
+    expect(existsSync(`${logFile()}.1`)).toBe(false);
   });
 
   it('on any host but the always-on one it declines quietly: exit 0, no stamp', () => {
