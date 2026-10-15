@@ -488,15 +488,16 @@ async function collectComposite(vendor, ctx) {
     if (rank(record.severity) > rank(SEVERITY.OPERATIONAL)) affected.push(group);
   }
 
-  // Worst of every source's OWN verdict and every displayed component. Usually
-  // the same list, but they diverge when a source displays at group level
-  // while scoped leaves vote (VA APIs): the groups' rolled-up payload statuses
-  // can read healthy while the source's verified severity is an outage. The
-  // record severity is the verdict; the display list must never dilute it.
-  const severity = worstOf([
-    ...parts.map(({ record }) => record.severity),
-    ...components.map((c) => c.severity),
-  ]);
+  // Worst of every source's OWN verdict, and nothing else. The displayed
+  // components never vote: they diverge from the verdict when a source
+  // displays at group level while scoped leaves vote (VA APIs), in BOTH
+  // directions. A group's rolled-up status can read healthy while a scoped
+  // production leaf is down (#101, 2026-08-15), and it reads degraded when
+  // only its sandbox leaf is (worklist #203, 2026-10-14: the row said Degraded
+  // beside "All 53 ... report healthy"). Each source's verdict already
+  // applies its scope, region lens and page indicator, exactly as it would
+  // for a vendor on its own row; the display list is card detail.
+  const severity = worstOf(parts.map(({ record }) => record.severity));
 
   return makeRecord({
     vendor: name,

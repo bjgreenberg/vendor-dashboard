@@ -59,6 +59,13 @@ a future non-Cloudflare deployment possible.
 - **A configured scope overrides the vendor's page indicator.** The operator has
   declared what matters. This is what lets Cloudflare read operational while 26
   edge PoPs re-route.
+- **A composite row is the worst of its sources' verdicts; displayed
+  components never vote** (worklist #203, 2026-10-14). Each source's verdict
+  already applies its scope, region lens and page indicator, as it would on
+  a row of its own. VA APIs displays groups while only production leaves
+  vote, and Statuspage rolls a sandbox leaf's trouble into its group, so a
+  displayed group voting painted US Government Degraded beside "All 53 ...
+  report healthy". The groups still show their trouble on the card.
 - **US vantage point (decision 2026-08-03).** Severity is judged from US
   regions where a vendor publishes them: `scope` picks the voting leaves and
   COMPOSES with `componentLevel: 'group'` (groups display, scoped leaves
