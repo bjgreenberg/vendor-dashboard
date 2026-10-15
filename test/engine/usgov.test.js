@@ -108,6 +108,44 @@ describe('US Government composite vendor (real config + recorded payloads)', () 
     expect(res.records[0].severity).toBe(SEVERITY.OPERATIONAL);
   });
 
+  it('a sandbox outage as VA publishes it, group rolled up too, still cannot color the row', async () => {
+    // Statuspage rolls a leaf's trouble up into its GROUP and the page
+    // indicator. The test above changes only the leaves, so it never saw this.
+    // Live 2026-10-14: two sandbox leaves degraded, their groups (Guaranty
+    // Remittance API, Loan Review API) read degraded_performance, indicator
+    // "minor", every production leaf operational. The row read Degraded while
+    // its own text said all 53 services were healthy (worklist #203), because
+    // the composite let DISPLAYED components vote. The groups still show their
+    // trouble on the card: sandbox informs, never votes.
+    const live = structuredClone(ROUTES['valighthouse.statuspage.io']);
+    const groupIds = new Set();
+    for (const g of live.components.filter((c) => c.group).slice(0, 2)) {
+      g.status = 'degraded_performance';
+      groupIds.add(g.id);
+    }
+    for (const c of live.components) {
+      if (!c.group && c.name === 'Sandbox Environment' && groupIds.has(c.group_id)) {
+        c.status = 'degraded_performance';
+      }
+    }
+    live.status = { indicator: 'minor', description: 'Partially Degraded Service' };
+    const res = await collect({ vendors: [usgov] }, {
+      fetchFn: async (url) =>
+        new URL(url).hostname === 'valighthouse.statuspage.io'
+          ? { ok: true, status: 200, text: async () => JSON.stringify(live) }
+          : fetchFn(url),
+      now,
+      retryDelayMs: 0,
+    });
+    const r = res.records[0];
+    expect(groupIds.size).toBe(2);
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+    expect(r.description).toBe('All 53 monitored US Government services report healthy.');
+    const shown = r.components.filter((c) => c.severity === SEVERITY.DEGRADED);
+    expect(shown).toHaveLength(2);
+    expect(shown.every((c) => c.name.startsWith('VA APIs · '))).toBe(true);
+  });
+
   it('a broken VA production API breaks the row', async () => {
     const prodDown = structuredClone(ROUTES['valighthouse.statuspage.io']);
     const prod = prodDown.components.find((c) => !c.group && c.name === 'Production Environment');
