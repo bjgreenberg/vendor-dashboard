@@ -25,6 +25,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'nod
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { reconcileManifest } from './logo-manifest.mjs';
+import { activeSvgContent } from './svg-active-content.mjs';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CONFIG = join(REPO, 'config', 'vendors.json');
@@ -117,6 +118,16 @@ async function download(url) {
     if (!ext) {
       console.warn(`  ! ${url} returned something that is not an image (bot wall or error page); refused`);
       return null;
+    }
+    // An SVG is a document: one that could run script or load anything when
+    // opened at its own URL is refused like a non-image, so the existing mark
+    // stays (scripts/svg-active-content.mjs says what counts).
+    if (ext === 'svg') {
+      const found = activeSvgContent(buf.toString('utf8'));
+      if (found.length) {
+        console.warn(`  ! ${url} is an SVG with active or external content (${found.join(', ')}); refused`);
+        return null;
+      }
     }
     return { buf, ext };
   } catch {
@@ -221,6 +232,23 @@ for (const vendor of config.vendors) {
 // what caught runs that updated one side only. Extras in public/ that no
 // longer exist in assets/ are removed, so a renamed vendor cannot leave its
 // old mark shipping forever.
+//
+// Every SVG in assets/icons is checked again before anything is mirrored: a
+// file restored by hand from another clone (README, Troubleshooting) never
+// went through download(). One that fails stops the build before public/ or
+// the manifest is touched, rather than shipping it or silently dropping it.
+const unsafe = readdirSync(OUT_DIR)
+  .filter((f) => f.endsWith('.svg'))
+  .map((f) => ({ f, found: activeSvgContent(readFileSync(join(OUT_DIR, f), 'utf8')) }))
+  .filter(({ found }) => found.length);
+if (unsafe.length) {
+  console.error(
+    `\nREFUSING TO SHIP: ${unsafe.length} SVG(s) in assets/icons carry active or external content: ` +
+      unsafe.map(({ f, found }) => `${f} (${found.join(', ')})`).join('; ') +
+      '.\nReplace each file with a clean copy (or delete it and re-run to fetch again), then re-run.',
+  );
+  process.exit(1);
+}
 const PUB_DIR = join(REPO, 'public', 'service-status', 'icons');
 mkdirSync(PUB_DIR, { recursive: true });
 const fetched = new Set(readdirSync(OUT_DIR).filter((f) => !f.startsWith('.')).sort());
