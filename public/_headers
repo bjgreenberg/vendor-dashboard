@@ -5,7 +5,16 @@
 # so a bounded 7-day cache balances freshness against the ~41 requests per
 # cold page view (site-auditor weight.caching finding, 2026-08-04). HSTS
 # mirrors the Worker's posture so every /service-status response carries it.
+#
+# The CSP is for files opened at their own URL: the Worker's nonce policy
+# never reaches a static asset, and a vendor SVG is a document. Nothing may
+# load or run; inline styles (which real marks use) still apply, embedded
+# images are data: only, and `sandbox` gives the document an opaque origin.
+# The dashboard shows these through <img>, which this policy does not change.
+# fetch-logos.mjs refusing active SVG content is the first layer; this is the
+# second. Pinned by test/worker/static-headers.test.js.
 /service-status/*
   Cache-Control: public, max-age=604800
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
+  Content-Security-Policy: default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; frame-ancestors 'none'; sandbox

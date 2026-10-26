@@ -41,7 +41,19 @@ dashboard** at `briangreenberg.net/service-status` plus a JSON API and a
    validates every download by **magic bytes** and refuses non-images — a bot
    wall once answered a favicon URL with its challenge page and the old
    header-trusting logic committed it (found by the gitleaks gate, PR #32).
-   Shipped icons are re-validated by tests on every run.
+   An SVG is a document, so it is also refused when it carries script, event
+   handlers, embedded documents or any reference outside the file other than
+   a raster `data:` image (`scripts/svg-active-content.mjs`); a refused SVG
+   leaves the existing mark in place, and the script re-checks every SVG
+   before mirroring it into `public/`. Shipped icons are re-validated by
+   tests on every run (magic bytes and the active-content check).
+   **Static assets do not get the Worker's CSP.** Icons and share cards are
+   Workers static assets, served before the Worker runs, so
+   [`public/_headers`](public/_headers) gives them their own policy:
+   `default-src 'none'`, inline styles and `data:` images only,
+   `frame-ancestors 'none'` and `sandbox`, so nothing in a file opened at its
+   own URL runs or loads. That header is pinned by
+   `test/worker/static-headers.test.js`.
 4. **No runtime secrets exist.** The Worker authenticates to nothing; it reads
    public endpoints and its own bound D1 database. Deploy credentials
    (`wrangler` OAuth / `CLOUDFLARE_API_TOKEN`) live outside the repo;

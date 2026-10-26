@@ -20,6 +20,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## Unreleased
 
 ### Fixed
+- **Static icons are hardened as documents, not just images.** Vendor marks
+  are Workers static assets, served before the Worker runs, so the Worker's
+  nonce CSP never applied to them and `public/_headers` set none. Every
+  static file under `/service-status/` now carries its own locked-down CSP
+  (`default-src 'none'`, inline styles and `data:` images only,
+  `frame-ancestors 'none'`, `sandbox`), and `fetch-logos.mjs` refuses an SVG
+  with script, event handlers, embedded documents or external references
+  (new pure check `scripts/svg-active-content.mjs`). A refused SVG keeps the
+  existing mark, and the script re-checks `assets/icons` before mirroring.
+  No shipped icon was affected: all 11 current SVGs pass the check. Pinned by
+  `test/scripts/svg-active-content.test.js` and
+  `test/worker/static-headers.test.js`.
 - The endpoint-rot **fix-proposal job never ran for a real watchdog issue**
   (#97, #129, #135 — only the hand-labelled August rehearsals): GitHub raises
   no workflow runs for events created with the built-in token, and the

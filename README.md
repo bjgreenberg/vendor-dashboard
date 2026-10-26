@@ -567,6 +567,8 @@ emits a warning rather than silently ignoring it.
 | `scripts/truth-check/` | The truth check: `rules.mjs` (pure second-opinion rules, fixture-tested) + `run.mjs` (the network half the workflow drives) |
 | `scripts/watchdog/` | The endpoint-rot watchdog: `classify.mjs` (pure) + `diagnose-endpoint.mjs` (probes) |
 | `scripts/logo-manifest.mjs` | Pure manifest reconciliation for `fetch-logos.mjs`: a refused download never shrinks the manifest |
+| `scripts/svg-active-content.mjs` | Pure check `fetch-logos.mjs` runs on every SVG: script, event handlers, embedded documents or any reference outside the file means refused |
+| `public/_headers` | Headers for the static assets (icons, share cards), which are served before the Worker runs: cache, HSTS, nosniff and a locked-down CSP of their own |
 | `docs/audit/` | The extraction audit driving this rewrite |
 
 The engine deliberately contains **no** Worker, GCP, or Apps Script APIs. The
@@ -592,6 +594,22 @@ it into the served `public/` directory, and regenerates
 [`config/logos.json`](config/logos.json). The manifest *is* tracked because the
 renderer imports it at build time; on a clone that has never run the script,
 the icon test gates skip loudly and rows fall back to their status dots.
+
+**An SVG is a document, so it is checked before it ships.** The icons are
+Workers static assets, served before the Worker runs, so the Worker's nonce
+CSP never covers them. Two layers instead:
+
+- `fetch-logos.mjs` refuses any SVG carrying script, event handlers, embedded
+  documents, or a reference outside the file other than a raster `data:`
+  image ([`scripts/svg-active-content.mjs`](scripts/svg-active-content.mjs)).
+  A refused SVG is a refused download: the existing mark stays. The script
+  checks `assets/icons` again before mirroring, so a file restored by hand
+  stops the build instead of shipping.
+- [`public/_headers`](public/_headers) gives every static file under
+  `/service-status/` its own CSP (`default-src 'none'`, inline styles and
+  `data:` images only, `sandbox`), so nothing in one runs or loads when it is
+  opened at its own URL. The dashboard shows marks through `<img>`, which this
+  does not change. `test/worker/static-headers.test.js` pins it.
 
 Tests run against recorded fixtures — no network required, and deterministic
 because the clock is injected.
@@ -874,6 +892,7 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
 | Board reads "No status data" | The cron has not run yet, or is failing. Check `wrangler tail` and `run_meta` in D1 |
 | Want to link to one service's row | Every card has a slug id: `/service-status#cloudflare`, `#1password`. There is no visible `#` glyph (removed 2026-08-03: it was reported twice as a rendering artifact, on touch and on hover) |
 | `fetch-logos.mjs` says REFUSING TO SHIP | The committed manifest lists a logo for a configured vendor and this clone has no file for it — a bot wall refused the download (LinkedIn, NetSuite, OpenAI, SendGrid, Tableau have all done it). A refused download is not vendor removal, so the build stops instead of shipping a shrunken manifest. Restore `assets/icons` from a clone that has the files (the row below), or declare `iconUrl` for that vendor, then re-run |
+| `fetch-logos.mjs` says an SVG carries active or external content | An SVG (a fresh download, or a file in `assets/icons`) has script, an event handler, an embedded document or a reference outside the file (`scripts/svg-active-content.mjs` names which). If it was fetched, it was refused and the existing mark kept; the warning is informational. If the build stopped before mirroring, a file restored by hand failed the check: replace it with a clean copy, or delete it and re-run to fetch again |
 | Vendor logos vanished after `git pull` | You pulled across the commit that untracked the icon dirs — git removed the previously-tracked files. Run `node scripts/fetch-logos.mjs`, or restore the exact prior set: `git checkout <pre-untracking-sha> -- assets/icons public/service-status/icons && git restore --staged assets/icons public/service-status/icons` |
 | Is collection alive right now? | `curl -sf /service-status/health` — 200 with `age_minutes` while fresh; 503 once the snapshot is older than three cycles (45 min) or D1 is unreachable |
 | "This data may be stale" banner | Collection has not succeeded in >30 minutes. The collector, not the vendors, is the problem |
