@@ -20,6 +20,16 @@ jobs:
         with:
           node-version: lts/*
 
+      # Every tracked .py file, --strict (setup.cfg [mypy], files = .). The
+      # same script runs locally; it pins mypy and Pillow and installs them
+      # into .venv.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+
+      - name: Type check (mypy --strict, every .py file)
+        run: scripts/typecheck.sh
+
       - name: Install dependencies
         run: npm ci
 

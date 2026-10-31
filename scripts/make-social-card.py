@@ -7,7 +7,7 @@ BG, CARD_BORDER = (13, 17, 23), (48, 54, 61)
 AMBER, TITLE, GRAY, DIM, WATERMARK = (227, 179, 65), (230, 237, 243), (139, 148, 158), (110, 118, 129), (22, 27, 34)
 
 MONO, SANS = "/System/Library/Fonts/Menlo.ttc", "/System/Library/Fonts/HelveticaNeue.ttc"
-def f(path, size, index=0): return ImageFont.truetype(path, size, index=index)
+def f(path: str, size: int, index: int = 0) -> ImageFont.FreeTypeFont: return ImageFont.truetype(path, size, index=index)
 
 img = Image.new("RGB", (W, H), BG)
 d = ImageDraw.Draw(img)
@@ -25,7 +25,7 @@ d.rectangle([185, 255, 197, 900], fill=AMBER)
 
 # eyebrow, letter-spaced
 eb_font = f(MONO, 40)
-x = X
+x: float = X  # advances by textlength(), a float
 for ch in "A Cloudflare Worker":
     d.text((x, 262), ch, font=eb_font, fill=GRAY)
     x += d.textlength(ch, font=eb_font) + 9
@@ -41,6 +41,7 @@ d.text((X, 655), "An unverifiable status is unknown, never operational", font=f(
 
 # pills
 p_font = f(MONO, 40)
+px: float  # advances by textlength(), a float
 px, py = X, 800
 for label in ["JavaScript", "Cloudflare Workers", "D1", "fail-closed"]:
     tw = d.textlength(label, font=p_font)

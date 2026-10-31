@@ -14,6 +14,7 @@ node scripts/fetch-logos.mjs   # vendor marks are a build artifact, not repo con
 npm test                       # full suite, ~1 s, no network
 npm run lint
 npm run test:coverage          # the same gate CI enforces (per-file floors)
+scripts/typecheck.sh           # mypy --strict over every .py file (needs python3)
 ```
 
 Tests run against recorded fixtures with an injected clock — if your change
@@ -49,9 +50,10 @@ every adapter testable against fixtures and the engine portable.
 
 - Conventional Commits (`feat:`, `fix:`, `chore:`, …) — commit type drives
   the automated release.
-- Required checks: `test` (suite + per-file coverage floors + `wrangler
-  --dry-run` + `npm audit`), `lint`, `secret-scan`, `cff-validate`,
-  `docs-render`. All must be green; merges are squash-only.
+- Required checks: `test` (mypy --strict over every `.py` file + suite +
+  per-file coverage floors + `wrangler --dry-run` + `npm audit`), `lint`,
+  `secret-scan`, `cff-validate`, `docs-render`. All must be green; merges
+  are squash-only.
 - Update docs **in the same commit** — README, diagrams, and comments that
   describe what you changed. A stale diagram is treated as a wrong one; every
   Mermaid block must render (the `docs-render` gate enforces this).

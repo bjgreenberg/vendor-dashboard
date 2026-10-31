@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13942/badge)](https://www.bestpractices.dev/projects/13942)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-Last updated: 2026-10-02 12:46 PM CDT
+Last updated: 2026-10-30 09:15 PM CDT
 
 Monitors the live operational status of a configurable set of SaaS and cloud
 services by polling each vendor's own public status endpoint, and serves a
@@ -568,6 +568,8 @@ emits a warning rather than silently ignoring it.
 | `scripts/watchdog/` | The endpoint-rot watchdog: `classify.mjs` (pure) + `diagnose-endpoint.mjs` (probes) |
 | `scripts/logo-manifest.mjs` | Pure manifest reconciliation for `fetch-logos.mjs`: a refused download never shrinks the manifest |
 | `scripts/svg-active-content.mjs` | Pure check `fetch-logos.mjs` runs on every SVG: script, event handlers, embedded documents or any reference outside the file means refused |
+| `scripts/make-social-card.py` | Draws the repo's social card (`.github/assets/social-preview.png`) with Pillow; run by hand on macOS (system fonts) |
+| `scripts/typecheck.sh` | Type-check gate: `mypy --strict` over every `.py` file (`files = .` in `setup.cfg`); pins mypy and Pillow; CI's `test` job runs the same script |
 | `public/_headers` | Headers for the static assets (icons, share cards), which are served before the Worker runs: cache, HSTS, nosniff and a locked-down CSP of their own |
 | `docs/audit/` | The extraction audit driving this rewrite |
 
@@ -582,6 +584,7 @@ npm ci
 node scripts/fetch-logos.mjs   # regenerate vendor marks (build artifact — see below)
 npm test                       # full unit suite (runs in ~1 s)
 npm run test:watch
+scripts/typecheck.sh           # mypy --strict over every .py file (needs python3)
 npx wrangler dev               # local Worker
 ```
 
@@ -806,7 +809,7 @@ All must pass before merge:
 
 | Job | What it proves |
 |---|---|
-| `test` | the unit suite, every adapter pinned against a recorded payload; per-file coverage floors; plus `wrangler --dry-run` build check and `npm audit --audit-level=high` |
+| `test` | `mypy --strict` over every `.py` file (`scripts/typecheck.sh`, `files = .` in `setup.cfg`); the unit suite, every adapter pinned against a recorded payload; per-file coverage floors; plus `wrangler --dry-run` build check and `npm audit --audit-level=high` |
 | `lint` | `eslint .` — zero findings |
 | `perf` | per-shard parse-cost regression envelope (150 ms) — catches the multi-megabyte-feed class of mistake |
 | `secret-scan` | gitleaks over full history **and** working tree |
