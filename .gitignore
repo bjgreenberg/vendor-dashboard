@@ -11,3 +11,12 @@ AGENTS.md
 # the dashboard (nominative use). scripts/fetch-logos.mjs regenerates them.
 assets/icons/
 public/service-status/icons/
+
+# Every directory setup.cfg's [mypy] exclude names is ignored here too, so
+# scripts/typecheck.sh's count (git's .py files) matches what mypy checks.
+venv/
+build/
+dist/
+reports/
+.hypothesis/
+mutants/
