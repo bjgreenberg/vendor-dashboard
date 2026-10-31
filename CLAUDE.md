@@ -314,8 +314,11 @@ a future non-Cloudflare deployment possible.
 
 One workflow file per gate under `.github/workflows/` (each with its own live badge), all on every PR and push to `main`:
 
-- `test` — `npm ci` + the full vitest suite with per-file coverage floors +
-  `wrangler deploy --dry-run` build check + `npm audit --audit-level=high`
+- `test` — `scripts/typecheck.sh` (mypy --strict over every `.py` file, set
+  by `files = .` in `setup.cfg`; the script pins mypy and Pillow, since there
+  is no Python requirements file) + `npm ci` + the full vitest suite with
+  per-file coverage floors + `wrangler deploy --dry-run` build check +
+  `npm audit --audit-level=high`
   (don't cite a test count here — it drifts; `npm test` prints the current one)
 - `lint` — `npx eslint .` (required)
 - `secret-scan` — gitleaks over full history and working tree

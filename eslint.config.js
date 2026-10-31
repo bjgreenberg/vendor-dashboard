@@ -11,7 +11,7 @@ import globals from 'globals';
 export default [
   {
     // Generated, vendored, or non-code trees. Keep in sync with .gitignore.
-    ignores: ['node_modules/**', 'coverage/**', 'public/**', 'assets/**', 'docs/**'],
+    ignores: ['node_modules/**', '.venv/**', 'coverage/**', 'public/**', 'assets/**', 'docs/**'],
   },
 
   js.configs.recommended,
