@@ -718,8 +718,12 @@ truth check runs on the always-on Mac first and on GitHub as a backstop
   rule does not understand are counted as **uncovered**, never guessed (36 of
   49 covered on 2026-09-05; **49 of 49** since 2026-09-30, and a test fails
   if a configured vendor has no reader). The workflow then **stamps the
-  board**: "Double-checked ‹time› against 49 of 49 vendors' own status feeds
-  · no disagreements." If a vendor is ever uncovered again, the stamp adds
+  board**. A fresh stamp with no disagreements prints nothing on the page
+  (since 2026-11-13; the routine line was noise above the board). A
+  disagreement prints "Double-checked ‹time› against 49 of 49 vendors' own
+  status feeds · 1 disagreement (Vendor)." `/service-status/llms.txt` and
+  `index.md` state the stamp in every state. If a vendor is ever uncovered
+  again, the disagreement line adds
   "The other N publish their status in formats this check can't read yet;
   the board still reads them." with a collapsible "Which N?" list (the stamp
   carries their names since 2026-09-30, so "36 of 49" never read as vendors

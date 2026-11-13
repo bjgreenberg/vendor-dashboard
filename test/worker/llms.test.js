@@ -49,7 +49,7 @@ describe('renderLlmsTxt — /service-status/llms.txt', () => {
 describe('renderMarkdown — /service-status/index.md', () => {
   const md = renderMarkdown(opts);
   it('is a clean Markdown copy: title, summary, a status table', () => {
-    expect(md).toMatch(/^# Service Status\n/);
+    expect(md).toMatch(/^# Is It Down\?\n/);
     expect(md).toContain('| Vendor | Status | Detail | Status page |');
     expect(md).toContain('| Cloudflare | degraded | Workers build delays: A fix is being monitored. | https://www.cloudflarestatus.com/ |');
   });

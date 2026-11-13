@@ -117,26 +117,35 @@ describe('renderDashboard — the truth-check stamp', () => {
   it('says so when the board has never been truth-checked', () => {
     expect(render(null)).toContain('Not yet truth-checked');
   });
-  it('a fresh stamp with no disagreements reads as verified, in plain words', () => {
+  it('a fresh stamp with no disagreements prints nothing (Brian, 2026-11-13)', () => {
     const html = render(stamp());
-    expect(html).toMatch(/Double-checked <time[^>]*datetime="2026-09-05T06:00:00.000Z"[^>]*>[^<]+<\/time> against 36 of 49 vendors\u2019 own status feeds/);
-    expect(html).toContain('no disagreements');
+    expect(html).not.toContain('Double-checked');
+    expect(html).not.toContain('class="vs-meta vs-truth');
+    expect(html).not.toContain('no disagreements');
     expect(html).not.toContain('overdue');
+    expect(html).not.toContain('Not yet truth-checked');
+  });
+  it('a disagreement brings the line back, with the time and the coverage', () => {
+    const html = render(stamp({ disagreements: 1, falseGreen: ['Google'] }));
+    expect(html).toMatch(/<p class="vs-meta vs-truth vs-truth--disagree">Double-checked <time[^>]*datetime="2026-09-05T06:00:00.000Z"[^>]*>[^<]+<\/time> against 36 of 49 vendors\u2019 own status feeds \u00b7 1 disagreement \(Google\)/);
+  });
+  it('a stamp whose disagreement count is not the number 0 still prints (fail loud)', () => {
+    expect(render(stamp({ disagreements: undefined }))).toContain('Double-checked');
   });
   it('explains the vendors it could not check instead of leaving "36 of 49" unexplained', () => {
-    const html = render(stamp());
+    const html = render(stamp({ disagreements: 1 }));
     expect(html).toContain('The other 13 publish their status in formats this check can\u2019t read yet');
     expect(html).toContain('the board still reads them');
     expect(html).not.toContain('<details'); // no names sent, no list
   });
   it('names the unchecked vendors in a collapsible list, escaped', () => {
-    const html = render(stamp({ covered: 47, agreed: 47, uncovered: ['Apple', '<b>x</b>'] }));
+    const html = render(stamp({ covered: 47, agreed: 47, disagreements: 1, uncovered: ['Apple', '<b>x</b>'] }));
     expect(html).toContain('The other 2 publish');
     expect(html).toMatch(/<details[^>]*><summary>Which 2\?<\/summary>/);
     expect(html).toContain('Apple, &lt;b&gt;x&lt;/b&gt;');
   });
   it('says nothing about unchecked vendors when every vendor is checked', () => {
-    const html = render(stamp({ covered: 49, agreed: 49 }));
+    const html = render(stamp({ covered: 49, agreed: 49, disagreements: 1 }));
     expect(html).toContain('against 49 of 49');
     expect(html).not.toContain('The other');
   });
@@ -144,7 +153,7 @@ describe('renderDashboard — the truth-check stamp', () => {
     const html = render(stamp({ disagreements: 2, falseGreen: ['Google', 'Zoom'] }));
     expect(html).toContain('2 disagreements');
     expect(html).toContain('Google, Zoom');
-    expect(html).toContain('vs-truth--disagree');
+    expect(html).toContain('class="vs-meta vs-truth vs-truth--disagree"');
   });
   it('a stamp older than three hours is the alarm: overdue, styled stale', () => {
     const html = render(stamp(), new Date('2026-09-05T09:00:01.000Z'));

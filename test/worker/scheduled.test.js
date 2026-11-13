@@ -624,7 +624,15 @@ describe('fetch() — routing and response headers', () => {
     expect(csp).toMatch(/script-src 'self' 'nonce-[0-9a-f]+'/);
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
     const html = await res.text();
-    expect(html).toContain('<h1>Service Status</h1>');
+    expect(html).toContain('<h1>Is It Down?</h1>');
+    expect(html).toContain('<p class="vs-sub">Live status for 0 different cloud and SaaS services</p>');
+    // The fail-closed rule must be STATED too: an Unknown badge only reads
+    // as "not checked" because the intro says so.
+    expect(html).toMatch(/marked <strong>Unknown<\/strong>, never green/);
+    // A shared link and its preview carry the page's new name.
+    expect(html).toContain('<meta property="og:title" content="Is It Down? Live status for cloud and SaaS services">');
+    expect(html).toContain('<meta name="twitter:title" content="Is It Down? Live status for cloud and SaaS services">');
+    expect(html).toContain('data-title="Is It Down? Live status for cloud and SaaS services"');
     // The US-focus policy must be STATED on the page (operator decision
     // 2026-08-03): a green row judged from US regions only is honest solely
     // because the page says that is the vantage point.
