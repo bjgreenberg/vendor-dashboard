@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { renderDashboard, esc, safeUrl, formatChicago, humanizeWarning } from '../../src/worker/render.js';
 
 // Audit finding M4. Every field on this page is third-party content from ~35
@@ -367,11 +367,37 @@ describe('renderDashboard — timestamp', () => {
 });
 
 describe('renderDashboard — favicon', () => {
-  it('points at the site favicon so the tab icon matches the rest of the site', () => {
-    // The site has no /favicon.ico, so without an explicit link the browser
-    // falls back to a 404 and the tab shows a blank icon.
-    const html = renderDashboard({ records: [], meta: null });
-    expect(html).toContain('<link rel="icon" href="/assets/img/favicon.png" type="image/png">');
+  // The site has no /favicon.ico, so without an explicit link the browser
+  // falls back to a 404 and the tab shows a blank icon.
+  const html = renderDashboard({ records: [], meta: null });
+
+  it('declares the board\'s own tab icon: SVG first, then a PNG fallback', () => {
+    const svg = html.indexOf('<link rel="icon" href="/service-status/favicon.svg" type="image/svg+xml">');
+    const png = html.indexOf('<link rel="icon" href="/service-status/favicon-48.png" sizes="48x48" type="image/png">');
+    expect(svg).toBeGreaterThan(-1);
+    expect(png).toBeGreaterThan(svg);
+    expect(html).toContain('<link rel="apple-touch-icon" href="/service-status/apple-touch-icon.png">');
+    expect(html).not.toContain('/assets/img/favicon.png');
+  });
+
+  it('every icon and card the page links exists in public/, where the Worker serves static files', () => {
+    const linked = [
+      ...html.matchAll(/<link rel="(?:icon|apple-touch-icon)" href="(\/service-status\/[^"]+)"/g),
+      ...html.matchAll(/<meta (?:property="og:image"|name="twitter:image") content="https:\/\/briangreenberg\.net(\/service-status\/[^"]+)"/g),
+    ].map((m) => m[1]);
+    expect(linked).toHaveLength(5);
+    for (const path of linked) expect(existsSync(`public${path}`), path).toBe(true);
+  });
+
+  it('the icon is a static drawing: no script, no style, nothing external, nothing that reads state', () => {
+    const svg = readFileSync('public/service-status/favicon.svg', 'utf8');
+    expect(svg).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 64 64">/);
+    expect(svg).not.toMatch(/<script|<style|href=|url\(|@media|<animate|<set\b|on[a-z]+=/i);
+    expect(svg.match(/<circle /g)).toHaveLength(3);
+  });
+
+  it('keeps the old share card file, because a cached link preview still points at it', () => {
+    expect(existsSync('public/service-status/card.jpg')).toBe(true);
   });
 });
 
@@ -608,7 +634,10 @@ describe('renderDashboard — sharing', () => {
 
   it('emits og and twitter tags with an ABSOLUTE image url', () => {
     const h = html();
-    expect(h).toContain('property="og:image" content="https://briangreenberg.net/service-status/card.jpg"');
+    expect(h).toContain('property="og:image" content="https://briangreenberg.net/service-status/card-is-it-down.jpg"');
+    expect(h).toContain('name="twitter:image" content="https://briangreenberg.net/service-status/card-is-it-down.jpg"');
+    // The alt text says what the card shows, title first.
+    expect(h.match(/(?:og:image:alt|twitter:image:alt)" content="Is It Down\? Live status for the cloud and SaaS services we depend on/g)).toHaveLength(2);
     expect(h).toContain('name="twitter:card" content="summary_large_image"');
     expect(h).toContain('property="og:image:width" content="1200"');
     expect(h).toContain('og:image:alt');
