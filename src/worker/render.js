@@ -339,20 +339,26 @@ export function renderDashboard({
 <meta property="og:url" content="https://briangreenberg.net/service-status">
 <meta property="og:title" content="${esc(SHARE_TITLE)}">
 <meta property="og:description" content="${esc(ogDescription)}">
-<meta property="og:image" content="https://briangreenberg.net/service-status/card.jpg">
+<meta property="og:image" content="https://briangreenberg.net/service-status/card-is-it-down.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<!-- The alt text describes card.jpg AS IT IS: the image still reads "Service
-     Status". Change both alts when the card is redrawn, not before. -->
-<meta property="og:image:alt" content="Service Status — live status for cloud and SaaS services, from briangreenberg.net">
+<!-- The alt text describes the card AS DRAWN: change the image and both alts
+     together. The old card.jpg stays in public/ on purpose - social sites
+     cache a preview per URL, and a cached preview must keep resolving. -->
+<meta property="og:image:alt" content="Is It Down? Live status for the cloud and SaaS services we depend on, checked every 15 minutes. Beside the words, a status list with red, yellow and green lights. Brian Greenberg, briangreenberg.net">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(SHARE_TITLE)}">
 <meta name="twitter:description" content="${esc(ogDescription)}">
-<meta name="twitter:image" content="https://briangreenberg.net/service-status/card.jpg">
-<meta name="twitter:image:alt" content="Service Status — live status for cloud and SaaS services, from briangreenberg.net">
-<link rel="icon" href="/assets/img/favicon.png" type="image/png">
-<link rel="icon" href="/favicon.ico" sizes="48x48">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="twitter:image" content="https://briangreenberg.net/service-status/card-is-it-down.jpg">
+<meta name="twitter:image:alt" content="Is It Down? Live status for the cloud and SaaS services we depend on, checked every 15 minutes. Beside the words, a status list with red, yellow and green lights. Brian Greenberg, briangreenberg.net">
+<!-- The board has its own tab icon (Brian, 2026-11-13): a status list with
+     three FIXED lights, so a tab left open is easy to find. It never changes
+     with the board's state. Files come from scripts/make-favicon.py. Static
+     assets are cached for 7 days (public/_headers), so a redrawn icon needs a
+     new file name. The web manifest is still the site's own. -->
+<link rel="icon" href="/service-status/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/service-status/favicon-48.png" sizes="48x48" type="image/png">
+<link rel="apple-touch-icon" href="/service-status/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <meta name="theme-color" content="#B4633A">
 <link rel="stylesheet" href="/assets/site.css${assetQuery(assetVersions, 'css')}">
