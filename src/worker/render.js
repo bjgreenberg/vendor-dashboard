@@ -28,6 +28,29 @@ import LOGOS from '../../config/logos.json';
 const SHARE_URL = 'https://briangreenberg.net/service-status';
 const SHARE_TITLE = 'Is It Down? Live status for cloud and SaaS services';
 
+// The page's mark, drawn beside the heading (Brian, 2026-11-13): a status
+// list with three lights and two signal arcs. The heading stays REAL TEXT -
+// the mark is decoration (aria-hidden), so search engines, screen readers and
+// the Markdown copy all still read "Is It Down?".
+//
+// Outline and list lines use currentColor so they follow the site theme in
+// light and dark. The three lights are fixed colours on purpose: together they
+// read as a traffic light, not as this board's state. Both arcs share one
+// centre (74,62) so they stay parallel; keep that if the geometry changes.
+// Static markup with no interpolation, so nothing here needs esc().
+const HEADING_MARK =
+  '<svg class="vs-mark" viewBox="10 14 112 116" aria-hidden="true" focusable="false">' +
+  '<g fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+  '<path d="M54 36H32a18 18 0 0 0-18 18v54a18 18 0 0 0 18 18h54a18 18 0 0 0 18-18V82"/>' +
+  '<path d="M74 42a20 20 0 0 1 20 20"/>' +
+  '<path d="M74 22a40 40 0 0 1 40 40"/>' +
+  '<path d="M54 66h26M54 86h26M54 106h26"/>' +
+  '</g>' +
+  '<circle cx="34" cy="66" r="7.5" fill="#d93025"/>' +
+  '<circle cx="34" cy="86" r="7.5" fill="#f2a900"/>' +
+  '<circle cx="34" cy="106" r="7.5" fill="#1e9e57"/>' +
+  '</svg>';
+
 /**
  * ANALYTICS — the same two systems the rest of briangreenberg.net uses, with
  * the same rules, so this page reports alongside the site instead of being a
@@ -378,7 +401,7 @@ export function renderDashboard({
 </header>
 
 <main class="wrap vs">
-  <h1>Is It Down?</h1>
+  <h1>${HEADING_MARK}Is It Down?</h1>
   <p class="vs-sub">Live status for ${esc(records.length)} different cloud and SaaS services</p>
 
   <div class="vs-intro">
@@ -754,7 +777,8 @@ function childLi(c) {
  * without duplicating its palette.
  */
 const STYLES = `
-.vs h1 { margin-bottom: .15rem; }
+.vs h1 { margin-bottom: .15rem; display: flex; align-items: center; gap: .35em; }
+.vs-mark { width: 1.25em; height: 1.25em; flex: none; }
 .vs-sub { font-size: 1.15rem; margin: 0 0 .9rem; opacity: .85; }
 .vs-intro { margin: 0 0 1.5rem; }  /* full container width, matching the cards */
 .vs-intro p { margin: 0 0 .6rem; }
