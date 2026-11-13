@@ -127,7 +127,7 @@ export function renderMarkdown(v) {
     return `| ${md(r.vendor)} | ${md(r.severity)} | ${md(detail)} | ${safeUrl(r.sourceUrl) || ''} |`;
   });
   return [
-    '# Service Status',
+    '# Is It Down?',
     '',
     `Live operational status for ${f.count} SaaS and cloud vendors on ${SITE_NAME}, read from each vendor's own status page every 15 minutes (US vantage point). A failed check reads "unknown", never green.`,
     '',

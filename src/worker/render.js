@@ -26,7 +26,7 @@
 import LOGOS from '../../config/logos.json';
 
 const SHARE_URL = 'https://briangreenberg.net/service-status';
-const SHARE_TITLE = 'Service Status';
+const SHARE_TITLE = 'Is It Down? Live status for cloud and SaaS services';
 
 /**
  * ANALYTICS — the same two systems the rest of briangreenberg.net uses, with
@@ -244,7 +244,14 @@ export function renderDashboard({
     ? `<p class="vs-meta">Last collection <time id="vs-checked" datetime="${esc(meta.checked_at)}">${esc(formatChicago(meta.checked_at))}</time>. Each service is re-checked every 15 minutes.</p>`
     : `<p class="vs-meta">No collection has run yet. Each service is re-checked every 15 minutes.</p>`;
 
-  // The truth-check stamp: verification made visible. The external workflow
+  // The truth-check stamp. A fresh stamp that checked EVERY vendor and found
+  // NO disagreement prints nothing (Brian, 2026-11-13: the routine
+  // "Double-checked ... no disagreements" line was noise above the board).
+  // Everything that needs a reader still prints: never checked, overdue, a
+  // disagreement, and a stamp that could not read some vendors (uncovered
+  // vendors are stated on the stamp, never guessed, so "36 of 49" must not
+  // look like "49 of 49").
+  // Original intent, still true of those states: verification made visible. The external workflow
   // compares the board with the vendors' own feeds every two hours and posts
   // the result here; a missing stamp says so, and a stale one is itself the
   // alarm (three hours = one missed run plus slack). Vendor names inside it
@@ -264,17 +271,21 @@ export function renderDashboard({
       : '';
   const truthAtMs = truthCheck?.checkedAt ? Date.parse(truthCheck.checkedAt) : NaN;
   const truthStale = Number.isNaN(truthAtMs) || now().getTime() - truthAtMs > TRUTH_STALE_AFTER_MS;
+  const truthClean =
+    truthCheck?.disagreements === 0 && truthCheck.covered === truthCheck.total;
   const truthBlock = !truthCheck
     ? `<p class="vs-meta vs-truth">Not yet truth-checked against the vendors\u2019 own feeds.</p>`
     : truthStale
       ? `<p class="vs-stale vs-truth" role="status">Truth check overdue \u2014 last verified against the vendors\u2019 own feeds <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time>.</p>`
-      : `<p class="vs-meta vs-truth${truthCheck.disagreements > 0 ? ' vs-truth--disagree' : ''}">Double-checked <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> against ${esc(truthCheck.covered)} of ${esc(truthCheck.total)} vendors\u2019 own status feeds \u00b7 ${
-          truthCheck.disagreements === 0
-            ? 'no disagreements'
-            : `${esc(truthCheck.disagreements)} disagreement${truthCheck.disagreements === 1 ? '' : 's'}${
-                truthCheck.falseGreen?.length ? ` (${esc(truthCheck.falseGreen.join(', '))})` : ''
-              }`
-        }.${truthUnchecked(truthCheck)}</p>${truthUncheckedList(truthCheck)}`;
+      : truthClean
+        ? ''
+        : `<p class="vs-meta vs-truth${truthCheck.disagreements > 0 ? ' vs-truth--disagree' : ''}">Double-checked <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> against ${esc(truthCheck.covered)} of ${esc(truthCheck.total)} vendors\u2019 own status feeds \u00b7 ${
+            truthCheck.disagreements === 0
+              ? 'no disagreements'
+              : `${esc(truthCheck.disagreements)} disagreement${truthCheck.disagreements === 1 ? '' : 's'}${
+                  truthCheck.falseGreen?.length ? ` (${esc(truthCheck.falseGreen.join(', '))})` : ''
+                }`
+          }.${truthUnchecked(truthCheck)}</p>${truthUncheckedList(truthCheck)}`;
 
   // Social description reflects the LIVE board, so a share during an incident
   // says so instead of claiming everything is fine.
@@ -303,14 +314,16 @@ export function renderDashboard({
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Brian Greenberg">
 <meta property="og:url" content="https://briangreenberg.net/service-status">
-<meta property="og:title" content="Service Status">
+<meta property="og:title" content="${esc(SHARE_TITLE)}">
 <meta property="og:description" content="${esc(ogDescription)}">
 <meta property="og:image" content="https://briangreenberg.net/service-status/card.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
+<!-- The alt text describes card.jpg AS IT IS: the image still reads "Service
+     Status". Change both alts when the card is redrawn, not before. -->
 <meta property="og:image:alt" content="Service Status — live status for cloud and SaaS services, from briangreenberg.net">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Service Status">
+<meta name="twitter:title" content="${esc(SHARE_TITLE)}">
 <meta name="twitter:description" content="${esc(ogDescription)}">
 <meta name="twitter:image" content="https://briangreenberg.net/service-status/card.jpg">
 <meta name="twitter:image:alt" content="Service Status — live status for cloud and SaaS services, from briangreenberg.net">
@@ -365,24 +378,21 @@ export function renderDashboard({
 </header>
 
 <main class="wrap vs">
-  <h1>Service Status</h1>
+  <h1>Is It Down?</h1>
+  <p class="vs-sub">Live status for ${esc(records.length)} different cloud and SaaS services</p>
 
   <div class="vs-intro">
-    <p>Most of the software I depend on is somebody else&rsquo;s to keep running.
-    When something stops working, the first question is always whether it&rsquo;s
-    me or them.</p>
-    <p>This page asks ${esc(records.length)} services directly, re-checking each one
-    every 15 minutes,
+    <p>So much of the software we depend on is somebody else&rsquo;s to keep
+    running. When something stops working, the first question is always whether
+    it&rsquo;s them or us.</p>
+    <p>This page checks ${esc(records.length)} services directly, every 15 minutes,
     and reports what each one says about itself. Nothing here is inferred, and
     nothing comes from a third-party aggregator &mdash; each status is read from
-    that vendor&rsquo;s own status page, which you can open from any row.</p>
-    <p>If a check fails, the service is marked <strong>Unknown</strong> rather
-    than green. A check that didn&rsquo;t happen isn&rsquo;t good news.</p>
-    <p>This board watches from a <strong>US vantage point</strong>: where a
-    vendor publishes per-region status, a row&rsquo;s state reflects its US
-    regions. Trouble elsewhere in the world still appears as a note on that
-    provider&rsquo;s card &mdash; it informs, but it doesn&rsquo;t change the
-    row&rsquo;s color.</p>
+    that vendor&rsquo;s own status page, which you can open from any row. If a
+    check fails, the service is marked <strong>Unknown</strong>, never green.</p>
+    <p>This board watches from a <strong>US vantage point</strong>. Where a
+    vendor reports by region, trouble outside the US shows as a note on the card
+    and doesn&rsquo;t change the row&rsquo;s color.</p>
   </div>
 
   <!-- Share bar: plain intent links only, zero third-party JS or SDKs, matching
@@ -744,7 +754,8 @@ function childLi(c) {
  * without duplicating its palette.
  */
 const STYLES = `
-.vs h1 { margin-bottom: .5rem; }
+.vs h1 { margin-bottom: .15rem; }
+.vs-sub { font-size: 1.15rem; margin: 0 0 .9rem; opacity: .85; }
 .vs-intro { margin: 0 0 1.5rem; }  /* full container width, matching the cards */
 .vs-intro p { margin: 0 0 .6rem; }
 .vs-intro p:last-child { margin-bottom: 0; }
