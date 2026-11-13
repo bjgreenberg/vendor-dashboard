@@ -624,7 +624,11 @@ describe('fetch() — routing and response headers', () => {
     expect(csp).toMatch(/script-src 'self' 'nonce-[0-9a-f]+'/);
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
     const html = await res.text();
-    expect(html).toContain('<h1>Is It Down?</h1>');
+    // One heading, and its name is still real text: the mark beside it is
+    // decoration, hidden from assistive technology.
+    expect(html.match(/<h1[\s>]/g)).toHaveLength(1);
+    expect(html).toMatch(/<h1><svg class="vs-mark"[^>]*aria-hidden="true"[^>]*>.*?<\/svg>Is It Down\?<\/h1>/s);
+    expect(html).not.toMatch(/<svg class="vs-mark"[^>]*>(?:(?!<\/svg>).)*<(?:script|style|a|image|use|foreignObject)\b/s);
     expect(html).toContain('<p class="vs-sub">Live status for 0 different cloud and SaaS services</p>');
     // The fail-closed rule must be STATED too: an Unknown badge only reads
     // as "not checked" because the intro says so.
