@@ -244,11 +244,14 @@ export function renderDashboard({
     ? `<p class="vs-meta">Last collection <time id="vs-checked" datetime="${esc(meta.checked_at)}">${esc(formatChicago(meta.checked_at))}</time>. Each service is re-checked every 15 minutes.</p>`
     : `<p class="vs-meta">No collection has run yet. Each service is re-checked every 15 minutes.</p>`;
 
-  // The truth-check stamp. A fresh stamp with NO disagreements prints nothing
-  // (Brian, 2026-11-13: the routine "Double-checked ... no disagreements"
-  // line was noise above the board). The three states that need a reader
-  // still print: never checked, overdue, and a disagreement.
-  // Original intent, still true of those three: verification made visible. The external workflow
+  // The truth-check stamp. A fresh stamp that checked EVERY vendor and found
+  // NO disagreement prints nothing (Brian, 2026-11-13: the routine
+  // "Double-checked ... no disagreements" line was noise above the board).
+  // Everything that needs a reader still prints: never checked, overdue, a
+  // disagreement, and a stamp that could not read some vendors (uncovered
+  // vendors are stated on the stamp, never guessed, so "36 of 49" must not
+  // look like "49 of 49").
+  // Original intent, still true of those states: verification made visible. The external workflow
   // compares the board with the vendors' own feeds every two hours and posts
   // the result here; a missing stamp says so, and a stale one is itself the
   // alarm (three hours = one missed run plus slack). Vendor names inside it
@@ -268,15 +271,21 @@ export function renderDashboard({
       : '';
   const truthAtMs = truthCheck?.checkedAt ? Date.parse(truthCheck.checkedAt) : NaN;
   const truthStale = Number.isNaN(truthAtMs) || now().getTime() - truthAtMs > TRUTH_STALE_AFTER_MS;
+  const truthClean =
+    truthCheck?.disagreements === 0 && truthCheck.covered === truthCheck.total;
   const truthBlock = !truthCheck
     ? `<p class="vs-meta vs-truth">Not yet truth-checked against the vendors\u2019 own feeds.</p>`
     : truthStale
       ? `<p class="vs-stale vs-truth" role="status">Truth check overdue \u2014 last verified against the vendors\u2019 own feeds <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time>.</p>`
-      : truthCheck.disagreements === 0
+      : truthClean
         ? ''
-        : `<p class="vs-meta vs-truth vs-truth--disagree">Double-checked <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> against ${esc(truthCheck.covered)} of ${esc(truthCheck.total)} vendors\u2019 own status feeds \u00b7 ${esc(truthCheck.disagreements)} disagreement${truthCheck.disagreements === 1 ? '' : 's'}${
-          truthCheck.falseGreen?.length ? ` (${esc(truthCheck.falseGreen.join(', '))})` : ''
-        }.${truthUnchecked(truthCheck)}</p>${truthUncheckedList(truthCheck)}`;
+        : `<p class="vs-meta vs-truth${truthCheck.disagreements > 0 ? ' vs-truth--disagree' : ''}">Double-checked <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> against ${esc(truthCheck.covered)} of ${esc(truthCheck.total)} vendors\u2019 own status feeds \u00b7 ${
+            truthCheck.disagreements === 0
+              ? 'no disagreements'
+              : `${esc(truthCheck.disagreements)} disagreement${truthCheck.disagreements === 1 ? '' : 's'}${
+                  truthCheck.falseGreen?.length ? ` (${esc(truthCheck.falseGreen.join(', '))})` : ''
+                }`
+          }.${truthUnchecked(truthCheck)}</p>${truthUncheckedList(truthCheck)}`;
 
   // Social description reflects the LIVE board, so a share during an incident
   // says so instead of claiming everything is fine.
@@ -310,12 +319,14 @@ export function renderDashboard({
 <meta property="og:image" content="https://briangreenberg.net/service-status/card.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Is It Down? Live status for cloud and SaaS services, from briangreenberg.net">
+<!-- The alt text describes card.jpg AS IT IS: the image still reads "Service
+     Status". Change both alts when the card is redrawn, not before. -->
+<meta property="og:image:alt" content="Service Status — live status for cloud and SaaS services, from briangreenberg.net">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(SHARE_TITLE)}">
 <meta name="twitter:description" content="${esc(ogDescription)}">
 <meta name="twitter:image" content="https://briangreenberg.net/service-status/card.jpg">
-<meta name="twitter:image:alt" content="Is It Down? Live status for cloud and SaaS services, from briangreenberg.net">
+<meta name="twitter:image:alt" content="Service Status — live status for cloud and SaaS services, from briangreenberg.net">
 <link rel="icon" href="/assets/img/favicon.png" type="image/png">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
