@@ -26,7 +26,12 @@ box, three FIXED lights, three lines, and two signal arcs that share one
 centre. The lights never reflect the board's state.
 
 Never delete or overwrite a card that has been live: social sites cache a
-preview per URL. A redrawn card gets a NEW file name, and render.js points at it.
+preview per URL. A redrawn card gets a NEW file name, and render.js points at
+it. So this script REFUSES to write over an existing file: to redraw, change
+OUT below to the new name first.
+
+Step 1 needs the site's own repository, which is private. Without it this
+script cannot be run; the committed card is the artifact.
 """
 import sys
 from pathlib import Path
@@ -108,7 +113,17 @@ def main() -> int:
     y = (H - mark.height) // 2
     base.paste(mark, (x, y), mark)
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    base.save(OUT, quality=90, optimize=True)
+    try:
+        with OUT.open("xb") as fh:  # "x": fail if the file exists, never write over it
+            base.save(fh, format="JPEG", quality=90, optimize=True)
+    except FileExistsError:
+        print(
+            f"{OUT} already exists and may be live. A redrawn card needs a new file name: "
+            "change OUT in this script, then point og:image and twitter:image in "
+            "src/worker/render.js at it. Nothing was written.",
+            file=sys.stderr,
+        )
+        return 1
     print(f"wrote {OUT} ({OUT.stat().st_size} bytes)")
     return 0
 

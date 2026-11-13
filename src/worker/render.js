@@ -345,12 +345,12 @@ export function renderDashboard({
 <!-- The alt text describes the card AS DRAWN: change the image and both alts
      together. The old card.jpg stays in public/ on purpose - social sites
      cache a preview per URL, and a cached preview must keep resolving. -->
-<meta property="og:image:alt" content="Is It Down? Live status for the cloud and SaaS services we depend on, checked every 15 minutes. Brian Greenberg, briangreenberg.net">
+<meta property="og:image:alt" content="Is It Down? Live status for the cloud and SaaS services we depend on, checked every 15 minutes. Beside the words, a status list with red, yellow and green lights. Brian Greenberg, briangreenberg.net">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(SHARE_TITLE)}">
 <meta name="twitter:description" content="${esc(ogDescription)}">
 <meta name="twitter:image" content="https://briangreenberg.net/service-status/card-is-it-down.jpg">
-<meta name="twitter:image:alt" content="Is It Down? Live status for the cloud and SaaS services we depend on, checked every 15 minutes. Brian Greenberg, briangreenberg.net">
+<meta name="twitter:image:alt" content="Is It Down? Live status for the cloud and SaaS services we depend on, checked every 15 minutes. Beside the words, a status list with red, yellow and green lights. Brian Greenberg, briangreenberg.net">
 <!-- The board has its own tab icon (Brian, 2026-11-13): a status list with
      three FIXED lights, so a tab left open is easy to find. It never changes
      with the board's state. Files come from scripts/make-favicon.py. Static

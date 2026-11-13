@@ -396,6 +396,21 @@ describe('renderDashboard — favicon', () => {
     expect(svg.match(/<circle /g)).toHaveLength(3);
   });
 
+  it('the tab icon never changes with the board\'s state (Brian, 2026-11-13)', () => {
+    const icons = (h) => h.match(/<link rel="(?:icon|apple-touch-icon)"[^>]*>/g);
+    const calm = icons(html);
+    expect(calm).toHaveLength(3);
+    const boards = [
+      [record({ severity: 'major_outage' })],
+      [record({ severity: 'degraded' }), record({ vendor: 'W', severity: 'partial_outage' })],
+      [record({ severity: 'unknown' })],
+      [record({ severity: 'maintenance' })],
+    ];
+    for (const records of boards) {
+      expect(icons(renderDashboard({ records, meta: null }))).toEqual(calm);
+    }
+  });
+
   it('keeps the old share card file, because a cached link preview still points at it', () => {
     expect(existsSync('public/service-status/card.jpg')).toBe(true);
   });

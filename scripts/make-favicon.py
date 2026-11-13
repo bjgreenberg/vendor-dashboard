@@ -3,7 +3,7 @@
 Writes three files under public/service-status/:
 
   favicon.svg            the tab icon for browsers that take SVG
-  favicon-48.png         the PNG fallback (48 px covers 16 and 32 at 2x and 3x)
+  favicon-48.png         the PNG fallback (48 px is 16 px at 3x and 24 px at 2x)
   apple-touch-icon.png   180 px, full bleed (iOS rounds the corners itself)
 
 The heading mark on the page (HEADING_MARK in src/worker/render.js) has an
@@ -17,12 +17,18 @@ signal with none of the board's fail-closed rules behind it.
 The tile carries a thin light border because a navy tile on a dark browser
 tab is otherwise invisible. One geometry feeds both the SVG and the PNGs, so
 the two cannot drift. Run from the repo root: python3 scripts/make-favicon.py
+
+Static files are cached for 7 days (public/_headers), so a redrawn icon needs
+NEW file names. This script therefore REFUSES to write over an existing file:
+to redraw, change NAMES below, then the three links in src/worker/render.js.
 """
+import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 
 OUT = Path("public/service-status")
+NAMES = {"svg": "favicon.svg", "png": "favicon-48.png", "touch": "apple-touch-icon.png"}
 
 GRID = 64  # all geometry below is on a 64 x 64 grid
 TILE, BORDER, LINE = "#1b2740", "#8f9bb0", "#e6e9ee"
@@ -82,14 +88,27 @@ def png(px: int, *, full_bleed: bool) -> Image.Image:
     return img.resize((px, px), Image.Resampling.LANCZOS)
 
 
-def main() -> None:
+def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "favicon.svg").write_text(svg(), encoding="utf-8")
-    png(48, full_bleed=False).save(OUT / "favicon-48.png", optimize=True)
-    png(180, full_bleed=True).convert("RGB").save(OUT / "apple-touch-icon.png", optimize=True)
-    for name in ("favicon.svg", "favicon-48.png", "apple-touch-icon.png"):
+    existing = [name for name in NAMES.values() if (OUT / name).exists()]
+    if existing:
+        print(
+            f"{', '.join(existing)} already exist under {OUT} and may be live. A redrawn icon "
+            "needs new file names: change NAMES in this script, then the icon links in "
+            "src/worker/render.js. Nothing was written.",
+            file=sys.stderr,
+        )
+        return 1
+    with (OUT / NAMES["svg"]).open("x", encoding="utf-8") as fh:
+        fh.write(svg())
+    with (OUT / NAMES["png"]).open("xb") as fb:
+        png(48, full_bleed=False).save(fb, format="PNG", optimize=True)
+    with (OUT / NAMES["touch"]).open("xb") as fb:
+        png(180, full_bleed=True).convert("RGB").save(fb, format="PNG", optimize=True)
+    for name in NAMES.values():
         print(f"wrote {OUT / name} ({(OUT / name).stat().st_size} bytes)")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
