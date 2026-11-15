@@ -120,6 +120,13 @@ describe('the same alarms as the HTML board (Copilot, PR #154)', () => {
     // a stamp from before the count existed says so, never reads like 0
     expect(renderLlmsTxt(opts)).toContain('; whether every feed could be read was not reported.');
   });
+  it('a truth check that compared no vendor says so, never "Double-checked" (#340)', () => {
+    const none = { ...opts, truthCheck: { ...truthCheck, agreed: 0, unreadable: 3 } };
+    const txt = renderLlmsTxt(none);
+    expect(txt).toContain("Truth check ran 2026-09-30T22:11:00Z but compared none of the vendors' own status feeds; nothing below was double-checked by it; 3 vendor feed(s) could not be read.");
+    expect(txt).not.toContain('Double-checked');
+    expect(renderMarkdown(none)).toContain('compared none of the vendors');
+  });
   it('an empty board says no data has been collected', () => {
     expect(renderLlmsTxt({ ...opts, records: [] })).toContain('WARNING: no status data has been collected yet');
   });

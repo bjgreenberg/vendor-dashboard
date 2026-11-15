@@ -67,14 +67,18 @@ function facts({ records = [], meta, truthCheck, origin, base, now = () => new D
   if (!truthCheck?.checkedAt) truth = "Not yet double-checked against the vendors' own feeds.";
   else if (Number.isNaN(truthAt) || t - truthAt > TRUTH_STALE_AFTER_MS)
     truth = `Truth check OVERDUE: last double-checked ${truthCheck.checkedAt}; treat the states below as unverified.`;
-  else
-    truth = `Double-checked ${truthCheck.checkedAt} against ${truthCheck.covered} of ${truthCheck.total} vendors' own status feeds; ${truthCheck.disagreements} disagreement(s)${
-      !Number.isInteger(truthCheck.unreadable)
-        ? '; whether every feed could be read was not reported'
-        : truthCheck.unreadable > 0
-          ? `; ${truthCheck.unreadable} vendor feed(s) could not be read`
-          : ''
-    }.`;
+  else {
+    // #340: a stamp that compared no vendor never reads as "Double-checked".
+    const unread = !Number.isInteger(truthCheck.unreadable)
+      ? '; whether every feed could be read was not reported'
+      : truthCheck.unreadable > 0
+        ? `; ${truthCheck.unreadable} vendor feed(s) could not be read`
+        : '';
+    truth =
+      Number.isInteger(truthCheck.agreed) && truthCheck.agreed === 0 && truthCheck.disagreements === 0
+        ? `Truth check ran ${truthCheck.checkedAt} but compared none of the vendors' own status feeds; nothing below was double-checked by it${unread}.`
+        : `Double-checked ${truthCheck.checkedAt} against ${truthCheck.covered} of ${truthCheck.total} vendors' own status feeds; ${truthCheck.disagreements} disagreement(s)${unread}.`;
+  }
   return { abs, impacted, unknown, truth, warnings, snapshot: meta?.checked_at ?? 'none yet', count: records.length };
 }
 

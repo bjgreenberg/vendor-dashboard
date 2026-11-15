@@ -38,6 +38,18 @@ describe('storage — truth_check row', () => {
     expect((await readTruthCheck(db)).checkedAt).toBe('2026-09-05T08:00:00.000Z');
     expect(db.sqlite.prepare('SELECT count(*) AS n FROM truth_check').get().n).toBe(1);
   });
+  it('a row stored before #340 (no unreadable key in detail) reads back as null, never 0', async () => {
+    const db = makeD1();
+    db.sqlite
+      .prepare('INSERT INTO truth_check (id, checked_at, covered, total, agreed, disagreements, detail) VALUES (1, ?, 49, 49, 48, 0, ?)')
+      .run('2026-11-15T10:11:36.219Z', JSON.stringify({ falseGreen: [], uncovered: [] }));
+    const got = await readTruthCheck(db);
+    expect(got.unreadable).toBeNull();
+    // and it stays hidden on the page: the deploy must not flicker the line
+    const html = renderDashboard({ records: [], meta: null, truthCheck: got, now: () => new Date('2026-11-15T10:30:00.000Z') });
+    expect(html).not.toContain('class="vs-meta vs-truth');
+    expect(html).not.toContain('Truth check ran');
+  });
   it('keeps the names of the vendors the check could not read', async () => {
     const db = makeD1();
     await writeTruthCheck(db, stamp({ uncovered: ['Apple', 'AWS'] }));
@@ -151,17 +163,17 @@ describe('renderDashboard — the truth-check stamp', () => {
   });
   it('a stamp that checked NO vendor is not mistaken for a clean one', () => {
     const html = render(stamp({ covered: 0, agreed: 0 }));
-    expect(html).toContain('against 0 of 49');
+    expect(html).toContain('compared none of the vendors’ own status feeds, so nothing on the board was double-checked this time');
     expect(html).toContain('The other 49 publish');
   });
   // Worklist #340 (qa-lane ai-review finding f53a10d99f32f262): "clean" is
   // earned only by a stamp that checked at least one vendor and covered all
   // of them, counted in whole numbers. Anything else prints, so the reader
   // can see what was (not) verified; a hidden stamp claims full coverage.
-  it('a stamp that checked 0 of 0 vendors is not clean: it prints (#340)', () => {
+  it('a stamp that checked 0 of 0 vendors is not clean: it prints that nothing was compared (#340)', () => {
     const html = render(stamp({ covered: 0, total: 0, agreed: 0 }));
-    expect(html).toContain('Double-checked');
-    expect(html).toContain('against 0 of 0');
+    expect(html).toContain('compared none of the vendors’ own status feeds, so nothing on the board was double-checked this time');
+    expect(html).not.toContain('Double-checked');
   });
   it('a stamp with no coverage counts is not clean: it prints (#340)', () => {
     expect(render(stamp({ covered: undefined, total: undefined, agreed: undefined }))).toContain('Double-checked');
@@ -172,13 +184,17 @@ describe('renderDashboard — the truth-check stamp', () => {
     // unreadable feed, so a run where every feed failed posts 49 of 49, 0
     // disagreements. agreed 0 is what tells it from a real check.
     const html = render(stamp({ covered: 49, agreed: 0, unreadable: 49 }));
-    expect(html).toContain('Double-checked');
-    expect(html).toContain('49 of those vendors’ feeds could not be read this time');
-    // the same with no count sent (an older runner): agreed 0 still prints it
-    expect(render(stamp({ covered: 49, agreed: 0, unreadable: undefined }))).toContain('Double-checked');
+    expect(html).toMatch(/<p class="vs-stale vs-truth" role="status">Truth check ran <time[^>]*>[^<]+<\/time> but compared none of the vendors’ own status feeds, so nothing on the board was double-checked this time\. 49 vendors’ feeds could not be read this time\.<\/p>/);
+    expect(html).not.toContain('Double-checked');
+    // the same with no count sent (an older runner): agreed 0 still says so
+    const older = render(stamp({ covered: 49, agreed: 0, unreadable: undefined }));
+    expect(older).toContain('compared none of the vendors’ own status feeds, so nothing on the board was double-checked this time. Whether every feed could be read was not reported.');
   });
-  it('a stamp where every board row was unknown compared nothing: it prints (#340)', () => {
-    expect(render(stamp({ covered: 49, agreed: 0, unreadable: 0 }))).toContain('Double-checked');
+  it('a stamp where every board row was unknown compared nothing: it prints that, never "no disagreements" (#340)', () => {
+    const html = render(stamp({ covered: 49, agreed: 0, unreadable: 0 }));
+    expect(html).toContain('compared none of the vendors’ own status feeds, so nothing on the board was double-checked this time.');
+    expect(html).not.toContain('no disagreements');
+    expect(html).not.toContain('could not be read');
   });
   it('a stamp with SOME unreadable feeds stays hidden until Brian decides otherwise (#340)', () => {
     // The live stamp on 2026-11-15 10:11Z: 49 of 49, 48 agreed, 1 unreadable
@@ -188,7 +204,8 @@ describe('renderDashboard — the truth-check stamp', () => {
     expect(render(stamp({ covered: 49, agreed: 48, unreadable: 0 }))).not.toContain('Double-checked');
   });
   it('a printed stamp says how many feeds were unread, or that the count was not reported (#340)', () => {
-    expect(render(stamp({ agreed: 35, unreadable: 1 }))).toContain('1 of those vendors’ feeds could not be read this time');
+    expect(render(stamp({ agreed: 35, unreadable: 1 }))).toContain('no disagreements. 1 vendor’s feed could not be read this time.');
+    expect(render(stamp({ agreed: 34, unreadable: 2 }))).toContain('no disagreements. 2 vendors’ feeds could not be read this time.');
     expect(render(stamp({ unreadable: 0 }))).not.toContain('could not be read this time');
     expect(render(stamp({ unreadable: undefined }))).toContain('Whether every feed could be read was not reported.');
     expect(render(stamp({ covered: 49, agreed: 49, unreadable: undefined }))).not.toContain('Double-checked'); // a stored pre-#340 stamp does not flicker
