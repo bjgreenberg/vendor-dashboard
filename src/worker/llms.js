@@ -68,7 +68,11 @@ function facts({ records = [], meta, truthCheck, origin, base, now = () => new D
   else if (Number.isNaN(truthAt) || t - truthAt > TRUTH_STALE_AFTER_MS)
     truth = `Truth check OVERDUE: last double-checked ${truthCheck.checkedAt}; treat the states below as unverified.`;
   else
-    truth = `Double-checked ${truthCheck.checkedAt} against ${truthCheck.covered} of ${truthCheck.total} vendors' own status feeds; ${truthCheck.disagreements} disagreement(s).`;
+    truth = `Double-checked ${truthCheck.checkedAt} against ${truthCheck.covered} of ${truthCheck.total} vendors' own status feeds; ${truthCheck.disagreements} disagreement(s)${
+      Number.isInteger(truthCheck.unreadable) && truthCheck.unreadable > 0
+        ? `; ${truthCheck.unreadable} feed(s) could not be read`
+        : ''
+    }.`;
   return { abs, impacted, unknown, truth, warnings, snapshot: meta?.checked_at ?? 'none yet', count: records.length };
 }
 

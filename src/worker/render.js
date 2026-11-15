@@ -295,14 +295,20 @@ export function renderDashboard({
   const truthAtMs = truthCheck?.checkedAt ? Date.parse(truthCheck.checkedAt) : NaN;
   const truthStale = Number.isNaN(truthAtMs) || now().getTime() - truthAtMs > TRUTH_STALE_AFTER_MS;
   // "Clean" (and so hidden) must be earned: whole-number counts, at least one
-  // vendor checked, every vendor covered, no disagreement. A stamp that
-  // checked nothing, or carries counts that are not counts, prints instead:
-  // hiding it would claim a full verification that never happened (#340).
+  // vendor checked, every vendor covered, every covered feed READ (the
+  // runner counts an unreadable feed as covered; a missing count is not
+  // known), no disagreement. Anything else prints: hiding it would claim a
+  // full verification that never happened (#340).
   const truthClean =
     truthCheck?.disagreements === 0 &&
+    truthCheck.unreadable === 0 &&
     Number.isInteger(truthCheck.total) &&
     truthCheck.total > 0 &&
     truthCheck.covered === truthCheck.total;
+  const truthUnread = (tc) =>
+    Number.isInteger(tc.unreadable) && tc.unreadable > 0
+      ? ` ${esc(tc.unreadable)} of those feeds could not be read this time.`
+      : '';
   const truthBlock = !truthCheck
     ? `<p class="vs-meta vs-truth">Not yet truth-checked against the vendors\u2019 own feeds.</p>`
     : truthStale
@@ -315,7 +321,7 @@ export function renderDashboard({
               : `${esc(truthCheck.disagreements)} disagreement${truthCheck.disagreements === 1 ? '' : 's'}${
                   truthCheck.falseGreen?.length ? ` (${esc(truthCheck.falseGreen.join(', '))})` : ''
                 }`
-          }.${truthUnchecked(truthCheck)}</p>${truthUncheckedList(truthCheck)}`;
+          }.${truthUnread(truthCheck)}${truthUnchecked(truthCheck)}</p>${truthUncheckedList(truthCheck)}`;
 
   // Social description reflects the LIVE board, so a share during an incident
   // says so instead of claiming everything is fine.

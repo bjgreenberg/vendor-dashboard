@@ -13,6 +13,7 @@ const stamp = (over = {}) => ({
   agreed: 36,
   disagreements: 0,
   falseGreen: [],
+  unreadable: 0,
   ...over,
 });
 
@@ -77,6 +78,23 @@ describe('POST /api/truth-check — the workflow writes the stamp', () => {
     expect((await post(env, stamp({ uncovered: 'Apple' }), 't')).status).toBe(400);
     expect((await post(env, stamp({ uncovered: ['x'.repeat(300)] }), 't')).status).toBe(400);
     expect((await post(env, stamp({ covered: 48, uncovered: ['Apple', 'AWS'] }), 't')).status).toBe(400); // 2 names, 1 gap
+    // the unreadable count (#340) is optional, but a count, and it fits inside covered
+    expect((await post(env, stamp({ unreadable: -1 }), 't')).status).toBe(400);
+    expect((await post(env, stamp({ unreadable: '0' }), 't')).status).toBe(400);
+    expect((await post(env, stamp({ unreadable: 1.5 }), 't')).status).toBe(400);
+    expect((await post(env, stamp({ unreadable: 37 }), 't')).status).toBe(400); // covered is 36
+    expect((await post(env, stamp({ unreadable: 1 }), 't')).status).toBe(400); // agreed 36 + 1 unreadable > 36 covered
+  });
+  it('carries the unreadable count to /api/status, and keeps "not sent" apart from 0 (#340)', async () => {
+    const env = { DB: makeD1(), TRUTH_CHECK_TOKEN: 't' };
+    expect((await post(env, stamp({ agreed: 30, unreadable: 6 }), 't')).status).toBe(204);
+    let body = await (await worker.fetch(new Request('https://w.example/api/status'), env)).json();
+    expect(body.truthCheck.unreadable).toBe(6);
+    const older = stamp();
+    delete older.unreadable;
+    expect((await post(env, older, 't')).status).toBe(204); // an older runner sends none
+    body = await (await worker.fetch(new Request('https://w.example/api/status'), env)).json();
+    expect(body.truthCheck.unreadable).toBeNull();
   });
   it('accepts a stamp with the uncovered names (204) and /api/status carries them', async () => {
     const env = { DB: makeD1(), TRUTH_CHECK_TOKEN: 't' };
@@ -97,7 +115,7 @@ describe('POST /api/truth-check — the workflow writes the stamp', () => {
   it('stores a good stamp (204) and /api/status carries it', async () => {
     const db = makeD1();
     const env = { DB: db, TRUTH_CHECK_TOKEN: 't' };
-    const res = await post(env, stamp({ disagreements: 1, falseGreen: ['Google'] }), 't');
+    const res = await post(env, stamp({ agreed: 35, disagreements: 1, falseGreen: ['Google'] }), 't');
     expect(res.status).toBe(204);
     const api = await worker.fetch(new Request('https://w.example/api/status'), env);
     const body = await api.json();
@@ -148,6 +166,23 @@ describe('renderDashboard — the truth-check stamp', () => {
   it('a stamp with no coverage counts is not clean: it prints (#340)', () => {
     expect(render(stamp({ covered: undefined, total: undefined, agreed: undefined }))).toContain('Double-checked');
     expect(render(stamp({ covered: null, total: null }))).toContain('Double-checked');
+  });
+  it('a stamp whose feeds could not be read is not clean: it prints and says how many (#340)', () => {
+    // compare() counts a vendor with a rule as covered BEFORE it skips an
+    // unreadable feed, so a run where every feed failed posts 49 of 49, 0
+    // disagreements. Only the unreadable count tells it from a real check.
+    const html = render(stamp({ covered: 49, agreed: 0, unreadable: 49 }));
+    expect(html).toContain('Double-checked');
+    expect(html).toContain('49 of those feeds could not be read this time');
+    expect(render(stamp({ covered: 49, agreed: 48, unreadable: 1 }))).toContain('1 of those feeds could not be read this time');
+  });
+  it('a stamp from a runner that sends no unreadable count is not clean: it prints (#340)', () => {
+    expect(render(stamp({ covered: 49, agreed: 49, unreadable: undefined }))).toContain('Double-checked');
+    expect(render(stamp({ covered: 49, agreed: 49, unreadable: null }))).toContain('Double-checked');
+  });
+  it('rows the check skips without a disagreement (board unknown, over-cautious) keep a clean stamp hidden', () => {
+    // The live stamp on 2026-11-15: 49 of 49, 48 agreed, 0 disagreements, 0 unreadable.
+    expect(render(stamp({ covered: 49, agreed: 48, unreadable: 0 }))).not.toContain('Double-checked');
   });
   it('a stamp whose counts are not whole numbers is not clean: it prints (#340)', () => {
     expect(render(stamp({ covered: '49', total: '49', agreed: 49 }))).toContain('Double-checked');
