@@ -22,6 +22,7 @@ const REPORT_CLEAN = {
   total: 4,
   agreed: 3,
   falseGreen: [],
+  unreadable: [],
   uncovered: ['Zscaler'],
 };
 const REPORT_FALSE_GREEN = {
@@ -121,11 +122,23 @@ describe('check.sh — the shared truth-check orchestration', () => {
       agreed: 3,
       disagreements: 0,
       falseGreen: [],
+      unreadable: 0,
       uncovered: ['Zscaler'],
     });
     expect(r.out).toMatch(/stamp HTTP 204/);
   });
 
+  it('stamps how many feeds could not be read, and sends null when the report has no list (#340)', () => {
+    stubs({ report: { ...REPORT_CLEAN, agreed: 1, unreadable: ['Okta', 'Zoom'] } });
+    expect(run(CHECK, { TRUTH_CHECK_TOKEN: 't' }).code).toBe(0);
+    expect(JSON.parse(readFileSync(join(dir, 'stamp.posted.json'), 'utf8')).unreadable).toBe(2);
+    const { unreadable: _drop, ...noList } = REPORT_CLEAN;
+    stubs({ report: noList });
+    expect(run(CHECK, { TRUTH_CHECK_TOKEN: 't' }).code).toBe(0);
+    // never 0 by default: a missing list is "not known" (stated as "not reported"
+    // wherever a fresh line prints; hiding is decided by agreed, not by this)
+    expect(JSON.parse(readFileSync(join(dir, 'stamp.posted.json'), 'utf8')).unreadable).toBeNull();
+  });
   it('a NEW false green is confirmed, filed as an issue, stamped, and exits 3', () => {
     stubs({ report: REPORT_FALSE_GREEN });
     const r = run(CHECK, { TRUTH_CHECK_TOKEN: 't' });

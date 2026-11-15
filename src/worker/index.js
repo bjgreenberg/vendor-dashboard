@@ -604,6 +604,13 @@ function validateStamp(body) {
   if (!uncovered.every((v) => typeof v === 'string' && v.length > 0 && v.length <= 200)) return null;
   if (uncovered.length > body.total - body.covered) return null;
   if (body.disagreements !== body.falseGreen.length) return null;
+  // How many covered vendors' feeds could not be read this run (#340).
+  // compare() counts them as covered, so without this number a run where
+  // every feed failed looks like a clean 49 of 49. Optional (an older runner
+  // sends none, stored as null = not known); when sent, a count that fits in
+  // covered beside the agreements and disagreements.
+  const unreadable = body.unreadable ?? null;
+  if (unreadable !== null && (!count(unreadable) || body.agreed + body.disagreements + unreadable > body.covered)) return null;
   return {
     checkedAt: new Date(body.checkedAt).toISOString(),
     covered: body.covered,
@@ -612,6 +619,7 @@ function validateStamp(body) {
     disagreements: body.disagreements,
     falseGreen: body.falseGreen,
     uncovered,
+    unreadable,
   };
 }
 
