@@ -112,9 +112,13 @@ describe('the same alarms as the HTML board (Copilot, PR #154)', () => {
   });
   it('says how many feeds the truth check could not read, in both views (#340)', () => {
     const v = { ...opts, truthCheck: { ...truthCheck, agreed: 1, unreadable: 2 } };
-    expect(renderLlmsTxt(v)).toContain("against 3 of 3 vendors' own status feeds; 0 disagreement(s); 2 feed(s) could not be read.");
-    expect(renderMarkdown(v)).toContain('2 feed(s) could not be read');
-    expect(renderLlmsTxt(opts)).not.toContain('could not be read');
+    expect(renderLlmsTxt(v)).toContain("against 3 of 3 vendors' own status feeds; 0 disagreement(s); 2 vendor feed(s) could not be read.");
+    expect(renderMarkdown(v)).toContain('2 vendor feed(s) could not be read');
+    const read = { ...opts, truthCheck: { ...truthCheck, unreadable: 0 } };
+    expect(renderLlmsTxt(read)).toContain("against 3 of 3 vendors' own status feeds; 0 disagreement(s).");
+    expect(renderLlmsTxt(read)).not.toContain('could not be read');
+    // a stamp from before the count existed says so, never reads like 0
+    expect(renderLlmsTxt(opts)).toContain('; whether every feed could be read was not reported.');
   });
   it('an empty board says no data has been collected', () => {
     expect(renderLlmsTxt({ ...opts, records: [] })).toContain('WARNING: no status data has been collected yet');

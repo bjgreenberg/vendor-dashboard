@@ -167,22 +167,31 @@ describe('renderDashboard — the truth-check stamp', () => {
     expect(render(stamp({ covered: undefined, total: undefined, agreed: undefined }))).toContain('Double-checked');
     expect(render(stamp({ covered: null, total: null }))).toContain('Double-checked');
   });
-  it('a stamp whose feeds could not be read is not clean: it prints and says how many (#340)', () => {
+  it('a stamp whose every feed could not be read compared nothing: it prints and says how many (#340)', () => {
     // compare() counts a vendor with a rule as covered BEFORE it skips an
     // unreadable feed, so a run where every feed failed posts 49 of 49, 0
-    // disagreements. Only the unreadable count tells it from a real check.
+    // disagreements. agreed 0 is what tells it from a real check.
     const html = render(stamp({ covered: 49, agreed: 0, unreadable: 49 }));
     expect(html).toContain('Double-checked');
-    expect(html).toContain('49 of those feeds could not be read this time');
-    expect(render(stamp({ covered: 49, agreed: 48, unreadable: 1 }))).toContain('1 of those feeds could not be read this time');
+    expect(html).toContain('49 of those vendors’ feeds could not be read this time');
+    // the same with no count sent (an older runner): agreed 0 still prints it
+    expect(render(stamp({ covered: 49, agreed: 0, unreadable: undefined }))).toContain('Double-checked');
   });
-  it('a stamp from a runner that sends no unreadable count is not clean: it prints (#340)', () => {
-    expect(render(stamp({ covered: 49, agreed: 49, unreadable: undefined }))).toContain('Double-checked');
-    expect(render(stamp({ covered: 49, agreed: 49, unreadable: null }))).toContain('Double-checked');
+  it('a stamp where every board row was unknown compared nothing: it prints (#340)', () => {
+    expect(render(stamp({ covered: 49, agreed: 0, unreadable: 0 }))).toContain('Double-checked');
   });
-  it('rows the check skips without a disagreement (board unknown, over-cautious) keep a clean stamp hidden', () => {
-    // The live stamp on 2026-11-15: 49 of 49, 48 agreed, 0 disagreements, 0 unreadable.
+  it('a stamp with SOME unreadable feeds stays hidden until Brian decides otherwise (#340)', () => {
+    // The live stamp on 2026-11-15 10:11Z: 49 of 49, 48 agreed, 1 unreadable
+    // (US Government). 53 of 193 hourly runs 11/08-11/15 had one or more;
+    // printing them would bring back the line hidden on 2026-11-13.
+    expect(render(stamp({ covered: 49, agreed: 48, unreadable: 1 }))).not.toContain('Double-checked');
     expect(render(stamp({ covered: 49, agreed: 48, unreadable: 0 }))).not.toContain('Double-checked');
+  });
+  it('a printed stamp says how many feeds were unread, or that the count was not reported (#340)', () => {
+    expect(render(stamp({ agreed: 35, unreadable: 1 }))).toContain('1 of those vendors’ feeds could not be read this time');
+    expect(render(stamp({ unreadable: 0 }))).not.toContain('could not be read this time');
+    expect(render(stamp({ unreadable: undefined }))).toContain('Whether every feed could be read was not reported.');
+    expect(render(stamp({ covered: 49, agreed: 49, unreadable: undefined }))).not.toContain('Double-checked'); // a stored pre-#340 stamp does not flicker
   });
   it('a stamp whose counts are not whole numbers is not clean: it prints (#340)', () => {
     expect(render(stamp({ covered: '49', total: '49', agreed: 49 }))).toContain('Double-checked');

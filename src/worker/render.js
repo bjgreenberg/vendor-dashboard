@@ -294,21 +294,29 @@ export function renderDashboard({
       : '';
   const truthAtMs = truthCheck?.checkedAt ? Date.parse(truthCheck.checkedAt) : NaN;
   const truthStale = Number.isNaN(truthAtMs) || now().getTime() - truthAtMs > TRUTH_STALE_AFTER_MS;
-  // "Clean" (and so hidden) must be earned: whole-number counts, at least one
-  // vendor checked, every vendor covered, every covered feed READ (the
-  // runner counts an unreadable feed as covered; a missing count is not
-  // known), no disagreement. Anything else prints: hiding it would claim a
-  // full verification that never happened (#340).
+  // "Clean" (and so hidden) must be earned: whole-number counts, every
+  // vendor covered, no disagreement, and at least one vendor actually
+  // COMPARED (agreed > 0). The runner counts a vendor whose feed it could not
+  // read as covered, so a run where every feed failed posts "49 of 49, 0
+  // disagreements"; without the agreed test it hid as a full verification.
+  // A stamp that compared nothing, or whose counts are not counts, prints
+  // (#340). Whether a stamp with SOME unreadable feeds (27% of hourly runs,
+  // 11/08-11/15, mostly one feed) should print is Brian's call against the
+  // 11/13 "hide the routine line" decision; until then it stays hidden and
+  // `unreadable` is carried on /api/status and llms.txt.
   const truthClean =
     truthCheck?.disagreements === 0 &&
-    truthCheck.unreadable === 0 &&
     Number.isInteger(truthCheck.total) &&
     truthCheck.total > 0 &&
-    truthCheck.covered === truthCheck.total;
+    truthCheck.covered === truthCheck.total &&
+    Number.isInteger(truthCheck.agreed) &&
+    truthCheck.agreed > 0;
   const truthUnread = (tc) =>
-    Number.isInteger(tc.unreadable) && tc.unreadable > 0
-      ? ` ${esc(tc.unreadable)} of those feeds could not be read this time.`
-      : '';
+    Number.isInteger(tc.unreadable)
+      ? tc.unreadable > 0
+        ? ` ${esc(tc.unreadable)} of those vendors\u2019 feeds could not be read this time.`
+        : ''
+      : ' Whether every feed could be read was not reported.';
   const truthBlock = !truthCheck
     ? `<p class="vs-meta vs-truth">Not yet truth-checked against the vendors\u2019 own feeds.</p>`
     : truthStale

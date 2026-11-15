@@ -720,13 +720,14 @@ truth check runs on the always-on Mac first and on GitHub as a backstop
   rule does not understand are counted as **uncovered**, never guessed (36 of
   49 covered on 2026-09-05; **49 of 49** since 2026-09-30, and a test fails
   if a configured vendor has no reader). The workflow then **stamps the
-  board**. A fresh stamp that checked every vendor, read every one of
-  their feeds and found no disagreement prints nothing on the page (since
-  2026-11-13; the routine line was noise above the board). The stamp
-  carries how many feeds could not be read (since 2026-11-15): a covered
-  vendor whose feed failed is counted as covered, so without that number a
-  run where every feed failed would pass for a clean 49 of 49; when it is
-  above zero, or not sent, the line prints and says how many. Otherwise the page prints
+  board**. A fresh stamp that checked every vendor, compared at least one
+  and found no disagreement prints nothing on the page (since 2026-11-13;
+  the routine line was noise above the board). A covered vendor whose feed
+  could not be read is still counted as covered, so a run where every feed
+  failed posts "49 of 49" with 0 agreed: that stamp prints (since
+  2026-11-15). The stamp carries how many vendors' feeds could not be read;
+  `/api/status`, `llms.txt` and `index.md` state it, and a printed line
+  says it. Otherwise the page prints
   "Double-checked ‹time› against 49 of 49 vendors' own status feeds ·
   1 disagreement (Vendor)." `/service-status/llms.txt` and `index.md` state
   the stamp in every state. If a vendor is ever uncovered again, the line
