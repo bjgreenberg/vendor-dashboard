@@ -135,7 +135,8 @@ describe('check.sh — the shared truth-check orchestration', () => {
     const { unreadable: _drop, ...noList } = REPORT_CLEAN;
     stubs({ report: noList });
     expect(run(CHECK, { TRUTH_CHECK_TOKEN: 't' }).code).toBe(0);
-    // never 0 by default: a missing list is "not known", which the board prints
+    // never 0 by default: a missing list is "not known" (stated as "not reported"
+    // wherever a fresh line prints; hiding is decided by agreed, not by this)
     expect(JSON.parse(readFileSync(join(dir, 'stamp.posted.json'), 'utf8')).unreadable).toBeNull();
   });
   it('a NEW false green is confirmed, filed as an issue, stamped, and exits 3', () => {

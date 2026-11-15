@@ -727,8 +727,9 @@ truth check runs on the always-on Mac first and on GitHub as a backstop
   failed posts "49 of 49" with 0 agreed: that stamp prints "Truth check
   ran ‹time› but confirmed none of the board's rows", styled as
   an alarm (since 2026-11-15). The stamp carries how many vendors' feeds could not be read;
-  `/api/status`, `llms.txt` and `index.md` state it, and a printed line
-  says it. Otherwise the page prints
+  `/api/status` serves it, and a fresh line on the page, `llms.txt` or
+  `index.md` states it ("not reported" when a runner sent none). An overdue
+  line does not repeat it: overdue already means nothing below is current. Otherwise the page prints
   "Double-checked ‹time› against 49 of 49 vendors' own status feeds ·
   1 disagreement (Vendor)." `/service-status/llms.txt` and `index.md` state
   the stamp in every state. If a vendor is ever uncovered again, the line

@@ -48,11 +48,11 @@ const md = (s, max = 300) =>
  * @typedef {{records?: any[], meta?: any, truthCheck?: any, origin: string, base: string, now?: () => Date}} ViewInput
  */
 
-/** Shared facts both views state. @param {ViewInput} v */
 // #340: 0 agreed and 0 disagreements = no row was confirmed (every feed
 // unreadable or every row unknown; an over-cautious row is in neither count).
 const confirmedNone = (tc) => Number.isInteger(tc.agreed) && tc.agreed === 0 && tc.disagreements === 0;
 
+/** Shared facts both views state. @param {ViewInput} v */
 function facts({ records = [], meta, truthCheck, origin, base, now = () => new Date() }) {
   const abs = (p) => `${origin}${base}${p}`;
   const impacted = records.filter((r) => !['operational', 'unknown'].includes(r.severity)).length;

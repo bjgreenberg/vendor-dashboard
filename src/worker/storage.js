@@ -239,7 +239,9 @@ export async function readTruthCheck(db) {
     disagreements: row.disagreements,
     falseGreen: Array.isArray(detail?.falseGreen) ? detail.falseGreen.map(String) : [],
     uncovered: Array.isArray(detail?.uncovered) ? detail.uncovered.map(String) : [],
-    // null = not known (a stamp from before #340): the board prints it.
+    // null = not known (a stamp from before #340, or a runner that sent no
+    // list). Never read as 0; a printed line says "not reported". Whether the
+    // stamp prints at all is decided by agreed, not by this (render.js).
     unreadable: Number.isInteger(detail?.unreadable) && detail.unreadable >= 0 ? detail.unreadable : null,
   };
 }
