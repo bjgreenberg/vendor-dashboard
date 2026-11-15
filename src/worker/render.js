@@ -267,13 +267,14 @@ export function renderDashboard({
     ? `<p class="vs-meta">Last collection <time id="vs-checked" datetime="${esc(meta.checked_at)}">${esc(formatChicago(meta.checked_at))}</time>. Each service is re-checked every 15 minutes.</p>`
     : `<p class="vs-meta">No collection has run yet. Each service is re-checked every 15 minutes.</p>`;
 
-  // The truth-check stamp. A fresh stamp that checked EVERY vendor and found
-  // NO disagreement prints nothing (Brian, 2026-11-13: the routine
-  // "Double-checked ... no disagreements" line was noise above the board).
-  // Everything that needs a reader still prints: never checked, overdue, a
-  // disagreement, and a stamp that could not read some vendors (uncovered
-  // vendors are stated on the stamp, never guessed, so "36 of 49" must not
-  // look like "49 of 49").
+  // The truth-check stamp. A fresh stamp that covered EVERY vendor, compared
+  // at least one and found NO disagreement prints nothing (Brian, 2026-11-13:
+  // the routine "Double-checked ... no disagreements" line was noise above
+  // the board; `truthClean` below has the exact rule, #340). Everything that
+  // needs a reader still prints: never checked, overdue, a disagreement, a
+  // stamp that compared nothing, and one with uncovered vendors (stated on
+  // the stamp, never guessed, so "36 of 49" must not look like "49 of 49").
+  // A stamp with SOME unreadable feeds is hidden pending Brian's decision.
   // Original intent, still true of those states: verification made visible. The external workflow
   // compares the board with the vendors' own feeds every two hours and posts
   // the result here; a missing stamp says so, and a stale one is itself the
@@ -294,21 +295,54 @@ export function renderDashboard({
       : '';
   const truthAtMs = truthCheck?.checkedAt ? Date.parse(truthCheck.checkedAt) : NaN;
   const truthStale = Number.isNaN(truthAtMs) || now().getTime() - truthAtMs > TRUTH_STALE_AFTER_MS;
+  // "Clean" (and so hidden) must be earned: whole-number counts, every
+  // vendor covered, no disagreement, and at least one vendor actually
+  // COMPARED (agreed > 0). The runner counts a vendor whose feed it could not
+  // read as covered, so a run where every feed failed posts "49 of 49, 0
+  // disagreements"; without the agreed test it hid as a full verification.
+  // A stamp that compared nothing, or whose counts are not counts, prints
+  // (#340). Whether a stamp with SOME unreadable feeds (27% of hourly runs,
+  // 11/08-11/15, mostly one feed) should print is Brian's call against the
+  // 11/13 "hide the routine line" decision; until then it stays hidden and
+  // `unreadable` is carried on /api/status and llms.txt.
   const truthClean =
-    truthCheck?.disagreements === 0 && truthCheck.covered === truthCheck.total;
+    truthCheck?.disagreements === 0 &&
+    Number.isInteger(truthCheck.total) &&
+    truthCheck.total > 0 &&
+    truthCheck.covered === truthCheck.total &&
+    Number.isInteger(truthCheck.agreed) &&
+    truthCheck.agreed > 0;
+  // A stamp that CONFIRMED NO ROW (every feed unreadable, every board row
+  // unknown, nothing covered) must not print the routine "Double-checked ...
+  // no disagreements" words: it says so, styled as the alarm it is. Worded
+  // "confirmed none", not "compared none": compare() counts an over-cautious
+  // row (board trouble, vendor fine) in neither agreed nor disagreements.
+  const truthComparedNone = (tc) => Number.isInteger(tc.agreed) && tc.agreed === 0 && tc.disagreements === 0;
+  const truthUnread = (tc) =>
+    Number.isInteger(tc.unreadable)
+      ? tc.unreadable === 0
+        ? ''
+        : tc.unreadable === 1
+          ? ' 1 vendor\u2019s feed could not be read this time.'
+          : ` ${esc(tc.unreadable)} vendors\u2019 feeds could not be read this time.`
+      : ' Whether every feed could be read was not reported.';
   const truthBlock = !truthCheck
     ? `<p class="vs-meta vs-truth">Not yet truth-checked against the vendors\u2019 own feeds.</p>`
     : truthStale
-      ? `<p class="vs-stale vs-truth" role="status">Truth check overdue \u2014 last verified against the vendors\u2019 own feeds <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time>.</p>`
+      ? truthComparedNone(truthCheck)
+        ? `<p class="vs-stale vs-truth" role="status">Truth check overdue \u2014 the last run, <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time>, confirmed none of the board\u2019s rows.</p>`
+        : `<p class="vs-stale vs-truth" role="status">Truth check overdue \u2014 last verified against the vendors\u2019 own feeds <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time>.</p>`
       : truthClean
         ? ''
-        : `<p class="vs-meta vs-truth${truthCheck.disagreements > 0 ? ' vs-truth--disagree' : ''}">Double-checked <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> against ${esc(truthCheck.covered)} of ${esc(truthCheck.total)} vendors\u2019 own status feeds \u00b7 ${
+        : truthComparedNone(truthCheck)
+          ? `<p class="vs-stale vs-truth" role="status">Truth check ran <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> but confirmed none of the board\u2019s rows against the vendors\u2019 own status feeds this time.${truthUnread(truthCheck)}${truthUnchecked(truthCheck)}</p>${truthUncheckedList(truthCheck)}`
+          : `<p class="vs-meta vs-truth${truthCheck.disagreements > 0 ? ' vs-truth--disagree' : ''}">Double-checked <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> against ${esc(truthCheck.covered)} of ${esc(truthCheck.total)} vendors\u2019 own status feeds \u00b7 ${
             truthCheck.disagreements === 0
               ? 'no disagreements'
               : `${esc(truthCheck.disagreements)} disagreement${truthCheck.disagreements === 1 ? '' : 's'}${
                   truthCheck.falseGreen?.length ? ` (${esc(truthCheck.falseGreen.join(', '))})` : ''
                 }`
-          }.${truthUnchecked(truthCheck)}</p>${truthUncheckedList(truthCheck)}`;
+          }.${truthUnread(truthCheck)}${truthUnchecked(truthCheck)}</p>${truthUncheckedList(truthCheck)}`;
 
   // Social description reflects the LIVE board, so a share during an incident
   // says so instead of claiming everything is fine.

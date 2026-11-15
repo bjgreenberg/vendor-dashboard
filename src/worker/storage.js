@@ -200,7 +200,7 @@ export async function readNewStreaks(db, vendors) {
  * upserted; the reader treats an absent row as "never checked" and a stale
  * one as the alarm.
  * @param {D1Database} db
- * @param {{checkedAt: string, covered: number, total: number, agreed: number, disagreements: number, falseGreen: string[], uncovered?: string[]}} stamp
+ * @param {{checkedAt: string, covered: number, total: number, agreed: number, disagreements: number, falseGreen: string[], uncovered?: string[], unreadable?: number|null}} stamp
  */
 export async function writeTruthCheck(db, stamp) {
   await db
@@ -217,7 +217,7 @@ export async function writeTruthCheck(db, stamp) {
       stamp.total,
       stamp.agreed,
       stamp.disagreements,
-      JSON.stringify({ falseGreen: stamp.falseGreen ?? [], uncovered: stamp.uncovered ?? [] }),
+      JSON.stringify({ falseGreen: stamp.falseGreen ?? [], uncovered: stamp.uncovered ?? [], unreadable: stamp.unreadable ?? null }),
     )
     .run();
 }
@@ -225,7 +225,7 @@ export async function writeTruthCheck(db, stamp) {
 /**
  * The last truth-check stamp, or null when the board has never been checked.
  * @param {D1Database} db
- * @returns {Promise<{checkedAt: string, covered: number, total: number, agreed: number, disagreements: number, falseGreen: string[], uncovered: string[]}|null>}
+ * @returns {Promise<{checkedAt: string, covered: number, total: number, agreed: number, disagreements: number, falseGreen: string[], uncovered: string[], unreadable: number|null}|null>}
  */
 export async function readTruthCheck(db) {
   const row = await db.prepare('SELECT * FROM truth_check WHERE id = 1').first();
@@ -239,6 +239,10 @@ export async function readTruthCheck(db) {
     disagreements: row.disagreements,
     falseGreen: Array.isArray(detail?.falseGreen) ? detail.falseGreen.map(String) : [],
     uncovered: Array.isArray(detail?.uncovered) ? detail.uncovered.map(String) : [],
+    // null = not known (a stamp from before #340, or a runner that sent no
+    // list). Never read as 0; a printed line says "not reported". Whether the
+    // stamp prints at all is decided by agreed, not by this (render.js).
+    unreadable: Number.isInteger(detail?.unreadable) && detail.unreadable >= 0 ? detail.unreadable : null,
   };
 }
 
