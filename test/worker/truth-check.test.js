@@ -136,6 +136,24 @@ describe('renderDashboard — the truth-check stamp', () => {
     expect(html).toContain('against 0 of 49');
     expect(html).toContain('The other 49 publish');
   });
+  // Worklist #340 (qa-lane ai-review finding f53a10d99f32f262): "clean" is
+  // earned only by a stamp that checked at least one vendor and covered all
+  // of them, counted in whole numbers. Anything else prints, so the reader
+  // can see what was (not) verified; a hidden stamp claims full coverage.
+  it('a stamp that checked 0 of 0 vendors is not clean: it prints (#340)', () => {
+    const html = render(stamp({ covered: 0, total: 0, agreed: 0 }));
+    expect(html).toContain('Double-checked');
+    expect(html).toContain('against 0 of 0');
+  });
+  it('a stamp with no coverage counts is not clean: it prints (#340)', () => {
+    expect(render(stamp({ covered: undefined, total: undefined, agreed: undefined }))).toContain('Double-checked');
+    expect(render(stamp({ covered: null, total: null }))).toContain('Double-checked');
+  });
+  it('a stamp whose counts are not whole numbers is not clean: it prints (#340)', () => {
+    expect(render(stamp({ covered: '49', total: '49', agreed: 49 }))).toContain('Double-checked');
+    expect(render(stamp({ covered: 49.5, total: 49.5, agreed: 49 }))).toContain('Double-checked');
+    expect(render(stamp({ covered: Infinity, total: Infinity, agreed: 49 }))).toContain('Double-checked');
+  });
   it('a disagreement brings the line back on a fully covered stamp, with the time and the coverage', () => {
     const html = render(stamp({ covered: 49, agreed: 48, disagreements: 1, falseGreen: ['Google'] }));
     expect(html).toMatch(/<p class="vs-meta vs-truth vs-truth--disagree">Double-checked <time[^>]*datetime="2026-09-05T06:00:00.000Z"[^>]*>[^<]+<\/time> against 49 of 49 vendors’ own status feeds · 1 disagreement \(Google\)/);

@@ -294,8 +294,15 @@ export function renderDashboard({
       : '';
   const truthAtMs = truthCheck?.checkedAt ? Date.parse(truthCheck.checkedAt) : NaN;
   const truthStale = Number.isNaN(truthAtMs) || now().getTime() - truthAtMs > TRUTH_STALE_AFTER_MS;
+  // "Clean" (and so hidden) must be earned: whole-number counts, at least one
+  // vendor checked, every vendor covered, no disagreement. A stamp that
+  // checked nothing, or carries counts that are not counts, prints instead:
+  // hiding it would claim a full verification that never happened (#340).
   const truthClean =
-    truthCheck?.disagreements === 0 && truthCheck.covered === truthCheck.total;
+    truthCheck?.disagreements === 0 &&
+    Number.isInteger(truthCheck.total) &&
+    truthCheck.total > 0 &&
+    truthCheck.covered === truthCheck.total;
   const truthBlock = !truthCheck
     ? `<p class="vs-meta vs-truth">Not yet truth-checked against the vendors\u2019 own feeds.</p>`
     : truthStale
