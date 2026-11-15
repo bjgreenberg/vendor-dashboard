@@ -725,7 +725,7 @@ truth check runs on the always-on Mac first and on GitHub as a backstop
   the routine line was noise above the board). A covered vendor whose feed
   could not be read is still counted as covered, so a run where every feed
   failed posts "49 of 49" with 0 agreed: that stamp prints "Truth check
-  ran ‹time› but compared none of the vendors' own status feeds", styled as
+  ran ‹time› but confirmed none of the board's rows", styled as
   an alarm (since 2026-11-15). The stamp carries how many vendors' feeds could not be read;
   `/api/status`, `llms.txt` and `index.md` state it, and a printed line
   says it. Otherwise the page prints

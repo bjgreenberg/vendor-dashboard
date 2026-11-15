@@ -163,7 +163,7 @@ describe('renderDashboard — the truth-check stamp', () => {
   });
   it('a stamp that checked NO vendor is not mistaken for a clean one', () => {
     const html = render(stamp({ covered: 0, agreed: 0 }));
-    expect(html).toContain('compared none of the vendors’ own status feeds, so nothing on the board was double-checked this time');
+    expect(html).toContain('confirmed none of the board’s rows against the vendors’ own status feeds this time');
     expect(html).toContain('The other 49 publish');
   });
   // Worklist #340 (qa-lane ai-review finding f53a10d99f32f262): "clean" is
@@ -172,7 +172,7 @@ describe('renderDashboard — the truth-check stamp', () => {
   // can see what was (not) verified; a hidden stamp claims full coverage.
   it('a stamp that checked 0 of 0 vendors is not clean: it prints that nothing was compared (#340)', () => {
     const html = render(stamp({ covered: 0, total: 0, agreed: 0 }));
-    expect(html).toContain('compared none of the vendors’ own status feeds, so nothing on the board was double-checked this time');
+    expect(html).toContain('confirmed none of the board’s rows against the vendors’ own status feeds this time');
     expect(html).not.toContain('Double-checked');
   });
   it('a stamp with no coverage counts is not clean: it prints (#340)', () => {
@@ -184,17 +184,32 @@ describe('renderDashboard — the truth-check stamp', () => {
     // unreadable feed, so a run where every feed failed posts 49 of 49, 0
     // disagreements. agreed 0 is what tells it from a real check.
     const html = render(stamp({ covered: 49, agreed: 0, unreadable: 49 }));
-    expect(html).toMatch(/<p class="vs-stale vs-truth" role="status">Truth check ran <time[^>]*>[^<]+<\/time> but compared none of the vendors’ own status feeds, so nothing on the board was double-checked this time\. 49 vendors’ feeds could not be read this time\.<\/p>/);
+    expect(html).toMatch(/<p class="vs-stale vs-truth" role="status">Truth check ran <time[^>]*>[^<]+<\/time> but confirmed none of the board’s rows against the vendors’ own status feeds this time\. 49 vendors’ feeds could not be read this time\.<\/p>/);
     expect(html).not.toContain('Double-checked');
     // the same with no count sent (an older runner): agreed 0 still says so
     const older = render(stamp({ covered: 49, agreed: 0, unreadable: undefined }));
-    expect(older).toContain('compared none of the vendors’ own status feeds, so nothing on the board was double-checked this time. Whether every feed could be read was not reported.');
+    expect(older).toContain('confirmed none of the board’s rows against the vendors’ own status feeds this time. Whether every feed could be read was not reported.');
   });
   it('a stamp where every board row was unknown compared nothing: it prints that, never "no disagreements" (#340)', () => {
     const html = render(stamp({ covered: 49, agreed: 0, unreadable: 0 }));
-    expect(html).toContain('compared none of the vendors’ own status feeds, so nothing on the board was double-checked this time.');
+    expect(html).toContain('confirmed none of the board’s rows against the vendors’ own status feeds this time.');
     expect(html).not.toContain('no disagreements');
     expect(html).not.toContain('could not be read');
+  });
+  it('a stamp whose only comparison was over-cautious is not called "compared none": it confirmed none (#340, Codex)', () => {
+    // compare() counts an over-cautious row (board trouble, vendor fine) in
+    // neither agreed nor disagreements: 0 agreed does not mean 0 compared.
+    const html = render(stamp({ covered: 49, agreed: 0, unreadable: 0 }));
+    expect(html).toContain('confirmed none of the board’s rows');
+    expect(html).not.toContain('compared none');
+  });
+  it('an OVERDUE stamp whose last run confirmed nothing does not say "last verified" (#340)', () => {
+    const late = new Date('2026-09-05T12:00:00.000Z'); // six hours after the stamp
+    const html = render(stamp({ covered: 49, agreed: 0, unreadable: 49 }), late);
+    expect(html).toMatch(/<p class="vs-stale vs-truth" role="status">Truth check overdue — the last run, <time[^>]*>[^<]+<\/time>, confirmed none of the board’s rows\.<\/p>/);
+    expect(html).not.toContain('last verified');
+    // an overdue stamp that did confirm rows keeps its words
+    expect(render(stamp({ covered: 49, agreed: 49 }), late)).toContain('Truth check overdue — last verified against the vendors’ own feeds');
   });
   it('a stamp with SOME unreadable feeds stays hidden until Brian decides otherwise (#340)', () => {
     // The live stamp on 2026-11-15 10:11Z: 49 of 49, 48 agreed, 1 unreadable

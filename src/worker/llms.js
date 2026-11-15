@@ -49,6 +49,10 @@ const md = (s, max = 300) =>
  */
 
 /** Shared facts both views state. @param {ViewInput} v */
+// #340: 0 agreed and 0 disagreements = no row was confirmed (every feed
+// unreadable or every row unknown; an over-cautious row is in neither count).
+const confirmedNone = (tc) => Number.isInteger(tc.agreed) && tc.agreed === 0 && tc.disagreements === 0;
+
 function facts({ records = [], meta, truthCheck, origin, base, now = () => new Date() }) {
   const abs = (p) => `${origin}${base}${p}`;
   const impacted = records.filter((r) => !['operational', 'unknown'].includes(r.severity)).length;
@@ -66,17 +70,18 @@ function facts({ records = [], meta, truthCheck, origin, base, now = () => new D
   let truth;
   if (!truthCheck?.checkedAt) truth = "Not yet double-checked against the vendors' own feeds.";
   else if (Number.isNaN(truthAt) || t - truthAt > TRUTH_STALE_AFTER_MS)
-    truth = `Truth check OVERDUE: last double-checked ${truthCheck.checkedAt}; treat the states below as unverified.`;
+    truth = confirmedNone(truthCheck)
+      ? `Truth check OVERDUE: the last run (${truthCheck.checkedAt}) confirmed none of the board's rows; treat the states below as unverified.`
+      : `Truth check OVERDUE: last double-checked ${truthCheck.checkedAt}; treat the states below as unverified.`;
   else {
-    // #340: a stamp that compared no vendor never reads as "Double-checked".
+    // #340: a stamp that confirmed no row never reads as "Double-checked".
     const unread = !Number.isInteger(truthCheck.unreadable)
       ? '; whether every feed could be read was not reported'
       : truthCheck.unreadable > 0
         ? `; ${truthCheck.unreadable} vendor feed(s) could not be read`
         : '';
-    truth =
-      Number.isInteger(truthCheck.agreed) && truthCheck.agreed === 0 && truthCheck.disagreements === 0
-        ? `Truth check ran ${truthCheck.checkedAt} but compared none of the vendors' own status feeds; nothing below was double-checked by it${unread}.`
+    truth = confirmedNone(truthCheck)
+        ? `Truth check ran ${truthCheck.checkedAt} but confirmed none of the board's rows against the vendors' own status feeds; treat the states below as not double-checked${unread}.`
         : `Double-checked ${truthCheck.checkedAt} against ${truthCheck.covered} of ${truthCheck.total} vendors' own status feeds; ${truthCheck.disagreements} disagreement(s)${unread}.`;
   }
   return { abs, impacted, unknown, truth, warnings, snapshot: meta?.checked_at ?? 'none yet', count: records.length };

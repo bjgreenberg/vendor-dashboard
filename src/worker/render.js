@@ -312,9 +312,11 @@ export function renderDashboard({
     truthCheck.covered === truthCheck.total &&
     Number.isInteger(truthCheck.agreed) &&
     truthCheck.agreed > 0;
-  // A stamp that compared NOTHING (every feed unreadable, every board row
+  // A stamp that CONFIRMED NO ROW (every feed unreadable, every board row
   // unknown, nothing covered) must not print the routine "Double-checked ...
-  // no disagreements" words: it says so, styled as the alarm it is.
+  // no disagreements" words: it says so, styled as the alarm it is. Worded
+  // "confirmed none", not "compared none": compare() counts an over-cautious
+  // row (board trouble, vendor fine) in neither agreed nor disagreements.
   const truthComparedNone = (tc) => Number.isInteger(tc.agreed) && tc.agreed === 0 && tc.disagreements === 0;
   const truthUnread = (tc) =>
     Number.isInteger(tc.unreadable)
@@ -327,11 +329,13 @@ export function renderDashboard({
   const truthBlock = !truthCheck
     ? `<p class="vs-meta vs-truth">Not yet truth-checked against the vendors\u2019 own feeds.</p>`
     : truthStale
-      ? `<p class="vs-stale vs-truth" role="status">Truth check overdue \u2014 last verified against the vendors\u2019 own feeds <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time>.</p>`
+      ? truthComparedNone(truthCheck)
+        ? `<p class="vs-stale vs-truth" role="status">Truth check overdue \u2014 the last run, <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time>, confirmed none of the board\u2019s rows.</p>`
+        : `<p class="vs-stale vs-truth" role="status">Truth check overdue \u2014 last verified against the vendors\u2019 own feeds <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time>.</p>`
       : truthClean
         ? ''
         : truthComparedNone(truthCheck)
-          ? `<p class="vs-stale vs-truth" role="status">Truth check ran <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> but compared none of the vendors\u2019 own status feeds, so nothing on the board was double-checked this time.${truthUnread(truthCheck)}${truthUnchecked(truthCheck)}</p>${truthUncheckedList(truthCheck)}`
+          ? `<p class="vs-stale vs-truth" role="status">Truth check ran <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> but confirmed none of the board\u2019s rows against the vendors\u2019 own status feeds this time.${truthUnread(truthCheck)}${truthUnchecked(truthCheck)}</p>${truthUncheckedList(truthCheck)}`
           : `<p class="vs-meta vs-truth${truthCheck.disagreements > 0 ? ' vs-truth--disagree' : ''}">Double-checked <time datetime="${esc(truthCheck.checkedAt)}">${esc(formatChicago(truthCheck.checkedAt))}</time> against ${esc(truthCheck.covered)} of ${esc(truthCheck.total)} vendors\u2019 own status feeds \u00b7 ${
             truthCheck.disagreements === 0
               ? 'no disagreements'
