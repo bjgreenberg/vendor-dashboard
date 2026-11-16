@@ -93,3 +93,14 @@ describe('the board reload button', () => {
     expect(again.window.document.getElementById('vs-q').value).toBe('netsuite');
   });
 });
+
+describe('hidden means hidden, whatever the site stylesheet says', () => {
+  // HUME-MC on #196: the site's `.pill { display: inline-block }` is an author
+  // rule and beats the browser's `[hidden] { display: none }`; real Chrome
+  // drew both hidden pills (Reload and the native Share) with the script off.
+  // jsdom's cascade does not reproduce that, so this pins the page's own rule;
+  // the browser check is recorded on the PR.
+  it('the page carries [hidden] { display: none !important }', () => {
+    expect(page()).toMatch(/\[hidden\]\s*\{\s*display:\s*none\s*!important;\s*\}/);
+  });
+});

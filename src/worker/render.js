@@ -838,6 +838,10 @@ const STYLES = `
 .vs-intro p { margin: 0 0 .6rem; }
 .vs-intro p:last-child { margin-bottom: 0; }
 .vs-headline { font-size: 1.15rem; font-weight: 600; margin: .25rem 0 .5rem; color: #1f7a3d; }
+/* hidden means hidden: the site's .pill { display: inline-block } is an author
+   rule and beats the browser's [hidden] { display: none }, so without this a
+   script-less page showed the dead Reload and Share pills (HUME-MC, #196). */
+[hidden] { display: none !important; }
 .vs-headrow { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .75rem; margin: .25rem 0 .5rem; }
 .vs-headrow .vs-headline { margin: 0; }
 .vs-reload { min-height: 24px; cursor: pointer; }
