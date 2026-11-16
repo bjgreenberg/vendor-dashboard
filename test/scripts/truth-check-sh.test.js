@@ -223,8 +223,8 @@ describe('check.sh — an alert when a vendor stays unreadable (#340, Brian 2026
   });
 
   it('a vendor that reads again resets its streak and closes its open alert', () => {
-    stubs({ report: REPORT_CLEAN, openUnreadable: '90\ttruth-check unreadable: Discord' });
-    writeFileSync(join(state, 'unreadable-streaks.json'), JSON.stringify({ Discord: 5 }));
+    stubs({ report: REPORT_CLEAN, openUnreadable: '90\ttruth-check unreadable: Cloudflare' });
+    writeFileSync(join(state, 'unreadable-streaks.json'), JSON.stringify({ Cloudflare: 5 }));
     const r = run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
     expect(r.code, r.err).toBe(0);
     expect(calls()).toMatch(/issue comment 90/);
@@ -240,6 +240,53 @@ describe('check.sh — an alert when a vendor stays unreadable (#340, Brian 2026
       expect(r.code, r.err).toBe(0);
       expect(calls()).not.toMatch(/issue close 90/);
     }
+  });
+
+  it('a vendor removed from config and board closes as no longer monitored, never as read again (Codex on #197)', () => {
+    stubs({ report: REPORT_CLEAN, openUnreadable: '90\ttruth-check unreadable: Gone' });
+    writeFileSync(join(state, 'unreadable-streaks.json'), JSON.stringify({ Gone: 4 }));
+    const r = run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    expect(r.code, r.err).toBe(0);
+    expect(calls()).toMatch(/issue comment 90 .*no longer monitored/);
+    expect(calls()).not.toMatch(/Read again/);
+    expect(calls()).toMatch(/issue close 90/);
+  });
+
+  it('read again means on the board, covered and not unreadable', () => {
+    stubs({ report: REPORT_CLEAN, openUnreadable: '90\ttruth-check unreadable: Cloudflare' });
+    run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    expect(calls()).toMatch(/issue comment 90 .*Read again/);
+    expect(calls()).toMatch(/issue close 90/);
+  });
+
+  it('a report with no unreadable list skips the alerts: no reset, no false "read again" (HUME-MC on #197)', () => {
+    const { unreadable: _u, ...noList } = REPORT_CLEAN;
+    stubs({ report: noList, openUnreadable: '90\ttruth-check unreadable: Cloudflare' });
+    writeFileSync(join(state, 'unreadable-streaks.json'), JSON.stringify({ Cloudflare: 5 }));
+    const r = run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    expect(r.code, r.err).toBe(0);
+    expect(r.out).toMatch(/no unreadable list: unreadable-feed alerts skipped/);
+    expect(calls()).not.toMatch(/issue close 90/);
+    expect(JSON.parse(readFileSync(join(state, 'unreadable-streaks.json'), 'utf8'))).toEqual({ Cloudflare: 5 });
+  });
+
+  it('feed text goes into the issue as code spans, so an @handle pings nobody (HUME-MC on #197)', () => {
+    stubs({ report: { ...UNREAD, unreadableDetail: [{ vendor: 'Discord', evidence: ['Discord: not JSON (hi @someone `x`)'], urls: ['https://x.test/@a'] }] } });
+    writeFileSync(join(state, 'unreadable-streaks.json'), JSON.stringify({ Discord: 2 }));
+    run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    const body = readFileSync(join(work, 'unreadable-body.md'), 'utf8');
+    expect(body).toContain("- `Discord: not JSON (hi @someone 'x')`");
+    expect(body).toContain('- source: `https://x.test/@a`');
+  });
+
+  it('a GitHub failure in the alert step never withholds the board stamp, and still fails the job (HUME-MC on #197)', () => {
+    stubs({ report: UNREAD });
+    writeFileSync(join(state, 'unreadable-streaks.json'), JSON.stringify({ Discord: 2 }));
+    stub('gh', `echo "$*" >> "${dir}/gh.calls"; case "$*" in *truth-check-unreadable*) exit 1;; esac; exit 0`);
+    const r = run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    expect(existsSync(join(dir, 'stamp.posted.json'))).toBe(true);
+    expect(r.code).not.toBe(0);
+    expect(r.code).not.toBe(3);
   });
 
   it('asks gh for every open alert, not its default first 30 (Codex on #197)', () => {

@@ -124,17 +124,37 @@ while IFS=$'\t' read -r number title; do
 done
 new=$(wc -l < newly-filed.txt | tr -d ' ')
 
-# ── 3b. an alert when a vendor stays unreadable (#340, Brian 2026-11-16) ─────
+# ── 4. stamp the board ───────────────────────────────────────────────────────
+if [ -z "${TRUTH_CHECK_TOKEN:-}" ]; then
+  echo "TRUTH_CHECK_TOKEN not configured — the board keeps reading 'Not yet truth-checked'"
+else
+  jq '{checkedAt, covered, total, agreed, disagreements: (.falseGreen | length), falseGreen: [.falseGreen[].vendor], uncovered: (.uncovered // []), unreadable: (if (.unreadable | type) == "array" then (.unreadable | length) else null end)}' report.json > stamp.json
+  code=$(curl -s --max-time 30 -o stamp-response.txt -w '%{http_code}' -X POST \
+           -H "Authorization: Bearer $TRUTH_CHECK_TOKEN" -H 'Content-Type: application/json' \
+           --data @stamp.json "$ORIGIN/api/truth-check")
+  echo "stamp HTTP $code"; cat stamp-response.txt; echo
+  [ "$code" = "204" ]
+fi
+
+# ── 4b. an alert when a vendor stays unreadable (#340, Brian 2026-11-16) ─────
 # The page keeps a partly-read stamp hidden (Brian's "340 H"), so a feed the
 # second opinion cannot read alerts here instead: one GitHub issue per vendor
 # once it has been unreadable for UNREADABLE_ALERT_RUNS runs in a row (a
 # threshold, not every miss: Discord misses about one run in four), closed when
 # it reads again. The streak needs state that survives runs, so only a runner
 # with TRUTH_CHECK_STATE_DIR (hume) alerts; the GitHub backstop says so and
-# leaves it. Never exit 3: an unreadable feed is not a disagreement.
+# leaves it. Never exit 3: an unreadable feed is not a disagreement. It runs
+# AFTER the stamp, so a GitHub hiccup here never withholds the board's stamp;
+# under set -e it still fails the job, so health-monitor hears of it
+# (HUME-MC on #197). Feed text goes into the issue as code spans, so an
+# @handle inside an error message never pings anyone.
 UNREADABLE_ALERT_RUNS="${UNREADABLE_ALERT_RUNS:-3}"
 if [ -z "${TRUTH_CHECK_STATE_DIR:-}" ]; then
   echo "no TRUTH_CHECK_STATE_DIR: unreadable-feed alerts are left to the hume runner"
+elif ! jq -e '.unreadable | type == "array"' report.json >/dev/null; then
+  # a report with no unreadable list would reset every streak and "close on
+  # recovery" every open alert: a false recovery (HUME-MC on #197)
+  echo "report has no unreadable list: unreadable-feed alerts skipped this run"
 else
   mkdir -p "$TRUTH_CHECK_STATE_DIR"
   streaks="$TRUTH_CHECK_STATE_DIR/unreadable-streaks.json"
@@ -162,7 +182,7 @@ else
       echo
       echo "Why, from the latest run:"
       echo
-      jq -r --arg v "$vendor" '(.unreadableDetail // [])[] | select(.vendor == $v) | (.evidence[] | "- " + .), (.urls[] | "- source: " + .)' report.json
+      jq -r --arg v "$vendor" '(.unreadableDetail // [])[] | select(.vendor == $v) | (.evidence[] | "- `" + gsub("`"; "\u0027") + "`"), (.urls[] | "- source: `" + gsub("`"; "\u0027") + "`")' report.json
       echo
       echo "_Filed automatically by the truth check after $UNREADABLE_ALERT_RUNS unreadable runs in a row. It will comment and close this issue when the feed reads again._"
     } > unreadable-body.md
@@ -173,27 +193,22 @@ else
   printf '%s\n' "$open_alerts" | while IFS=$'\t' read -r number title; do
     [ -n "$number" ] || continue
     vendor=${title#truth-check unreadable: }
-    # close only on a READ: still unreadable, uncovered or off the board is not
-    # recovery (Codex on #197)
-    if ! jq -e --arg v "$vendor" 'has($v)' "$streaks" >/dev/null \
-       && ! jq -e --arg v "$vendor" '((.uncovered // []) + (.notOnBoard // [])) | index($v)' report.json >/dev/null; then
+    # Close only on a READ: on the board, covered, and not unreadable. A vendor
+    # gone from config AND board closes as "no longer monitored"; one that is
+    # uncovered, off the board or still unreadable stays open (Codex on #197).
+    if jq -e --arg v "$vendor" 'has($v)' "$streaks" >/dev/null; then
+      continue
+    elif jq -e --arg v "$vendor" 'any(.records[]?; .vendor == $v)' status.json >/dev/null \
+         && ! jq -e --arg v "$vendor" '(.uncovered // []) | index($v)' report.json >/dev/null; then
       gh issue comment "$number" --repo "$GITHUB_REPOSITORY" \
         --body "Read again at $(jq -r '.checkedAt' report.json): $vendor's own feed answered. Closing."
       gh issue close "$number" --repo "$GITHUB_REPOSITORY"
+    elif ! jq -e --arg v "$vendor" '((.notOnBoard // []) + (.uncovered // [])) | index($v)' report.json >/dev/null; then
+      gh issue comment "$number" --repo "$GITHUB_REPOSITORY" \
+        --body "$vendor is no longer monitored (not in config, not on the board) at $(jq -r '.checkedAt' report.json). Closing without a read."
+      gh issue close "$number" --repo "$GITHUB_REPOSITORY"
     fi
   done
-fi
-
-# ── 4. stamp the board ───────────────────────────────────────────────────────
-if [ -z "${TRUTH_CHECK_TOKEN:-}" ]; then
-  echo "TRUTH_CHECK_TOKEN not configured — the board keeps reading 'Not yet truth-checked'"
-else
-  jq '{checkedAt, covered, total, agreed, disagreements: (.falseGreen | length), falseGreen: [.falseGreen[].vendor], uncovered: (.uncovered // []), unreadable: (if (.unreadable | type) == "array" then (.unreadable | length) else null end)}' report.json > stamp.json
-  code=$(curl -s --max-time 30 -o stamp-response.txt -w '%{http_code}' -X POST \
-           -H "Authorization: Bearer $TRUTH_CHECK_TOKEN" -H 'Content-Type: application/json' \
-           --data @stamp.json "$ORIGIN/api/truth-check")
-  echo "stamp HTTP $code"; cat stamp-response.txt; echo
-  [ "$code" = "204" ]
 fi
 
 # ── 5. one loud line per NEW false green; the exit status carries it ─────────
