@@ -23,11 +23,14 @@ describe('tab-return refresh contract', () => {
     const doc = html();
     expect(doc).toContain("addEventListener('visibilitychange'");
     expect(doc).toContain('location.reload()');
-    // No setInterval/setTimeout may call reload: the only reload must be
-    // guarded by the hidden-duration check.
+    // No setInterval/setTimeout may call reload. Exactly two reloads exist:
+    // the one guarded by the hidden-duration check, and the Reload button's
+    // click handler (user-initiated, Brian 2026-11-16; reload-button.test.js).
     const reloadSites = [...doc.matchAll(/location\.reload\(\)/g)];
-    expect(reloadSites).toHaveLength(1);
+    expect(reloadSites).toHaveLength(2);
     expect(doc).toMatch(/hiddenAt[\s\S]{0,200}location\.reload\(\)/);
+    expect(doc).toContain("reloadBtn.addEventListener('click', function () { location.reload(); });");
+    expect(doc).not.toMatch(/set(Interval|Timeout)\(\s*function\s*\(\)\s*\{\s*location\.reload/);
   });
 
   it('uses a 5-minute hidden threshold', () => {

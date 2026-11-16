@@ -484,7 +484,10 @@ export function renderDashboard({
     <button class="pill share-native" type="button" hidden>&#8599; Share&hellip;</button>
   </div>
 
-  <p class="vs-headline ${headlineTone}">${esc(headline)}</p>
+  <div class="vs-headrow">
+    <p class="vs-headline ${headlineTone}">${esc(headline)}</p>
+    <button class="pill vs-reload" type="button" hidden><span aria-hidden="true">&#8635;</span> Reload</button>
+  </div>
   ${staleBanner}
   ${checkedBlock}
   ${truthBlock}
@@ -579,6 +582,17 @@ ${rows || '<p class="vs-empty">No status has been collected yet. The collector r
       hiddenAt = null;
     }
   });
+
+  // Reload button beside the headline (Brian, 2026-11-16). The tab-return
+  // reload above misses a tab iOS restores from a frozen state, so a reader
+  // looking at an old board can ask for a fresh one. Pressed, never timed, so
+  // WCAG 2.2.1 still holds; the filter text survives as above. Hidden in the
+  // markup so it never shows without this script.
+  var reloadBtn = document.querySelector('.vs-reload');
+  if (reloadBtn) {
+    reloadBtn.hidden = false;
+    reloadBtn.addEventListener('click', function () { location.reload(); });
+  }
 
   // Share bar: copy-link and the native share sheet. No SDKs - the platform
   // links above are plain intents.
@@ -824,6 +838,9 @@ const STYLES = `
 .vs-intro p { margin: 0 0 .6rem; }
 .vs-intro p:last-child { margin-bottom: 0; }
 .vs-headline { font-size: 1.15rem; font-weight: 600; margin: .25rem 0 .5rem; color: #1f7a3d; }
+.vs-headrow { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .75rem; margin: .25rem 0 .5rem; }
+.vs-headrow .vs-headline { margin: 0; }
+.vs-reload { min-height: 24px; cursor: pointer; }
 .vs-headline.headline--impacted { color: #b3261e; }
 .vs-headline.headline--unknown { color: #6b7280; }
 @media (prefers-color-scheme: dark) {
