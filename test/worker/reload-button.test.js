@@ -75,11 +75,21 @@ describe('the board reload button', () => {
   });
 
   it('keeps the typed filter across the reload', () => {
+    // Type in one page load, then boot a second load holding that tab's
+    // sessionStorage (what a reload keeps): the filter must be back in the box.
     const { dom } = boot();
     const q = dom.window.document.getElementById('vs-q');
     expect(q).not.toBeNull();
     q.value = 'netsuite';
     q.dispatchEvent(new dom.window.Event('input'));
-    expect(dom.window.sessionStorage.getItem('vs-filter')).toBe('netsuite');
+    const saved = dom.window.sessionStorage.getItem('vs-filter');
+    expect(saved).toBe('netsuite');
+    const again = new JSDOM(page(), {
+      url: 'https://briangreenberg.net/service-status/',
+      runScripts: 'dangerously',
+      pretendToBeVisual: true,
+      beforeParse(win) { win.sessionStorage.setItem('vs-filter', saved); },
+    });
+    expect(again.window.document.getElementById('vs-q').value).toBe('netsuite');
   });
 });
