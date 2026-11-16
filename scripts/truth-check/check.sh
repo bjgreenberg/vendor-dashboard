@@ -148,7 +148,7 @@ else
   jq -r 'to_entries[] | "unreadable streak: \(.key) \(.value)"' "$streaks"
   gh label create truth-check-unreadable --repo "$GITHUB_REPOSITORY" \
     --description "A vendor's own feed could not be read for several runs" --color FBCA04 --force >/dev/null
-  open_alerts=$(gh issue list --repo "$GITHUB_REPOSITORY" --label truth-check-unreadable --state open \
+  open_alerts=$(gh issue list --repo "$GITHUB_REPOSITORY" --label truth-check-unreadable --state open --limit 200 \
                   --json number,title --jq '.[] | "\(.number)\t\(.title)"')
   jq -r --argjson n "$UNREADABLE_ALERT_RUNS" 'to_entries[] | select(.value >= $n) | .key' "$streaks" |
   while IFS= read -r vendor; do
@@ -173,7 +173,10 @@ else
   printf '%s\n' "$open_alerts" | while IFS=$'\t' read -r number title; do
     [ -n "$number" ] || continue
     vendor=${title#truth-check unreadable: }
-    if ! jq -e --arg v "$vendor" 'has($v)' "$streaks" >/dev/null; then
+    # close only on a READ: still unreadable, uncovered or off the board is not
+    # recovery (Codex on #197)
+    if ! jq -e --arg v "$vendor" 'has($v)' "$streaks" >/dev/null \
+       && ! jq -e --arg v "$vendor" '((.uncovered // []) + (.notOnBoard // [])) | index($v)' report.json >/dev/null; then
       gh issue comment "$number" --repo "$GITHUB_REPOSITORY" \
         --body "Read again at $(jq -r '.checkedAt' report.json): $vendor's own feed answered. Closing."
       gh issue close "$number" --repo "$GITHUB_REPOSITORY"

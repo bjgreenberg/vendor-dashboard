@@ -232,6 +232,22 @@ describe('check.sh — an alert when a vendor stays unreadable (#340, Brian 2026
     expect(JSON.parse(readFileSync(join(state, 'unreadable-streaks.json'), 'utf8'))).toEqual({});
   });
 
+  it('an alert closes only when the feed was READ: not when the vendor is uncovered or off the board (Codex on #197)', () => {
+    for (const report of [{ ...REPORT_CLEAN, uncovered: ['Discord'] }, { ...REPORT_CLEAN, notOnBoard: ['Discord'] }]) {
+      stubs({ report, openUnreadable: '90\ttruth-check unreadable: Discord' });
+      writeFileSync(join(state, 'unreadable-streaks.json'), JSON.stringify({ Discord: 5 }));
+      const r = run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+      expect(r.code, r.err).toBe(0);
+      expect(calls()).not.toMatch(/issue close 90/);
+    }
+  });
+
+  it('asks gh for every open alert, not its default first 30 (Codex on #197)', () => {
+    stubs({ report: UNREAD });
+    run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    expect(calls()).toMatch(/issue list .*--label truth-check-unreadable .*--limit 200/);
+  });
+
   it('one readable run between misses resets the count', () => {
     stubs({ report: UNREAD });
     run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
