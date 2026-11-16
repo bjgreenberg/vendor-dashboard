@@ -96,6 +96,7 @@ const report = {
   falseGreen: result.falseGreen,
   overCautious: result.overCautious,
   unreadable: result.unreadable,
+  unreadableDetail: result.unreadableDetail,
   uncovered,
   notOnBoard,
 };
@@ -110,6 +111,8 @@ for (const f of report.falseGreen) {
 }
 for (const o of report.overCautious) lines.push(`over-cautious — ${o.vendor}: board \`${o.rendered}\`, vendor fine (${o.evidence.join(' | ')})`);
 if (report.unreadable.length) lines.push(`unreadable: ${report.unreadable.join(', ')}`);
+// why, per vendor (#340): the name alone could not be root-caused
+for (const u of report.unreadableDetail) lines.push(`unreadable — ${u.vendor}: ${u.evidence.join(' | ')}`);
 if (uncovered.length) lines.push(`uncovered (no rule for the platform): ${uncovered.join(', ')}`);
 if (notOnBoard.length) lines.push(`in config but not on the board: ${notOnBoard.join(', ')}`);
 console.log(lines.join('\n'));

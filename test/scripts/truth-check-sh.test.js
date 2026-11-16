@@ -44,7 +44,7 @@ function stub(name, body) {
   chmodSync(p, 0o755);
 }
 
-function stubs({ report = REPORT_CLEAN, openIssue = '' } = {}) {
+function stubs({ report = REPORT_CLEAN, openIssue = '', openUnreadable = '' } = {}) {
   writeFileSync(join(dir, 'report.fixture.json'), JSON.stringify(report));
   writeFileSync(join(dir, 'status.fixture.json'), JSON.stringify(STATUS));
   // curl: GET /api/status → the fixture; POST /api/truth-check → record the
@@ -65,7 +65,7 @@ exit 22`,
     'gh',
     `echo "$*" >> "${dir}/gh.calls"
 case "$1 $2" in
-  "issue list") if [[ "$*" == *"--json number"* ]]; then printf '%s' "${openIssue}"; else printf ''; fi;;
+  "issue list") if [[ "$*" == *"truth-check-unreadable"* ]]; then printf '%s' "${openUnreadable}"; elif [[ "$*" == *"--json number"* ]]; then printf '%s' "${openIssue}"; else printf ''; fi;;
   "issue create") echo "https://github.com/x/y/issues/77";;
 esac
 exit 0`,
@@ -178,6 +178,81 @@ describe('check.sh — the shared truth-check orchestration', () => {
   });
 });
 
+describe('check.sh — an alert when a vendor stays unreadable (#340, Brian 2026-11-16)', () => {
+  // Brian: "There needs to be an alert about a failure." The page keeps a
+  // partly-read stamp hidden (his "340 H"), so the alert is a GitHub issue,
+  // filed once a vendor has been unreadable for 3 runs in a row (a threshold,
+  // not every miss: Discord misses about one run in four), closed when it reads
+  // again. The streak lives in TRUTH_CHECK_STATE_DIR; a runner without one
+  // (the GitHub backstop) leaves the alert to hume.
+  const UNREAD = {
+    ...REPORT_CLEAN,
+    agreed: 2,
+    unreadable: ['Discord'],
+    unreadableDetail: [{ vendor: 'Discord', evidence: ['Discord: timeout after 20000 ms'], urls: ['https://discordstatus.com/api/v2/summary.json'] }],
+  };
+  const calls = () => (existsSync(join(dir, 'gh.calls')) ? readFileSync(join(dir, 'gh.calls'), 'utf8') : '');
+  let state;
+  beforeEach(() => {
+    state = join(dir, 'state');
+    mkdirSync(state);
+  });
+
+  it('two unreadable runs file nothing; the third files one issue carrying the reason', () => {
+    stubs({ report: UNREAD });
+    for (const n of [1, 2]) {
+      const r = run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+      expect(r.code, r.err).toBe(0);
+      expect(r.out).toMatch(new RegExp(`unreadable streak: Discord ${n}`));
+    }
+    expect(calls()).not.toMatch(/issue create/);
+    const r = run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    expect(r.code, r.err).toBe(0); // an alert, not a disagreement: never exit 3
+    expect(calls()).toMatch(/label create truth-check-unreadable/);
+    expect(calls()).toMatch(/issue create .*--label truth-check-unreadable .*--title truth-check unreadable: Discord/);
+    expect(readFileSync(join(work, 'unreadable-body.md'), 'utf8')).toMatch(/timeout after 20000 ms/);
+  });
+
+  it('an open alert is not filed again while the vendor stays unreadable', () => {
+    stubs({ report: UNREAD, openUnreadable: '90\ttruth-check unreadable: Discord' });
+    writeFileSync(join(state, 'unreadable-streaks.json'), JSON.stringify({ Discord: 7 }));
+    const r = run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    expect(r.code, r.err).toBe(0);
+    expect(calls()).not.toMatch(/issue create/);
+    expect(calls()).not.toMatch(/issue close/);
+  });
+
+  it('a vendor that reads again resets its streak and closes its open alert', () => {
+    stubs({ report: REPORT_CLEAN, openUnreadable: '90\ttruth-check unreadable: Discord' });
+    writeFileSync(join(state, 'unreadable-streaks.json'), JSON.stringify({ Discord: 5 }));
+    const r = run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    expect(r.code, r.err).toBe(0);
+    expect(calls()).toMatch(/issue comment 90/);
+    expect(calls()).toMatch(/issue close 90/);
+    expect(JSON.parse(readFileSync(join(state, 'unreadable-streaks.json'), 'utf8'))).toEqual({});
+  });
+
+  it('one readable run between misses resets the count', () => {
+    stubs({ report: UNREAD });
+    run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    stubs({ report: REPORT_CLEAN });
+    run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    stubs({ report: UNREAD });
+    const r = run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    expect(r.out).toMatch(/unreadable streak: Discord 1/);
+    expect(calls()).not.toMatch(/issue create/);
+  });
+
+  it('without a state dir it files no alert and says so', () => {
+    stubs({ report: UNREAD });
+    const r = run(CHECK, { TRUTH_CHECK_TOKEN: 't' });
+    expect(r.code, r.err).toBe(0);
+    expect(r.out).toMatch(/no TRUTH_CHECK_STATE_DIR/);
+    expect(calls()).not.toMatch(/truth-check-unreadable/);
+  });
+});
+
 describe('hume.sh — the launchd runner around check.sh', () => {
   const secrets = (pat, token) =>
     stub(
@@ -204,6 +279,14 @@ esac; exit 44`,
     expect(readFileSync(logFile(), 'utf8')).toMatch(/stamp HTTP 204/);
     // The secrets reached check.sh as env, and never the log.
     expect(readFileSync(logFile(), 'utf8')).not.toMatch(/tok|pat\b/);
+  });
+
+  it('hands check.sh its state dir, so the unreadable-feed streak survives between runs (#340)', () => {
+    stubs({ report: { ...REPORT_CLEAN, unreadable: ['Discord'], unreadableDetail: [] } });
+    secrets('pat', 'tok');
+    expect(run(HUME, env()).code).toBe(0);
+    const streaks = join(dir, 'home', '.local', 'state', 'vendor-dashboard-truth-check', 'unreadable-streaks.json');
+    expect(JSON.parse(readFileSync(streaks, 'utf8'))).toEqual({ Discord: 1 });
   });
 
   it('a new disagreement (exit 3) still counts as a completed check: stamp written, exit 0 for launchd', () => {

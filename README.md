@@ -759,6 +759,18 @@ stamp an exact clock; GitHub keeps an opinion that survives a hume outage.
 The stamp is idempotent, so two writers are fine — the newer wins, and
 `validateStamp` refuses a future-dated one either way.
 
+**A feed that stays unreadable alerts** (#340, Brian 2026-11-16: "There needs
+to be an alert about a failure"). The page keeps a partly-read stamp hidden,
+so the hume runner files one GitHub issue per vendor, labelled
+`truth-check-unreadable`, once that vendor's own feed has been unreadable for
+3 runs in a row (`UNREADABLE_ALERT_RUNS`). The issue carries the reason from
+the latest run, and the issue closes itself when the feed reads again. It's a
+threshold, not every miss, because Discord misses about one run in four. The
+streak is kept in `~/.local/state/vendor-dashboard-truth-check/unreadable-streaks.json`,
+so the GitHub backstop, which has no state between runs, leaves this alert to
+hume. The hourly log now gives each unreadable vendor's reason
+(`unreadable — <vendor>: <why>`), not just its name.
+
 hume's runner is fail-closed in every direction its tests pin
 (`test/scripts/truth-check-sh.test.js`, stub tools, no network): a completed
 check — clean, refreshed, or exit 3 — writes the success stamp (a new

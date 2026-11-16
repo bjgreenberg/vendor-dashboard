@@ -89,6 +89,7 @@ log "truth check starting (repo $REPO_DIR, board $ORIGIN)"
   cd "$WORK" && \
   ORIGIN="$ORIGIN" GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GH_TOKEN="$PAT" TRUTH_CHECK_TOKEN="$TOKEN" \
   TRUTH_CHECK_REPO_DIR="$REPO_DIR" \
+  TRUTH_CHECK_STATE_DIR="$(dirname "$STAMP")" \
   bash "$REPO_DIR/scripts/truth-check/check.sh"
 ) >> "$LOG" 2>&1
 rc=$?
