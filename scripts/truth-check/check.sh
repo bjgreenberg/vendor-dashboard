@@ -182,7 +182,7 @@ else
       echo
       echo "Why, from the latest run:"
       echo
-      jq -r --arg v "$vendor" '(.unreadableDetail // [])[] | select(.vendor == $v) | (.evidence[] | "- `" + gsub("`"; "\u0027") + "`"), (.urls[] | "- source: `" + gsub("`"; "\u0027") + "`")' report.json
+      jq -r --arg v "$vendor" '(.unreadableDetail // [])[] | select(.vendor == $v) | (.evidence[] | "- `" + gsub("`"; "\u0027") | gsub("\\s+"; " ") + "`"), (.urls[] | "- source: `" + gsub("`"; "\u0027") | gsub("\\s+"; " ") + "`")' report.json
       echo
       echo "_Filed automatically by the truth check after $UNREADABLE_ALERT_RUNS unreadable runs in a row. It will comment and close this issue when the feed reads again._"
     } > unreadable-body.md

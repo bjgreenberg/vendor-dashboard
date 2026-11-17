@@ -279,6 +279,14 @@ describe('check.sh — an alert when a vendor stays unreadable (#340, Brian 2026
     expect(body).toContain('- source: `https://x.test/@a`');
   });
 
+  it('feed text with line breaks stays on one line inside its code span (Codex on #197)', () => {
+    stubs({ report: { ...UNREAD, unreadableDetail: [{ vendor: 'Discord', evidence: ['Discord: not JSON (a\n\n@someone\r\nb)'], urls: [] }] } });
+    writeFileSync(join(state, 'unreadable-streaks.json'), JSON.stringify({ Discord: 2 }));
+    run(CHECK, { TRUTH_CHECK_TOKEN: 't', TRUTH_CHECK_STATE_DIR: state });
+    const body = readFileSync(join(work, 'unreadable-body.md'), 'utf8');
+    expect(body).toContain('- `Discord: not JSON (a @someone b)`');
+  });
+
   it('a GitHub failure in the alert step never withholds the board stamp, and still fails the job (HUME-MC on #197)', () => {
     stubs({ report: UNREAD });
     writeFileSync(join(state, 'unreadable-streaks.json'), JSON.stringify({ Discord: 2 }));
