@@ -165,6 +165,11 @@ describe('compare — the board against the second opinions', () => {
     expect(r.agreed).toBe(0);
     expect(r.falseGreen).toEqual([]);
   });
+  it('says WHY each unreadable feed failed, so a miss can be root-caused (#340)', () => {
+    // The hourly log named Discord unreadable 313 times by 11/16 and never once said why.
+    const r = compare([rec('A', 'operational')], new Map([op('A', 'unreadable')]));
+    expect(r.unreadableDetail).toEqual([{ vendor: 'A', evidence: ['A: evidence'], urls: [] }]);
+  });
   it('a vendor on the board with no opinion at all is uncovered — and named', () => {
     const r = compare([rec('A', 'operational')], new Map());
     expect(r.covered).toBe(0);

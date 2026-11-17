@@ -136,6 +136,81 @@ else
   [ "$code" = "204" ]
 fi
 
+# ── 4b. an alert when a vendor stays unreadable (#340, Brian 2026-11-16) ─────
+# The page keeps a partly-read stamp hidden (Brian's "340 H"), so a feed the
+# second opinion cannot read alerts here instead: one GitHub issue per vendor
+# once it has been unreadable for UNREADABLE_ALERT_RUNS runs in a row (a
+# threshold, not every miss: Discord misses about one run in four), closed when
+# it reads again. The streak needs state that survives runs, so only a runner
+# with TRUTH_CHECK_STATE_DIR (hume) alerts; the GitHub backstop says so and
+# leaves it. Never exit 3: an unreadable feed is not a disagreement. It runs
+# AFTER the stamp, so a GitHub hiccup here never withholds the board's stamp;
+# under set -e it still fails the job, so health-monitor hears of it
+# (HUME-MC on #197). Feed text goes into the issue as code spans, so an
+# @handle inside an error message never pings anyone.
+UNREADABLE_ALERT_RUNS="${UNREADABLE_ALERT_RUNS:-3}"
+if [ -z "${TRUTH_CHECK_STATE_DIR:-}" ]; then
+  echo "no TRUTH_CHECK_STATE_DIR: unreadable-feed alerts are left to the hume runner"
+elif ! jq -e '.unreadable | type == "array"' report.json >/dev/null; then
+  # a report with no unreadable list would reset every streak and "close on
+  # recovery" every open alert: a false recovery (HUME-MC on #197)
+  echo "report has no unreadable list: unreadable-feed alerts skipped this run"
+else
+  mkdir -p "$TRUTH_CHECK_STATE_DIR"
+  streaks="$TRUTH_CHECK_STATE_DIR/unreadable-streaks.json"
+  [ -s "$streaks" ] || echo '{}' > "$streaks"
+  # this run's unreadable vendors add one; every other vendor drops out (reset)
+  jq --slurpfile r report.json '
+    . as $old
+    | ($r[0].unreadable // []) | map({key: ., value: (($old[.] // 0) + 1)}) | from_entries
+  ' "$streaks" > "$streaks.new"
+  mv "$streaks.new" "$streaks"
+  jq -r 'to_entries[] | "unreadable streak: \(.key) \(.value)"' "$streaks"
+  gh label create truth-check-unreadable --repo "$GITHUB_REPOSITORY" \
+    --description "A vendor's own feed could not be read for several runs" --color FBCA04 --force >/dev/null
+  open_alerts=$(gh issue list --repo "$GITHUB_REPOSITORY" --label truth-check-unreadable --state open --limit 200 \
+                  --json number,title --jq '.[] | "\(.number)\t\(.title)"')
+  jq -r --argjson n "$UNREADABLE_ALERT_RUNS" 'to_entries[] | select(.value >= $n) | .key' "$streaks" |
+  while IFS= read -r vendor; do
+    [ -n "$vendor" ] || continue
+    if printf '%s\n' "$open_alerts" | awk -F'\t' -v t="truth-check unreadable: $vendor" '$2 == t {f=1} END {exit !f}'; then
+      continue  # already alerted; it closes when the vendor reads again
+    fi
+    runs=$(jq -r --arg v "$vendor" '.[$v]' "$streaks")
+    {
+      echo "The truth check could not read **$vendor**'s own status feed in the last $runs runs in a row (latest $(jq -r '.checkedAt' report.json)), so the board's row for it is not being double-checked."
+      echo
+      echo "Why, from the latest run:"
+      echo
+      jq -r --arg v "$vendor" '(.unreadableDetail // [])[] | select(.vendor == $v) | (.evidence[] | "- `" + gsub("`"; "\u0027") | gsub("\\s+"; " ") + "`"), (.urls[] | "- source: `" + gsub("`"; "\u0027") | gsub("\\s+"; " ") + "`")' report.json
+      echo
+      echo "_Filed automatically by the truth check after $UNREADABLE_ALERT_RUNS unreadable runs in a row. It will comment and close this issue when the feed reads again._"
+    } > unreadable-body.md
+    url=$(gh issue create --repo "$GITHUB_REPOSITORY" --label truth-check-unreadable \
+            --title "truth-check unreadable: $vendor" --body-file unreadable-body.md)
+    echo "alert filed: $url ($vendor unreadable $runs runs in a row)"
+  done
+  printf '%s\n' "$open_alerts" | while IFS=$'\t' read -r number title; do
+    [ -n "$number" ] || continue
+    vendor=${title#truth-check unreadable: }
+    # Close only on a READ: on the board, covered, and not unreadable. A vendor
+    # gone from config AND board closes as "no longer monitored"; one that is
+    # uncovered, off the board or still unreadable stays open (Codex on #197).
+    if jq -e --arg v "$vendor" 'has($v)' "$streaks" >/dev/null; then
+      continue
+    elif jq -e --arg v "$vendor" 'any(.records[]?; .vendor == $v)' status.json >/dev/null \
+         && ! jq -e --arg v "$vendor" '(.uncovered // []) | index($v)' report.json >/dev/null; then
+      gh issue comment "$number" --repo "$GITHUB_REPOSITORY" \
+        --body "Read again at $(jq -r '.checkedAt' report.json): $vendor's own feed answered. Closing."
+      gh issue close "$number" --repo "$GITHUB_REPOSITORY"
+    elif ! jq -e --arg v "$vendor" '((.notOnBoard // []) + (.uncovered // [])) | index($v)' report.json >/dev/null; then
+      gh issue comment "$number" --repo "$GITHUB_REPOSITORY" \
+        --body "$vendor is no longer monitored (not in config, not on the board) at $(jq -r '.checkedAt' report.json). Closing without a read."
+      gh issue close "$number" --repo "$GITHUB_REPOSITORY"
+    fi
+  done
+fi
+
 # ── 5. one loud line per NEW false green; the exit status carries it ─────────
 if [ "$new" != "0" ]; then
   echo "$new new disagreement(s) filed — see the truth-check issues"

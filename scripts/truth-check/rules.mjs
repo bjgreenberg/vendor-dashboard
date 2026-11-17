@@ -280,6 +280,7 @@ export function compare(records, opinions) {
   const falseGreen = [];
   const overCautious = [];
   const unreadable = [];
+  const unreadableDetail = [];
   const uncovered = [];
   let covered = 0;
   let agreed = 0;
@@ -294,6 +295,7 @@ export function compare(records, opinions) {
     covered += 1;
     if (o.verdict === 'unreadable') {
       unreadable.push(r.vendor);
+      unreadableDetail.push({ vendor: r.vendor, evidence: o.evidence, urls: o.urls });
       continue;
     }
     if (r.severity === 'unknown') continue;
@@ -305,5 +307,5 @@ export function compare(records, opinions) {
       agreed += 1;
     }
   }
-  return { falseGreen, overCautious, unreadable, uncovered, covered, total: records.length, agreed };
+  return { falseGreen, overCautious, unreadable, unreadableDetail, uncovered, covered, total: records.length, agreed };
 }
