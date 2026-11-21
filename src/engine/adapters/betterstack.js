@@ -59,7 +59,7 @@ export function parseBetterStack(html, options) {
   const severity = STATE[state];
 
   if (severity === undefined) {
-    return unknownRecord(vendor, `unrecognised Better Stack state "${state}"`, { now, sourceUrl });
+    return unknownRecord(vendor, `unrecognized Better Stack state "${state}"`, { now, sourceUrl });
   }
 
   // Per-resource detail, when collect.js supplied the /sections fragment.

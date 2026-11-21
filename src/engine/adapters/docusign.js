@@ -134,7 +134,7 @@ export function parseDocusign(payload, options) {
     const c = byId.get(id);
     const own = mapWord(c.status);
     if (own === null) {
-      warnings.push(`unrecognised component status "${String(c.status)}" on "${c.name ?? c.id}"`);
+      warnings.push(`unrecognized component status "${String(c.status)}" on "${c.name ?? c.id}"`);
     }
     path.add(id);
     const kids = [...(childrenOf.get(id) ?? [])].map((k) => rollUp(k, path));
@@ -189,7 +189,7 @@ export function parseDocusign(payload, options) {
     for (const i of active) {
       let sev = mapWord(i.impact);
       if (sev === null) {
-        warnings.push(`unrecognised incident impact "${String(i.impact)}" on "${i.title ?? i.id}"`);
+        warnings.push(`unrecognized incident impact "${String(i.impact)}" on "${i.title ?? i.id}"`);
         sev = SEVERITY.UNKNOWN;
       }
       // Lead with the worst-impact incident so the headline matches the colour.

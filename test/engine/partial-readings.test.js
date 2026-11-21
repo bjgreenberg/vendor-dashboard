@@ -45,8 +45,8 @@ describe('Concur — one document per data centre', () => {
   it('one data centre does not answer: the status stands, the card says which, and it shows as unknown', async () => {
     const { res, row } = await one(concur, fetchBy({ [EU2]: stall, [concur.bannerUrl]: banner }, healthy));
     expect(row.severity).toBe(SEVERITY.OPERATIONAL);
-    expect(row.warnings[0]).toBe('1 of 4 data centres could not be read (EU2). The status shown is from the other 3.');
-    expect(row.components).toContainEqual({ name: 'Data centre EU2', severity: SEVERITY.UNKNOWN, description: 'Could not be read.' });
+    expect(row.warnings[0]).toBe('1 of 4 data centers could not be read (EU2). The status shown is from the other 3.');
+    expect(row.components).toContainEqual({ name: 'Data center EU2', severity: SEVERITY.UNKNOWN, description: 'Could not be read.' });
     expect(res.incomplete).toEqual(['Concur']);
   });
 
@@ -54,19 +54,19 @@ describe('Concur — one document per data centre', () => {
     // The hole the reviews of PR #160 pinned: it parsed, so nothing noticed.
     const { res, row } = await one(concur, fetchBy({ [APJ1]: '{"success":true}', [concur.bannerUrl]: banner }, healthy));
     expect(row.severity).toBe(SEVERITY.OPERATIONAL);
-    expect(row.warnings[0]).toBe('1 of 4 data centres could not be read (APJ1). The status shown is from the other 3.');
-    expect(row.components).toContainEqual({ name: 'Data centre APJ1', severity: SEVERITY.UNKNOWN, description: 'Could not be read.' });
+    expect(row.warnings[0]).toBe('1 of 4 data centers could not be read (APJ1). The status shown is from the other 3.');
+    expect(row.components).toContainEqual({ name: 'Data center APJ1', severity: SEVERITY.UNKNOWN, description: 'Could not be read.' });
     expect(res.incomplete).toEqual(['Concur']);
   });
 
   it('only US2 answers (the case that read plain green): still the verified status, and the card counts what is missing', async () => {
     const { row } = await one(concur, fetchBy({ [EU2]: stall, [APJ1]: stall, [USG]: stall, [concur.bannerUrl]: banner }, healthy));
     expect(row.severity).toBe(SEVERITY.OPERATIONAL);
-    expect(row.warnings[0]).toBe('3 of 4 data centres could not be read (EU2, APJ1, USG). The status shown is from the other 1.');
+    expect(row.warnings[0]).toBe('3 of 4 data centers could not be read (EU2, APJ1, USG). The status shown is from the other 1.');
     expect(row.components.filter((c) => c.severity === SEVERITY.UNKNOWN).map((c) => c.name)).toEqual([
-      'Data centre EU2',
-      'Data centre APJ1',
-      'Data centre USG',
+      'Data center EU2',
+      'Data center APJ1',
+      'Data center USG',
     ]);
   });
 
@@ -77,8 +77,8 @@ describe('Concur — one document per data centre', () => {
     const { res, row } = await one(concur, fetchBy({ [US2]: '{"success":true}', [concur.bannerUrl]: banner }, healthy));
     expect(row.severity).toBe(SEVERITY.UNKNOWN);
     expect(row.description).toBe('Status could not be determined.');
-    expect(row.warnings).toEqual(["Concur's US2 data centre could not be read, so its status is not shown."]);
-    expect(row.components).toContainEqual({ name: 'Data centre US2', severity: SEVERITY.UNKNOWN, description: 'Could not be read.' });
+    expect(row.warnings).toEqual(["Concur's US2 data center could not be read, so its status is not shown."]);
+    expect(row.components).toContainEqual({ name: 'Data center US2', severity: SEVERITY.UNKNOWN, description: 'Could not be read.' });
     expect(res.incomplete).toEqual(['Concur']);
   });
 
@@ -88,7 +88,7 @@ describe('Concur — one document per data centre', () => {
     const down = JSON.stringify({ data: { Expense: { Service: 'Expense', 'Current Status': { status: 'unavailable', incidents: [] } } } });
     const { row } = await one(concur, fetchBy({ [US2]: '{"success":true}', [EU2]: down, [concur.bannerUrl]: banner }, healthy));
     expect(row.severity).toBe(SEVERITY.MAJOR_OUTAGE);
-    expect(row.warnings[0]).toBe('1 of 4 data centres could not be read (US2). The status shown is from the other 3.');
+    expect(row.warnings[0]).toBe('1 of 4 data centers could not be read (US2). The status shown is from the other 3.');
     expect(row.components.find((c) => c.name === 'Expense').severity).toBe(SEVERITY.MAJOR_OUTAGE);
   });
 
@@ -96,7 +96,7 @@ describe('Concur — one document per data centre', () => {
     const degraded = JSON.stringify({ data: { Expense: { Service: 'Expense', 'Current Status': { status: 'degraded', incidents: [] } } } });
     const { row } = await one(concur, fetchBy({ [USG]: degraded, [EU2]: stall, [concur.bannerUrl]: banner }, healthy));
     expect(row.severity).toBe(SEVERITY.DEGRADED);
-    expect(row.warnings[0]).toMatch(/^1 of 4 data centres could not be read \(EU2\)/);
+    expect(row.warnings[0]).toMatch(/^1 of 4 data centers could not be read \(EU2\)/);
   });
 
   describe('the issue banner', () => {
@@ -134,7 +134,7 @@ describe('Concur — one document per data centre', () => {
     it('a missing data centre and a missing banner are one note', async () => {
       const { row } = await one(concur, fetchBy({ [EU2]: stall, [concur.bannerUrl]: stall }, healthy));
       expect(row.warnings[0]).toBe(
-        '1 of 4 data centres could not be read (EU2). The status shown is from the other 3. The issue banner could not be read. The status shown does not include it.',
+        '1 of 4 data centers could not be read (EU2). The status shown is from the other 3. The issue banner could not be read. The status shown does not include it.',
       );
     });
   });

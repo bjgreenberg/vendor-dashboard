@@ -701,7 +701,7 @@ async function collectOne(vendor, ctx) {
     // it as an unknown component, and counts it as an unknown vote when it
     // is one the config requires) and on the card.
     if (vendor.type === 'concur-status' && Array.isArray(vendor.statusUrls)) {
-      units = { noun: 'data centre', total: vendor.statusUrls.length };
+      units = { noun: 'data center', total: vendor.statusUrls.length };
       const docs = [];
       for (const [i, u] of vendor.statusUrls.entries()) {
         const part = { unit: dataCenterOf(u, i) };

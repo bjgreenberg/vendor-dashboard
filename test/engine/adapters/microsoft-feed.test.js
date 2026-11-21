@@ -34,7 +34,7 @@ describe('microsoft admin-centre feed', () => {
     // inherited "Microsoft (Consumer Services)" label would now be a lie.
     const r = parse(live);
     expect(r.service).toBe('Microsoft 365 (Admin Center)');
-    expect(r.warnings.join(' ')).toMatch(/admin centre itself is reachable/i);
+    expect(r.warnings.join(' ')).toMatch(/admin center itself is reachable/i);
     expect(r.warnings.join(' ')).toMatch(/Exchange, Teams, SharePoint and Intune/);
   });
 
@@ -57,7 +57,7 @@ describe('microsoft admin-centre feed', () => {
   it('fails closed on a status word it has never seen', () => {
     const r = parse(feed('Sunny'));
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
-    expect(r.warnings.join(' ') + r.description).toMatch(/no recognisable status/i);
+    expect(r.warnings.join(' ') + r.description).toMatch(/no recognizable status/i);
   });
 
   it('fails closed when the status element is missing entirely', () => {
@@ -230,7 +230,7 @@ describe('microsoft admin-centre meta status', () => {
   it('warns that it does not measure the services inside', () => {
     // The overclaiming trap: "Microsoft 365 - Operational" would be read as
     // "my email works". This row does not measure that.
-    expect(admin(adminLive, 'Microsoft 365', justAfter(adminLive)).warnings.join(' ')).toMatch(/only whether the admin centre itself is reachable/i);
+    expect(admin(adminLive, 'Microsoft 365', justAfter(adminLive)).warnings.join(' ')).toMatch(/only whether the admin center itself is reachable/i);
   });
 
   it('refuses a stale post rather than repeating Available forever', () => {

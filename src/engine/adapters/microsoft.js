@@ -34,7 +34,7 @@ const SERVICE_LABEL = 'Microsoft (Consumer Services)';
 // public per-workload feed for Exchange, Entra, Intune or Defender - it is
 // tenant-scoped by design, because each tenant sees only its own incidents.
 const ENTERPRISE_CAVEAT =
-  'Covers Microsoft consumer services. Business services such as Exchange, Teams and Intune are only reported inside each organisation\'s own admin centre.';
+  'Covers Microsoft consumer services. Business services such as Exchange, Teams and Intune are only reported inside each organization\'s own admin center.';
 
 /**
  * @param {any} payload
@@ -138,9 +138,9 @@ const FEED_SOURCE_URL = 'https://status.cloud.microsoft/';
 const FEED_SERVICE_LABEL = 'Microsoft 365 (Admin Center)';
 
 const FEED_CAVEAT =
-  'Reports whether the Microsoft 365 admin centre itself is reachable. ' +
+  'Reports whether the Microsoft 365 admin center itself is reachable. ' +
   'Exchange, Teams, SharePoint and Intune health is only visible inside each ' +
-  "organisation's own admin centre.";
+  "organization's own admin center.";
 
 /**
  * Microsoft's vocabulary for this feed. Anything unrecognised fails CLOSED to
@@ -191,14 +191,14 @@ export function parseMicrosoftFeed(xml, options) {
     return {
       name: toPlainText(tagText(item, 'title')) || 'Microsoft Admin Center',
       severity,
-      description: severity === SEVERITY.UNKNOWN && raw ? `Unrecognised status "${raw}".` : '',
+      description: severity === SEVERITY.UNKNOWN && raw ? `Unrecognized status "${raw}".` : '',
     };
   });
 
   // A <status> element that is missing entirely means the feed changed shape,
   // which must read as uncertainty rather than health.
   if (components.every((c) => c.severity === SEVERITY.UNKNOWN)) {
-    return unknownRecord(vendor, 'feed carried no recognisable status value', opts);
+    return unknownRecord(vendor, 'feed carried no recognizable status value', opts);
   }
 
   const severity = worst(components.map((c) => c.severity));
@@ -208,10 +208,10 @@ export function parseMicrosoftFeed(xml, options) {
     vendor,
     service: FEED_SERVICE_LABEL,
     severity,
-    incidentName: unhealthy.length ? 'Admin centre issue' : '',
+    incidentName: unhealthy.length ? 'Admin center issue' : '',
     description: unhealthy.length
       ? `Affected: ${unhealthy.map((c) => c.name).join(', ')}.`
-      : 'The Microsoft 365 admin centre is reachable.',
+      : 'The Microsoft 365 admin center is reachable.',
     sourceUrl: FEED_SOURCE_URL,
     components,
     warnings: [FEED_CAVEAT],
@@ -254,7 +254,7 @@ const CONSUMER_LABEL = 'Microsoft (Consumer Services)';
 
 const CONSUMER_CAVEAT =
   'Covers Microsoft consumer products. Business services such as Exchange, ' +
-  "SharePoint and Intune are only reported inside each organisation's own admin centre.";
+  "SharePoint and Intune are only reported inside each organization's own admin center.";
 
 /** Microsoft's vocabulary on this endpoint. Unrecognised values fail closed. */
 const CONSUMER_STATUS = Object.freeze(
@@ -327,7 +327,7 @@ export function parseMicrosoftConsumer(payload, options) {
   // Every workload unreadable means the payload shape changed. Reporting that
   // as health would be the exact false green this project exists to prevent.
   if (components.every((c) => c.severity === SEVERITY.UNKNOWN)) {
-    return unknownRecord(vendor, 'no recognisable status values in payload', opts);
+    return unknownRecord(vendor, 'no recognizable status values in payload', opts);
   }
 
   const severity = worst(components.map((c) => c.severity));
@@ -367,8 +367,8 @@ export function parseMicrosoftConsumer(payload, options) {
  * tenant" is genuinely more useful than an absent row.
  */
 const ADMIN_CAVEAT =
-  'Reports only whether the admin centre itself is reachable. Health of the ' +
-  "services inside it is visible only in each organisation's own admin centre.";
+  'Reports only whether the admin center itself is reachable. Health of the ' +
+  "services inside it is visible only in each organization's own admin center.";
 
 /**
  * @param {any} payload parsed /api/posts/mac or /api/posts/ppac
@@ -391,7 +391,7 @@ export function parseMicrosoftAdminPost(payload, options) {
   }
   const severity = consumerSeverity(raw);
   if (severity === SEVERITY.UNKNOWN) {
-    return unknownRecord(vendor, `unrecognised status "${raw}"`, opts);
+    return unknownRecord(vendor, `unrecognized status "${raw}"`, opts);
   }
 
   // A frozen endpoint repeating "Available" forever is as misleading as
@@ -410,10 +410,10 @@ export function parseMicrosoftAdminPost(payload, options) {
     vendor,
     service: label,
     severity,
-    incidentName: severity === SEVERITY.OPERATIONAL ? '' : toPlainText(post?.Title ?? 'Admin centre issue'),
+    incidentName: severity === SEVERITY.OPERATIONAL ? '' : toPlainText(post?.Title ?? 'Admin center issue'),
     description:
       severity === SEVERITY.OPERATIONAL
-        ? 'The admin centre is reachable.'
+        ? 'The admin center is reachable.'
         : toPlainText(post?.Message ?? '').slice(0, 300),
     sourceUrl: CONSUMER_SOURCE_URL,
     components: [],

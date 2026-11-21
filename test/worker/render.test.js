@@ -444,7 +444,7 @@ describe('humanizeWarning', () => {
   });
 
   it('passes through text already written for readers', () => {
-    const note = 'Covers Microsoft consumer services. Business services such as Exchange are only reported inside each organisation\'s own admin centre.';
+    const note = 'Covers Microsoft consumer services. Business services such as Exchange are only reported inside each organization\'s own admin center.';
     expect(humanizeWarning(note)).toBe(note);
   });
 });
@@ -478,14 +478,14 @@ describe('renderDashboard — warnings shown to readers', () => {
 // status, and the card says what is missing. The engine writes that note for
 // readers and puts it first, because the card shows one warning line.
 describe('renderDashboard — a vendor read only in part', () => {
-  const note = '1 of 4 data centres could not be read (EU2). The status shown is from the other 3.';
+  const note = '1 of 4 data centers could not be read (EU2). The status shown is from the other 3.';
   const record = {
     vendor: 'Concur', service: 'Concur', severity: 'operational',
     incidentName: '', description: 'All 11 services report normal.',
     sourceUrl: 'https://open.concur.com/',
     components: [
       { name: 'Expense', severity: 'operational', description: '' },
-      { name: 'Data centre EU2', severity: 'unknown', description: 'Could not be read.' },
+      { name: 'Data center EU2', severity: 'unknown', description: 'Could not be read.' },
     ],
     warnings: [note],
     checkedAt: '2026-10-02T12:00:00.000Z',
@@ -531,10 +531,10 @@ describe('renderDashboard — a vendor read only in part', () => {
     for (const text of [
       'The component list could not be read. The status shown does not include it.',
       '7 of 8 clouds could not be read (ZIA · zscalerone.net, ZIA · zscalertwo.net, ZIA · zscalerthree.net, ZIA · zscloud.net and 3 more). The status shown is from the other 1.',
-      "Concur's US2 data centre could not be read, so its status is not shown.",
+      "Concur's US2 data center could not be read, so its status is not shown.",
       '1 incident in the list carries no status, so it cannot be told from an active one',
       '110 incidents in the list carry no status, so they cannot be told from active ones',
-      'unrecognised status "wobbly" on "Expense"',
+      'unrecognized status "wobbly" on "Expense"',
     ]) {
       expect(humanizeWarning(text)).toBe(text);
     }
@@ -544,7 +544,7 @@ describe('renderDashboard — a vendor read only in part', () => {
     const html = card();
     expect(html).toContain('vs-card--ok');
     const affected = html.slice(html.indexOf('<ul class="vs-children">'), html.indexOf('</ul>'));
-    expect(affected).toContain('Data centre EU2');
+    expect(affected).toContain('Data center EU2');
     expect(affected).not.toContain('Expense');
   });
 });

@@ -101,7 +101,7 @@ export function parseConcurStatus(payloads, options) {
           missingRequired.length === 1
             ? missingRequired[0]
             : `${missingRequired.slice(0, -1).join(', ')} and ${missingRequired.at(-1)}`
-        } data centre${missingRequired.length === 1 ? '' : 's'} could not be read, so its status is not shown.`
+        } data center${missingRequired.length === 1 ? '' : 's'} could not be read, so its status is not shown.`
       : null;
 
   const docs = (Array.isArray(payloads) ? payloads : [payloads]).filter(
@@ -115,7 +115,7 @@ export function parseConcurStatus(payloads, options) {
   const services = new Map();
   // A status word this adapter does not know fails closed, and says so: an
   // Unknown card with no line under it explains nothing.
-  const unrecognised = new Set();
+  const unrecognized = new Set();
   for (const doc of docs) {
     for (const [name, entry] of Object.entries(doc.data)) {
       const current = entry?.['Current Status'];
@@ -123,7 +123,7 @@ export function parseConcurStatus(payloads, options) {
       const severity = concurSeverityOf(current.status);
       const clean = toPlainText(entry?.Service ?? name);
       if (severity === SEVERITY.UNKNOWN) {
-        unrecognised.add(`unrecognised status "${String(current.status).slice(0, 40)}" on "${clean}"`);
+        unrecognized.add(`unrecognized status "${String(current.status).slice(0, 40)}" on "${clean}"`);
       }
       const prev = services.get(clean) ?? { severity: SEVERITY.OPERATIONAL, bad: [] };
       if (rank(severity) > rank(prev.severity)) prev.severity = severity;
@@ -188,11 +188,11 @@ export function parseConcurStatus(payloads, options) {
     // its vote is already in `severity`.
     components: [
       ...components,
-      ...unread.map((dc) => ({ name: `Data centre ${dc}`, severity: SEVERITY.UNKNOWN, description: 'Could not be read.' })),
+      ...unread.map((dc) => ({ name: `Data center ${dc}`, severity: SEVERITY.UNKNOWN, description: 'Could not be read.' })),
     ],
     // When trouble verified elsewhere outranks the unknown, the row has a
     // status and the collector's note names what is missing instead.
-    warnings: [...(undetermined ? [requiredReason] : []), ...unrecognised],
+    warnings: [...(undetermined ? [requiredReason] : []), ...unrecognized],
     now,
   });
 }

@@ -134,10 +134,10 @@ export function concurVerdict(bodies, label) {
   }
   if (seen === 0) return unreadable(label, 'no service carried a Current Status');
   const missing = bodies.length - docs.length;
-  const note = missing ? `; ${missing} data centre(s) unreadable` : '';
+  const note = missing ? `; ${missing} data center(s) unreadable` : '';
   return bad.length
     ? r('trouble', [`${label}: ${bad.length} service status(es) not normal: ${bad.slice(0, 6).join(', ')}${note}`])
-    : r('fine', [`${label}: ${seen} service statuses across ${docs.length} data centre(s), all normal${note}`]);
+    : r('fine', [`${label}: ${seen} service statuses across ${docs.length} data center(s), all normal${note}`]);
 }
 
 /* --------------------------- Discord's region lens ------------------------- */
@@ -230,7 +230,7 @@ export function msConsumerVerdict(body, label) {
   const bad = words.filter((w) => w.v === 'trouble');
   const odd = words.filter((w) => w.v === 'unreadable');
   if (bad.length) return r('trouble', [`${label}: ${bad.map((w) => `${brief(w.name, 30)}=${brief(w.status, 25)}`).join(', ')}`]);
-  if (odd.length) return unreadable(label, `unrecognised status ${odd.map((w) => `"${brief(w.status, 25)}"`).join(', ')}`);
+  if (odd.length) return unreadable(label, `unrecognized status ${odd.map((w) => `"${brief(w.status, 25)}"`).join(', ')}`);
   return r('fine', [`${label}: ${rows.length} workloads operational`]);
 }
 
@@ -239,7 +239,7 @@ export function msPostVerdict(body, label) {
   const post = Array.isArray(body) ? body[0] : body;
   if (failed(post) || !String(post?.Status ?? '').trim()) return unreadable(label, body?.error ?? 'no Status');
   const v = msWord(post.Status);
-  if (v === 'unreadable') return unreadable(label, `unrecognised status "${brief(post.Status, 30)}"`);
+  if (v === 'unreadable') return unreadable(label, `unrecognized status "${brief(post.Status, 30)}"`);
   return r(v, [`${label}: ${brief(post.Status, 30)}${v === 'trouble' && post.Message ? ` — ${brief(String(post.Message).replace(/<[^>]*>/g, ' '), 90)}` : ''}`]);
 }
 
@@ -253,7 +253,7 @@ export function adoVerdict(body, label) {
   const odd = geos.filter((g) => !known.test(String(g.health ?? '')));
   const bad = geos.filter((g) => /^(advisory|degraded|unhealthy)$/i.test(String(g.health ?? '')));
   if (bad.length) return r('trouble', [`${label}: ${bad.length} of ${geos.length} service-geographies not healthy (${bad.slice(0, 5).map((g) => `${brief(g.svc, 25)}/${brief(g.name, 20)}=${g.health}`).join(', ')})`]);
-  if (odd.length) return unreadable(label, `unrecognised health ${[...new Set(odd.map((g) => `"${brief(g.health, 20)}"`))].join(', ')}`);
+  if (odd.length) return unreadable(label, `unrecognized health ${[...new Set(odd.map((g) => `"${brief(g.health, 20)}"`))].join(', ')}`);
   return r('fine', [`${label}: ${geos.length} service-geographies healthy`]);
 }
 
@@ -305,7 +305,7 @@ export function betterStackVerdict(body, label) {
   const heading = m[1].trim();
   if (/^all services are (online|operational)\.?$/i.test(heading)) return r('fine', [`${label}: "${brief(heading, 60)}"`]);
   if (/(down|degrad|issue|outage|disrupt|maintenance|partial|problem|incident)/i.test(heading)) return r('trouble', [`${label}: "${brief(heading, 80)}"`]);
-  return unreadable(label, `unrecognised heading "${brief(heading, 60)}"`);
+  return unreadable(label, `unrecognized heading "${brief(heading, 60)}"`);
 }
 
 /* -------------------------------- Salesforce ------------------------------- */

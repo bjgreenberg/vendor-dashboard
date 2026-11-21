@@ -78,3 +78,47 @@ export function classify(probe) {
     suggestedFix: PLAYBOOK[classification],
   };
 }
+
+/** Every classification classify() can return. */
+export const CLASSIFICATIONS = Object.freeze(Object.keys(PLAYBOOK));
+
+/**
+ * What each diagnosis means, as one plain sentence for the webhook line. The
+ * line is all a phone shows; on 2026-11-21 it said "status endpoint has
+ * rotted" while the issue it linked said the endpoint was fine (#200).
+ */
+const MEANS = {
+  'dns-failure': 'Its status endpoint no longer resolves (DNS).',
+  'tls-cert-mismatch': 'Its status endpoint serves the wrong certificate; the page has likely moved.',
+  decommissioned: 'Its status endpoint redirects off-site; the page is likely gone.',
+  'moved-but-redirecting': 'Its status endpoint has moved, and the redirect still works.',
+  'http-client-error': 'Its status endpoint answers 4xx (gone private, or the path moved).',
+  'http-server-error': "Its status endpoint answers 5xx or doesn't answer.",
+  'body-not-json': 'Its status endpoint no longer serves JSON.',
+  'endpoint-ok-likely-adapter-drift':
+    'Its status endpoint is fine; our adapter likely needs updating for a change in its feed.',
+};
+
+/**
+ * The classification diagnose-endpoint.mjs printed into an issue body, or
+ * null when there is none (the diagnosis was unavailable).
+ * @param {string|null|undefined} body
+ * @returns {string|null}
+ */
+export function classificationIn(body) {
+  const m = /^\*\*Classification:\*\* `([a-z-]+)`$/m.exec(String(body ?? ''));
+  return m ? m[1] : null;
+}
+
+/**
+ * The webhook (Slack) line for a newly filed endpoint-rot issue.
+ * @param {string} vendor
+ * @param {number|string} hours the watchdog's threshold
+ * @param {string} issueUrl
+ * @param {string|null} classification
+ * @returns {string}
+ */
+export function webhookText(vendor, hours, issueUrl, classification) {
+  const means = (classification && MEANS[classification]) || 'No automatic diagnosis.';
+  return `vendor-dashboard watchdog: ${vendor} has read Unknown for ${hours}h+. ${means} ${issueUrl}`;
+}

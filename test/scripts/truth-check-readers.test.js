@@ -94,7 +94,7 @@ describe('Concur — every data centre’s Current Status', () => {
     expect(judge(concur, { error: 'HTTP 500' }).verdict).toBe('unreadable');
     const o = judge(concur, (i) => (i === 0 ? { error: 'HTTP 500' } : doc));
     expect(o.verdict).toBe('fine');
-    expect(o.evidence[0]).toMatch(/1 data centre\(s\) unreadable/);
+    expect(o.evidence[0]).toMatch(/1 data center\(s\) unreadable/);
   });
 });
 
