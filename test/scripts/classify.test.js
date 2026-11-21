@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classify } from '../../scripts/watchdog/classify.mjs';
+import { classify, classificationIn, webhookText, CLASSIFICATIONS } from '../../scripts/watchdog/classify.mjs';
 
 // The classifier is the pure half of the watchdog's diagnosis: probe results
 // in, classification + fix playbook out. Zero network — the probes live in
@@ -124,5 +124,46 @@ describe('classify — precedence ladder', () => {
       expect(r.suggestedFix, r.classification).toBeTruthy();
       expect(r.headline).toContain(r.classification);
     }
+  });
+});
+
+// The webhook line is all a phone shows. On 2026-11-21 it read "Concur status
+// endpoint has rotted" while the issue it linked said the endpoint was fine
+// and our adapter was behind (#200). The line now says what the diagnosis says.
+describe('webhookText — the Slack line names the diagnosis', () => {
+  const body = [
+    '## Endpoint diagnosis: endpoint-ok-likely-adapter-drift',
+    '',
+    '**URL probed:** `https://open.concur.com/api/open/status_history?data_center=us2`',
+    '**Classification:** `endpoint-ok-likely-adapter-drift`',
+  ].join('\n');
+
+  it('reads the classification the diagnosis printed', () => {
+    expect(classificationIn(body)).toBe('endpoint-ok-likely-adapter-drift');
+    expect(classificationIn('_(automatic diagnosis unavailable for this endpoint)_')).toBeNull();
+    expect(classificationIn(undefined)).toBeNull();
+  });
+
+  it('adapter drift says the endpoint is fine, never that it rotted', () => {
+    const t = webhookText('Concur', 6, 'https://github.com/o/r/issues/200', 'endpoint-ok-likely-adapter-drift');
+    expect(t).toBe(
+      'vendor-dashboard watchdog: Concur has read Unknown for 6h+. Its status endpoint is fine; ' +
+        'our adapter likely needs updating for a change in its feed. https://github.com/o/r/issues/200',
+    );
+    expect(t).not.toMatch(/rotted/);
+  });
+
+  it('no diagnosis says so', () => {
+    expect(webhookText('X', 6, 'u', null)).toBe(
+      'vendor-dashboard watchdog: X has read Unknown for 6h+. No automatic diagnosis. u',
+    );
+  });
+
+  it('every classification has its own plain sentence', () => {
+    for (const c of CLASSIFICATIONS) {
+      const t = webhookText('V', 6, 'u', c);
+      expect(t, c).not.toContain('No automatic diagnosis');
+    }
+    expect(CLASSIFICATIONS.length).toBe(8);
   });
 });

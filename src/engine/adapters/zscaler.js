@@ -172,7 +172,7 @@ export function parseZscaler(cloudDocs, options) {
           if (sev === null) {
             cloudVotes.push(SEVERITY.UNKNOWN);
             warnings.push(
-              `cloud "${label}": impacting severity "${legendEntry.name}" is not recognised; failing closed`,
+              `cloud "${label}": impacting severity "${legendEntry.name}" is not recognized; failing closed`,
             );
             continue;
           }

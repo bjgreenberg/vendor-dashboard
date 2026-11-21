@@ -51,7 +51,7 @@ export function parseSignal(html, options) {
 
   return unknownRecord(
     vendor,
-    'status page did not contain a recognisable verdict; its structure may have changed',
+    'status page did not contain a recognizable verdict; its structure may have changed',
     { now, sourceUrl: SOURCE_URL },
   );
 }

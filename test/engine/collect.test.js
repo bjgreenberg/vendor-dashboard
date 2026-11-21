@@ -794,7 +794,7 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
       ['sorryapp components', { name: 'V', type: 'sorryapp', url: 'https://p', componentsUrl: 'https://x' }, 'Iorad-sorryapp.json', '[{"name":"App","state":"operational"}]'],
       ['instatus components', { name: 'V', type: 'instatus', url: 'https://p', componentsUrl: 'https://x' }, 'Coalition-instatus.json', '{"components":[{"name":"App","status":"OPERATIONAL"}]}'],
       ['docusign incidents', { name: 'V', type: 'docusign', url: 'https://p', incidentsUrl: 'https://x' }, 'Docusign-components.json', '{"incidents":[]}'],
-      ['a concur-status data centre', { name: 'V', type: 'concur-status', url: 'https://p', statusUrls: ['https://p', 'https://x'] }, 'Concur-status-history-us2.json', null],
+      ['a concur-status data center', { name: 'V', type: 'concur-status', url: 'https://p', statusUrls: ['https://p', 'https://x'] }, 'Concur-status-history-us2.json', null],
       ['a zscaler cloud', { name: 'V', type: 'zscaler', url: 'https://p', clouds: [{ label: 'A', url: 'https://p' }, { label: 'B', url: 'https://x' }] }, 'Zscaler-zdx.json', null],
     ];
 
@@ -968,7 +968,7 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
   it.each([
     ['an empty component list (sorryapp)', { name: 'V', type: 'sorryapp', url: 'https://p', componentsUrl: 'https://x' }, 'Iorad-sorryapp.json', '[]'],
     ['an empty component list (instatus)', { name: 'V', type: 'instatus', url: 'https://p', componentsUrl: 'https://x' }, 'Coalition-instatus.json', '{"components":[]}'],
-    ['an empty data-centre document (concur-status)', { name: 'V', type: 'concur-status', url: 'https://p', statusUrls: ['https://p', 'https://x'] }, 'Concur-status-history-us2.json', '{}'],
+    ['an empty data-center document (concur-status)', { name: 'V', type: 'concur-status', url: 'https://p', statusUrls: ['https://p', 'https://x'] }, 'Concur-status-history-us2.json', '{}'],
   ])('an extra document that answers and is empty is caught (the hole #132 closed): %s', async (_label, vendor, primaryFixture, emptyBody) => {
     // The extra document answers 200 and parses, and holds no status. Until
     // 2026-10-02 the adapter fell back to the first document without a word,
@@ -987,7 +987,7 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
     expect(res.records[0].warnings[0]).toMatch(/could not be read/);
     // A status URL with no `data_center` in it is named by its position.
     if (vendor.type === 'concur-status') {
-      expect(res.records[0].warnings[0]).toBe('1 of 2 data centres could not be read (#2). The status shown is from the other 1.');
+      expect(res.records[0].warnings[0]).toBe('1 of 2 data centers could not be read (#2). The status shown is from the other 1.');
     }
     expect(res.usedExtraDocuments).toEqual(['V']);
   });

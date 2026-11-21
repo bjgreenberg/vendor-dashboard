@@ -191,7 +191,7 @@ export function parseAzureDevOps(payload, options) {
   });
 
   if (components.every((c) => c.severity === SEVERITY.UNKNOWN)) {
-    return unknownRecord(vendor, 'no recognisable health values in payload', opts);
+    return unknownRecord(vendor, 'no recognizable health values in payload', opts);
   }
 
   const severity = worst(components.map((c) => c.severity));
@@ -286,7 +286,7 @@ export function parseAzurePost(payload, options) {
   }
   const severity = azurePostSeverity(raw);
   if (severity === SEVERITY.UNKNOWN) {
-    return unknownRecord(vendor, `unrecognised status "${raw}"`, opts);
+    return unknownRecord(vendor, `unrecognized status "${raw}"`, opts);
   }
 
   // A frozen endpoint repeating "Available" is as misleading as silence, but

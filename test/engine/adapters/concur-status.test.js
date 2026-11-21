@@ -131,25 +131,25 @@ describe('parseConcurStatus — a status word it does not know', () => {
   it('fails closed AND says so, so an Unknown card is never unexplained', () => {
     const r = parseConcurStatus([doc({ Expense: 'wobbly', Travel: 'normal' })], { vendor: 'Concur', now });
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
-    expect(r.warnings).toEqual(['unrecognised status "wobbly" on "Expense"']);
+    expect(r.warnings).toEqual(['unrecognized status "wobbly" on "Expense"']);
   });
 
   it('says it once when several data centres report the same word for the same service', () => {
     const r = parseConcurStatus([doc({ Expense: 'wobbly' }), doc({ Expense: 'wobbly' }), doc({ Expense: 'normal' })], { vendor: 'Concur', now });
-    expect(r.warnings).toEqual(['unrecognised status "wobbly" on "Expense"']);
+    expect(r.warnings).toEqual(['unrecognized status "wobbly" on "Expense"']);
   });
 
   it('a very long status word is cut in the warning', () => {
     const r = parseConcurStatus([doc({ Expense: 'w'.repeat(500) })], { vendor: 'Concur', now });
-    expect(r.warnings).toEqual([`unrecognised status "${'w'.repeat(40)}" on "Expense"`]);
+    expect(r.warnings).toEqual([`unrecognized status "${'w'.repeat(40)}" on "Expense"`]);
   });
 
   it('with a required data centre also unread, that reason comes first: it is the line the card shows', () => {
     const r = parseConcurStatus([doc({ Expense: 'wobbly' })], { vendor: 'Concur', dataCenters: ['US2'], unreadDataCenters: ['US2'], now });
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
     expect(r.warnings).toEqual([
-      "Concur's US2 data centre could not be read, so its status is not shown.",
-      'unrecognised status "wobbly" on "Expense"',
+      "Concur's US2 data center could not be read, so its status is not shown.",
+      'unrecognized status "wobbly" on "Expense"',
     ]);
   });
 });
@@ -169,10 +169,10 @@ describe('parseConcurStatus — data centres that could not be read', () => {
     expect(r.components.map((c) => [c.name, c.severity])).toEqual([
       ['Expense', SEVERITY.OPERATIONAL],
       ['Travel', SEVERITY.OPERATIONAL],
-      ['Data centre EU2', SEVERITY.UNKNOWN],
-      ['Data centre USG', SEVERITY.UNKNOWN],
+      ['Data center EU2', SEVERITY.UNKNOWN],
+      ['Data center USG', SEVERITY.UNKNOWN],
     ]);
-    expect(r.description).toBe('All 2 services report normal.'); // counts services, not data centres
+    expect(r.description).toBe('All 2 services report normal.'); // counts services, not data centers
     expect(r.warnings).toEqual([]); // the note on the card is the collector's
   });
 
@@ -184,11 +184,11 @@ describe('parseConcurStatus — data centres that could not be read', () => {
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
     expect(r.description).toBe('Status could not be determined.');
     expect(r.incidentName).toBe('');
-    expect(r.warnings).toEqual([`Concur's ${unreadDataCenters[0]} data centre could not be read, so its status is not shown.`]);
+    expect(r.warnings).toEqual([`Concur's ${unreadDataCenters[0]} data center could not be read, so its status is not shown.`]);
     // What was read is still listed, under the data centre that was not.
     expect(r.components.map((c) => [c.name, c.severity])).toEqual([
       ['Expense', SEVERITY.OPERATIONAL],
-      [`Data centre ${unreadDataCenters[0]}`, SEVERITY.UNKNOWN],
+      [`Data center ${unreadDataCenters[0]}`, SEVERITY.UNKNOWN],
     ]);
   });
 
@@ -224,18 +224,18 @@ describe('parseConcurStatus — data centres that could not be read', () => {
   it('documents that hold no service, with a required data centre unread, say which', () => {
     const r = parseConcurStatus([{ data: {} }], { vendor: 'Concur', dataCenters: ['US2'], unreadDataCenters: ['US2'], now });
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
-    expect(r.warnings).toEqual(["Concur's US2 data centre could not be read, so its status is not shown."]);
+    expect(r.warnings).toEqual(["Concur's US2 data center could not be read, so its status is not shown."]);
   });
 
   it('two required data centres unread are both named', () => {
     const r = parseConcurStatus([doc({ Expense: 'normal' })], { vendor: 'Concur', dataCenters: ['US2', 'USG'], unreadDataCenters: ['US2', 'USG'], now });
-    expect(r.warnings).toEqual(["Concur's US2 and USG data centres could not be read, so its status is not shown."]);
+    expect(r.warnings).toEqual(["Concur's US2 and USG data centers could not be read, so its status is not shown."]);
   });
 
   it('nothing read at all, with a required data centre unread, says which', () => {
     const r = parseConcurStatus([], { vendor: 'Concur', dataCenters: ['US2'], unreadDataCenters: ['US2', 'EU2'], now });
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
-    expect(r.warnings).toEqual(["Concur's US2 data centre could not be read, so its status is not shown."]);
+    expect(r.warnings).toEqual(["Concur's US2 data center could not be read, so its status is not shown."]);
   });
 
   it('with no required data centre configured, a missing one never makes the row unknown by itself', () => {

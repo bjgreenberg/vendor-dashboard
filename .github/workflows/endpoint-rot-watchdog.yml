@@ -125,8 +125,13 @@ jobs:
               && echo "dispatched the fix proposal for ${issue_url##*/}" \
               || echo "fix-proposal dispatch failed (non-fatal)"
             if [ -n "${WEBHOOK:-}" ]; then
-              jq -n --arg v "$vendor" --arg u "$issue_url" \
-                '{text: "vendor-dashboard watchdog: \($v) status endpoint has rotted — \($u)"}' |
+              # The line names what the diagnosis found (classify.mjs's
+              # webhookText): it said "endpoint has rotted" for #200, whose
+              # endpoint was fine. A failure here still posts a plain line.
+              payload=$(node scripts/watchdog/webhook-text.mjs "$vendor" "$THRESHOLD_HOURS" "$issue_url" body.md) \
+                || payload=$(jq -n --arg v "$vendor" --arg h "$THRESHOLD_HOURS" --arg u "$issue_url" \
+                     '{text: "vendor-dashboard watchdog: \($v) has read Unknown for \($h)h+. \($u)"}')
+              printf '%s' "$payload" |
                 curl -sf --max-time 15 -X POST -H 'Content-type: application/json' \
                   --data @- "$WEBHOOK" >/dev/null || echo "webhook post failed (non-fatal)"
             fi

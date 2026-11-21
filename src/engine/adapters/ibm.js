@@ -216,7 +216,7 @@ export function parseIbmCloud(text, options) {
   }
 
   if (components.length === 0) {
-    return unknownRecord(vendor, 'payload carried no service catalogue', opts);
+    return unknownRecord(vendor, 'payload carried no service catalog', opts);
   }
 
   components.sort((a, b) => rank(b.severity) - rank(a.severity) || a.name.localeCompare(b.name));

@@ -73,7 +73,7 @@ describe('betterstack — unrecognised overview state fails closed', () => {
     const html = `<div class="status-page__overview-icon status-page__overview-icon--sparkles">`;
     const r = parseBetterStack(html, { vendor: 'Stormboard', now });
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
-    expect(r.warnings[0]).toMatch(/unrecognised Better Stack state "sparkles"/);
+    expect(r.warnings[0]).toMatch(/unrecognized Better Stack state "sparkles"/);
   });
 });
 
