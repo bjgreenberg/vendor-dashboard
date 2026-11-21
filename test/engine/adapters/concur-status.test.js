@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { parseConcurStatus, concurSeverityOf, isReadableConcurDoc } from '../../../src/engine/adapters/concur-status.js';
 import { SEVERITY } from '../../../src/engine/severity.js';
+
+const fixture = (n) => JSON.parse(readFileSync(new URL(`../../fixtures/${n}`, import.meta.url), 'utf8'));
 
 // Audit finding M4: this adapter sat at 16.66% branch coverage inside a
 // passing blended gate — and it is the NEWEST parser, written mid-incident on
@@ -24,6 +27,7 @@ describe('concurSeverityOf — vocabulary, fail closed', () => {
   it('maps the documented vocabulary', () => {
     expect(concurSeverityOf('normal')).toBe(SEVERITY.OPERATIONAL);
     expect(concurSeverityOf('degradation')).toBe(SEVERITY.DEGRADED);
+    expect(concurSeverityOf('disruption')).toBe(SEVERITY.PARTIAL_OUTAGE);
     expect(concurSeverityOf('unavailable')).toBe(SEVERITY.MAJOR_OUTAGE);
     expect(concurSeverityOf('maintenance')).toBe(SEVERITY.MAINTENANCE);
   });
@@ -85,6 +89,22 @@ describe('parseConcurStatus — per-data-centre merge', () => {
     const payload = { data: { Ghost: { Service: 'Ghost' }, Real: { Service: 'Real', 'Current Status': { status: 'normal' } } } };
     const r = parseConcurStatus([payload], { vendor: 'Concur', now });
     expect(r.components.map((c) => c.name)).toEqual(['Real']);
+  });
+});
+
+// Endpoint-rot watchdog #200 (2026-11-21). Concur set Travel's Current Status
+// to "disruption" — its own page-legend word — and the vocabulary did not have
+// it, so a REAL P1 Travel disruption read as a 6-hour unknown. Pinned against
+// the payload recorded live that morning.
+describe('parseConcurStatus — recorded US2 payload with an active disruption', () => {
+  it('reads "disruption" as a partial outage, not an unrecognised word', () => {
+    const r = parseConcurStatus([fixture('Concur-status-history-us2-disruption.json')], {
+      vendor: 'Concur', dataCenters: ['US2'], now,
+    });
+    expect(r.severity).toBe(SEVERITY.PARTIAL_OUTAGE);
+    expect(r.components.find((c) => c.name === 'Travel').severity).toBe(SEVERITY.PARTIAL_OUTAGE);
+    expect(r.description).toBe('Affected: Travel.');
+    expect(r.warnings).toEqual([]);
   });
 });
 

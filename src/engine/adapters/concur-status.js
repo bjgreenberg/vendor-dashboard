@@ -38,6 +38,11 @@ const STATUS = Object.freeze(
     degraded: SEVERITY.DEGRADED,
     degradation: SEVERITY.DEGRADED,
     warning: SEVERITY.DEGRADED,
+    // Concur's page legend is Normal / Degradation / Disruption; "disruption"
+    // first seen live in Current Status on 2026-11-21 (watchdog #200), where
+    // its absence held a real P1 Travel disruption at unknown for 6+ hours.
+    // Ranked below "unavailable", as in the retired incidents adapter.
+    disruption: SEVERITY.PARTIAL_OUTAGE,
     partial: SEVERITY.PARTIAL_OUTAGE,
     major: SEVERITY.MAJOR_OUTAGE,
     outage: SEVERITY.MAJOR_OUTAGE,
