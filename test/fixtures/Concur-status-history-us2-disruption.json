@@ -1,0 +1,155 @@
+{
+ "success": false,
+ "data": {
+  "Expense": {
+   "Service": "Expense",
+   "Current Status": {
+    "incidents": [],
+    "status": "normal"
+   }
+  },
+  "Travel": {
+   "Service": "Travel",
+   "Current Status": {
+    "incidents": [
+     {
+      "id": 4761,
+      "jira_id": "INC41459185",
+      "status": "INVESTIGATION",
+      "severity": "disruption",
+      "start_date": "2026-11-20T18:28:00+0000",
+      "start_epoch": 1795199280,
+      "end_date": null,
+      "end_epoch": null,
+      "comm_src": "Aviary2",
+      "created_date": "2026-11-21T00:53:34+0000",
+      "created_epoch": 1795222414,
+      "affected_services": [
+       "Travel"
+      ],
+      "data_centers": [
+       "US2"
+      ],
+      "messages": [
+       {
+        "id": 11975,
+        "jira_id": "INC41459185",
+        "message_type": "Issue Identified",
+        "priority_type": "P1",
+        "body": {
+         "en": "We have identified a functional disruption impacting New Concur Travel hotel searches via the Amadeus Global Distribution Systems (GDS) in the US2 Data Center.\r\nWhen users enter their hotel search criteria and select Search, the error message “Invalid search response from supplier.” is displayed. \r\nUnfortunately, there is no workaround for the issue at this time.\r\n\r\nThe Incident Response Team (IRT) is currently investigating the issue.\r\nOur next scheduled update will be in one hour.\r\n"
+        },
+        "broadcast": "Y",
+        "created_date": "2026-11-21T00:54:53+0000",
+        "created_epoch": 1795222494
+       },
+       {
+        "id": 11976,
+        "jira_id": "INC41459185",
+        "message_type": "Issue Status Update",
+        "priority_type": "P1",
+        "body": {
+         "en": "We have identified a functional disruption impacting New Concur Travel hotel searches via the Amadeus Global Distribution Systems (GDS) in the US2 Data Center.\r\nWhen users enter their hotel search criteria and select Search, the error message “Invalid search response from supplier.” is displayed.\r\nUnfortunately, there is no workaround for the issue at this time.\r\n \r\nThe Incident Response Team (IRT) continues investigating the issue.\r\nOur next scheduled update will be in 4hours or sooner"
+        },
+        "broadcast": "Y",
+        "created_date": "2026-11-21T01:40:37+0000",
+        "created_epoch": 1795225237
+       },
+       {
+        "id": 11978,
+        "jira_id": "INC41459185",
+        "message_type": "Issue Status Update",
+        "priority_type": "P1",
+        "body": {
+         "en": "We identified a functional disruption impacting New Concur Travel hotel searches via the Amadeus Global Distribution Systems (GDS) in the US2 Data Center.\r\nWhen users enter their hotel search criteria and select Search, the error message “Invalid search response from supplier.” was displayed.\r\nUnfortunately, there was no workaround for the issue during service impact.\r\n \r\nServices have returned to normal operating levels. We will continue monitoring performance for the next 15-30 minutes to verify stability. Once verified as stable the incident will be resolved.\r\n"
+        },
+        "broadcast": "Y",
+        "created_date": "2026-11-21T05:05:13+0000",
+        "created_epoch": 1795237513
+       },
+       {
+        "id": 11979,
+        "jira_id": "INC41459185",
+        "message_type": "Issue Resolved",
+        "priority_type": "P1",
+        "body": {
+         "en": "We identified a functional disruption impacting New Concur Travel hotel searches via the Amadeus Global Distribution Systems (GDS) in the US2 Data Center.\r\nWhen users entered their hotel search criteria and select Search, the error message “Invalid search response from supplier.” was displayed.\r\nUnfortunately, there was no workaround for the issue during service impact.\r\n \r\nThe Incident Response Team (IRT) made a configuration change by changing the domain-fronting profile action from block to monitor restored service.\r\n \r\nWe have verified that service performance is stable and will now resolve this incident.\r\nAn investigation into the root cause of this incident will now be conducted, and a root cause analysis report provided when that investigation is complete."
+        },
+        "broadcast": "Y",
+        "created_date": "2026-11-21T05:26:44+0000",
+        "created_epoch": 1795238805
+       }
+      ],
+      "priority_type": "P1",
+      "next_send_date": null,
+      "next_send_epoch": null
+     }
+    ],
+    "status": "disruption"
+   }
+  },
+  "Invoice": {
+   "Service": "Invoice",
+   "Current Status": {
+    "incidents": [],
+    "status": "normal"
+   }
+  },
+  "Request": {
+   "Service": "Request",
+   "Current Status": {
+    "incidents": [],
+    "status": "normal"
+   }
+  },
+  "Imaging": {
+   "Service": "Imaging",
+   "Current Status": {
+    "incidents": [],
+    "status": "normal"
+   }
+  },
+  "Analysis/Intelligence": {
+   "Service": "Analysis/Intelligence",
+   "Current Status": {
+    "incidents": [],
+    "status": "normal"
+   }
+  },
+  "Mobile": {
+   "Service": "Mobile",
+   "Current Status": {
+    "incidents": [],
+    "status": "normal"
+   }
+  },
+  "Compleat (TMC Services)": {
+   "Service": "Compleat (TMC Services)",
+   "Current Status": {
+    "incidents": [],
+    "status": "normal"
+   }
+  },
+  "Japan - e-Bunsho for Expense": {
+   "Service": "Japan - e-Bunsho for Expense",
+   "Current Status": {
+    "incidents": [],
+    "status": "normal"
+   }
+  },
+  "Japan - Japan Public Transportation (JPT)": {
+   "Service": "Japan - Japan Public Transportation (JPT)",
+   "Current Status": {
+    "incidents": [],
+    "status": "normal"
+   }
+  },
+  "Japan - e-Bunsho for Invoice": {
+   "Service": "Japan - e-Bunsho for Invoice",
+   "Current Status": {
+    "incidents": [],
+    "status": "normal"
+   }
+  }
+ }
+}
