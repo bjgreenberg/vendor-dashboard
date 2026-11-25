@@ -225,7 +225,7 @@ sequenceDiagram
 | How it is decided | By the engine: `collect()` reports `waitable` and `incomplete` from the failure itself, and `src/engine/relook.js` decides who is a candidate and what a re-look found | Nothing reads a reason string back to work out what happened, and the policy is tested without a Worker |
 | How many re-looks | Two. The first a minute after the batch, the second a minute after the first ends | A feed that stalls is usually back within a minute or two |
 | When there is none at all | The batch ran out of subrequest budget | That is our fault, not the vendors, and such a batch starts no streaks. (A whole batch failing still gets its re-looks: feeds on one host stall together, and two batches hold nothing but Statuspage vendors. An outage on our side costs each batch its two re-looks once) |
-| Who never gets one | The 7 vendors that read more than one document: Coalition, Concur, Docusign, Google, Iorad, Stormboard, Zscaler | A re-look must only write a vendor read whole, and until 2026-10-02 an extra document could answer, be empty, and pass for read. That hole is closed (see [When part of a vendor could not be read](#when-part-of-a-vendor-could-not-be-read)), but these seven are still left out: giving them re-looks is its own change, to be reviewed on its own. The rule fails closed: the engine records every extra-document fetch (`usedExtraDocuments`), so a vendor that gains one tomorrow is kept out without anyone updating a list. The other 42 vendors, every Statuspage one among them, are read from one document per feed |
+| Who never gets one | The 8 vendors that read more than one document: Coalition, Concur, Docusign, Google, Iorad, OpenAI, Stormboard, Zscaler | A re-look must only write a vendor read whole, and until 2026-10-02 an extra document could answer, be empty, and pass for read. That hole is closed (see [When part of a vendor could not be read](#when-part-of-a-vendor-could-not-be-read)), but these eight are still left out: giving them re-looks is its own change, to be reviewed on its own. The rule fails closed: the engine records every extra-document fetch (`usedExtraDocuments`), so a vendor that gains one tomorrow is kept out without anyone updating a list. The other 41 vendors are read from one document per feed. OpenAI is the one Statuspage vendor with a second document (its full component list, since 2026-11-25) |
 | Where the state lives | In the run's memory | No queue in D1 and no second run racing for the same vendor. An earlier draft did this across runs and needed claims and counters; three review passes found races in it |
 | What a re-look writes | Only vendors read whole from one document per feed: their row, a history row, the board's counts. Never `unknown`, never the run clock, never a prune | A re-look cannot undo a status; `run_meta.checked_at` keeps meaning "a batch was collected", which `/health` reads; and a run that has waited minutes may hold a vendor list a deploy has since changed |
 | When a vendor leaves the list | When it is read in full, or when its failure is no longer one that waiting fixes | A stall that has turned into a 404 is not waited out |
@@ -280,7 +280,7 @@ Known gaps:
   turn. No vendor in `config/vendors.json` uses a fallback today.
 - A vendor is `unknown` on the board from the moment its batch gives up until
   a re-look reads it: about a minute or two, not zero.
-- Seven vendors get no re-look at all (see the table above). Their normal
+- Eight vendors get no re-look at all (see the table above). Their normal
   15-minute check now says when it read them only in part.
 - A stall that answers the first re-look with something waiting cannot fix (a
   429, a 404, a page that does not parse) gets no second re-look.
@@ -302,9 +302,9 @@ Known gaps:
 
 ### When part of a vendor could not be read
 
-Seven vendors are read from more than one document: one per data centre
+Eight vendors are read from more than one document: one per data center
 (Concur), one per cloud (Zscaler), or a second document that carries the
-component list or the incident list. Any of those can fail on its own, or
+component list (OpenAI's among them) or the incident list. Any of those can fail on its own, or
 answer and hold nothing.
 
 > [!IMPORTANT]
