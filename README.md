@@ -905,7 +905,8 @@ One workflow per gate (mirroring the skill repo), so each carries its own live b
   2026 that list also carries planned events (`isPlanned: true`, type
   `maintenance` or `release`, statuses `scheduled`/`in_progress`/`completed`/
   `canceled`, with a `beginsAt`/`endsAt` window). A planned event reads as
-  `maintenance` only while it runs; before or after its window it is not the
+  `maintenance` while it is `in_progress` or still `scheduled` inside its
+  window; completed, canceled, or scheduled outside its window, it is not the
   row, and its forecast `impact` never votes. The retired endpoint's
   301-to-HTML is what the row's `unknown` fail-closed path looked like in
   practice — one row, visible warning, no false green.

@@ -35,8 +35,10 @@
  * the window, so it never votes. A planned event is live when it is
  * `in_progress`, or still `scheduled` inside its window (the word lags the
  * clock); a live one votes `maintenance` and leads the card unless something
- * worse does. Before its window, after it, completed or canceled, it is not
- * the row. Before this, three December releases marked `service_disruption`
+ * worse does. Completed or canceled, or still `scheduled` before or after its
+ * window, it is not the row. The window is one span: an event announcing two
+ * nights of downtime under one beginsAt..endsAt reads maintenance between them
+ * while it stays `scheduled`. Before this, three December releases marked `service_disruption`
  * painted the row Major outage a fortnight early. Components still vote
  * throughout, so real trouble during a window shows as itself.
  *
@@ -67,9 +69,22 @@ const PLANNED_TYPES = new Set(['maintenance', 'release']);
 /** Planned-event status words after which the event is over. */
 const PLANNED_OVER = new Set(['completed', 'canceled', 'cancelled']);
 
-/** @param {any} i an incidents.json entry */
+/**
+ * Strict ISO-8601 with an explicit offset. `Date.parse` alone accepts far
+ * more: "December 8 03:00 UTC" parses to 2001, and an offset-less string is
+ * read in the host's zone, either of which would pass for a readable window.
+ */
+const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+/** @param {unknown} v @returns {number} epoch ms, or NaN unless strict ISO with an offset */
+function isoTime(v) {
+  return typeof v === 'string' && ISO_WITH_OFFSET.test(v) ? Date.parse(v) : NaN;
+}
+
+/** @param {any} i an incidents.json entry; `type` decides only when `isPlanned` is absent */
 function isPlannedEvent(i) {
-  return i.isPlanned === true || (typeof i.type === 'string' && PLANNED_TYPES.has(i.type.trim().toLowerCase()));
+  if (typeof i.isPlanned === 'boolean') return i.isPlanned;
+  return typeof i.type === 'string' && PLANNED_TYPES.has(i.type.trim().toLowerCase());
 }
 
 /**
@@ -85,8 +100,8 @@ function plannedLive(i, status, at) {
   if (status === 'in_progress') return true;
   if (PLANNED_OVER.has(status)) return false;
   if (status !== 'scheduled') return `unrecognized planned-event status "${status}"`;
-  const begins = typeof i.beginsAt === 'string' ? Date.parse(i.beginsAt) : NaN;
-  const ends = typeof i.endsAt === 'string' ? Date.parse(i.endsAt) : NaN;
+  const begins = isoTime(i.beginsAt);
+  const ends = isoTime(i.endsAt);
   // An empty or inverted window is as unreadable as a missing one: it would
   // otherwise never contain the clock, and the event would never vote.
   if (!Number.isFinite(begins) || !Number.isFinite(ends) || begins >= ends) {

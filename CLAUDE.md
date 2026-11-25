@@ -112,7 +112,10 @@ a future non-Cloudflare deployment possible.
   is a forecast and never votes; a planned event votes `maintenance` while
   `in_progress` or still `scheduled` inside `beginsAt`..`endsAt`, and is
   nothing otherwise. An unseen planned status, or a scheduled event with an
-  unreadable, empty or inverted window, fails closed to `unknown`.
+  unreadable, empty or inverted window, fails closed to `unknown`. A window
+  is readable only as strict ISO-8601 with an offset (`Date.parse` reads
+  "December 8" as 2001). `type` marks an event planned only when `isPlanned`
+  is absent.
   Roll-up takes the union of `parentId` and `children[]` edges, memoised per
   node, with cycle detection on the recursion path (Copilot caught the
   visited-set version under-reporting shared children on PR #130).

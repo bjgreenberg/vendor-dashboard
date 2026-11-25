@@ -269,7 +269,8 @@ describe('docusign (health.docusign.com components + incidents feeds)', () => {
     });
 
     it('a scheduled event whose window cannot be read fails closed to unknown', () => {
-      for (const over of [{ beginsAt: null }, { endsAt: 'soon' }, { beginsAt: undefined, endsAt: undefined }, { endsAt: '2026-12-08T03:00:00Z' }, { beginsAt: '2026-12-08T09:00:00Z' }]) {
+      for (const over of [{ beginsAt: null }, { endsAt: 'soon' }, { beginsAt: undefined, endsAt: undefined }, { endsAt: '2026-12-08T03:00:00Z' }, { beginsAt: '2026-12-08T09:00:00Z' },
+        { beginsAt: 'December 8 03:00 UTC', endsAt: 'December 8 09:00 UTC' }, { beginsAt: '2026-12-08T03:00:00', endsAt: '2026-12-08T09:00:00' }]) {
         const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one(over), now: at('2026-12-08T04:00:00Z') }));
         expect(r.severity, JSON.stringify(over)).toBe(SEVERITY.UNKNOWN);
         expect(r.warnings.join(' '), JSON.stringify(over)).toMatch(/window/);
@@ -287,6 +288,11 @@ describe('docusign (health.docusign.com components + incidents feeds)', () => {
         const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one({ isPlanned: undefined, type }), now: at('2026-11-25T14:50:00Z') }));
         expect(r.severity, type).toBe(SEVERITY.OPERATIONAL);
       }
+    });
+
+    it('an entry that says isPlanned: false is an incident, whatever its type: its impact votes', () => {
+      const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one({ isPlanned: false, status: 'investigating' }), now: at('2026-11-25T14:50:00Z') }));
+      expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
     });
 
     it('a real incident beside live maintenance still leads, and outranks it', () => {

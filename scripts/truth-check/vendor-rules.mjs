@@ -180,14 +180,16 @@ export function docusignVerdict(components, incidents, label, now = Date.now()) 
   const plannedOpen = (i, status) => {
     if (status === 'completed' || status === 'canceled' || status === 'cancelled') return false;
     if (status !== 'scheduled') return true;
-    const from = Date.parse(String(i.beginsAt ?? ''));
-    const to = Date.parse(String(i.endsAt ?? ''));
+    // Strict ISO with an offset only: Date.parse reads "December 8" as 2001.
+    const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+    const from = iso.test(String(i.beginsAt ?? '')) ? Date.parse(i.beginsAt) : NaN;
+    const to = iso.test(String(i.endsAt ?? '')) ? Date.parse(i.endsAt) : NaN;
     return !(Number.isFinite(from) && Number.isFinite(to) && from < to) || (from <= now && now < to);
   };
   const openIncidents = (list ?? []).filter((i) => {
     if (!i) return false;
     const status = String(i.status ?? '').toLowerCase();
-    const planned = i.isPlanned === true || ['maintenance', 'release'].includes(String(i.type ?? '').toLowerCase());
+    const planned = typeof i.isPlanned === 'boolean' ? i.isPlanned : ['maintenance', 'release'].includes(String(i.type ?? '').toLowerCase());
     if (planned) return plannedOpen(i, status);
     return status !== 'resolved' && String(i.impact ?? '').toLowerCase() !== 'available';
   });
