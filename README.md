@@ -336,7 +336,7 @@ flowchart TD
     first -->|"answers"| extra["Every further document<br/>1 try, 10 s"]
     extra --> q{"Which document<br/>holds no reading?"}
     q -->|"none: all were read"| whole["Row: the verified status<br/>no note"]
-    q -->|"the first one<br/>(5 of the 7 vendors)"| unk
+    q -->|"the first one<br/>(6 of the 8 vendors)"| unk
     q -->|"a further one, or one<br/>data centre or cloud"| req{"Is it a required<br/>data centre?"}
     req -->|"no"| part["Row: the verified status<br/>Card: what could not be read<br/>Missing data centre or cloud: unknown component"]
     req -->|"yes: Concur US2<br/>answered, but empty"| worse{"Anything worse verified<br/>where a data centre was read?"}
@@ -350,6 +350,7 @@ flowchart TD
 | Zscaler | One per cloud (8) | `7 of 8 clouds could not be read (… and 3 more). The status shown is from the other 1.` Each unread cloud is an unknown component |
 | Coalition, Iorad | The component list | `The component list could not be read. The status shown does not include it.` |
 | Stormboard | The list of monitored services | The same, naming that list |
+| OpenAI | Its full component list (incident.io's page JSON; the summary feed leaves the Codex group out) | `The full component list could not be read. The status shown does not include it.` The row keeps what the summary feed verified |
 | Docusign | The incident list (an active incident votes) | `The incident list could not be read. The status shown does not include it.` An incident in the list with no status is a different thing: the list was read, and that incident counts as an `unknown` vote |
 | Google | The product list | Nothing. That list only supplies names; incidents decide the status |
 
