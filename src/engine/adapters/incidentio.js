@@ -44,7 +44,10 @@ export function isReadableIncidentIo(doc) {
     Array.isArray(s?.components) &&
     s.components.length > 0 &&
     Array.isArray(s?.structure?.items) &&
-    s.structure.items.length > 0
+    s.structure.items.length > 0 &&
+    // An empty list is a reading (nothing affected); a missing or non-list one is not, or every component
+    // would read operational from a document that says nothing (Codex on #210)
+    Array.isArray(s?.affected_components)
   );
 }
 
@@ -56,8 +59,10 @@ export function incidentIoComponents(doc) {
   const s = doc?.summary ?? {};
   const warnings = [];
   const status = new Map();
+  let unattributed = 0;
   for (const a of Array.isArray(s.affected_components) ? s.affected_components : []) {
     if (a && typeof a.component_id === 'string') status.set(a.component_id, a.status);
+    else unattributed += 1;
   }
   const statusOf = (id) => (status.has(id) ? status.get(id) : 'operational');
   // The worst raw word of a set, by the shared ranking; an unknown word ranks as unknown.
@@ -88,6 +93,12 @@ export function incidentIoComponents(doc) {
     if (listed.has(id)) continue;
     warnings.push(`the status page marks a component (${id}) it does not list as ${String(word)}`);
     out.push({ id, name: `Unlisted component ${id}`, status: word });
+  }
+  // An affected entry naming no component cannot be placed, and cannot be read as healthy either: one unknown
+  // vote and ONE warning with a count, none of the vendor's words (Codex on #210)
+  if (unattributed > 0) {
+    warnings.push(`${unattributed} affected ${unattributed === 1 ? 'entry' : 'entries'} on the status page ${unattributed === 1 ? 'names' : 'name'} no component, so ${unattributed === 1 ? 'it is' : 'they are'} counted as unknown`);
+    out.push({ id: 'unattributed', name: 'Unattributed affected entries', status: 'unknown' });
   }
   return { components: out, warnings };
 }

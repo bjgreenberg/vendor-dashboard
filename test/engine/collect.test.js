@@ -371,7 +371,9 @@ describe('collect — optional secondary fetches', () => {
     });
 
     it('an unreadable page JSON leaves the summary\'s reading, marked read in part', async () => {
-      for (const body of ['<html>', '{}', '{"summary":{"components":[],"structure":{"items":[]}}}']) {
+      const noList = JSON.parse(fixture('OpenAI-incidentio-20261125.json'));
+      noList.summary.affected_components = { '0': { component_id: 'x', status: 'degraded_performance' } };
+      for (const body of ['<html>', '{}', '{"summary":{"components":[],"structure":{"items":[]}}}', JSON.stringify(noList)]) {
         const res = await collect(cfg([vendor]), { fetchFn: serve(body), now, retryDelayMs: 0 });
         expect(res.records[0].severity, body).toBe(SEVERITY.DEGRADED);
         expect(res.incomplete, body).toEqual(['OpenAI']);

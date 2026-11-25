@@ -67,8 +67,25 @@ describe('incident.io page JSON (OpenAI, 2026-11-25)', () => {
     expect(components.find((c) => c.group)).toMatchObject({ status: 'partial_outage' });
   });
 
-  it('is a reading only when it has components and a structure', () => {
+  it('an affected entry it cannot attribute is an unknown vote with a warning, never dropped (Codex on #210)', () => {
+    const d = doc([['a', 'A']]);
+    d.summary.affected_components = [null, { status: 'partial_outage' }, { component_id: 7, status: 'x' }];
+    const { components, warnings } = incidentIoComponents(d);
+    expect(warnings).toEqual(['3 affected entries on the status page name no component, so they are counted as unknown']);
+    const r = parseStatuspage({ status: { indicator: 'none' }, components }, { vendor: 'V', now });
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+  });
+
+  it('is a reading only when it has components, a structure and an affected list (Codex on #210)', () => {
     expect(isReadableIncidentIo(proxy())).toBe(true);
+    const noList = proxy();
+    noList.summary.affected_components = { component_id: 'x' };
+    expect(isReadableIncidentIo(noList)).toBe(false);
+    delete noList.summary.affected_components;
+    expect(isReadableIncidentIo(noList)).toBe(false);
+    const none = proxy();
+    none.summary.affected_components = [];
+    expect(isReadableIncidentIo(none)).toBe(true);
     for (const bad of [null, {}, { summary: {} }, { summary: { components: [], structure: { items: [] } } }, 'x']) {
       expect(isReadableIncidentIo(bad), JSON.stringify(bad)).toBe(false);
     }
