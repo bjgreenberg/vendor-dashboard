@@ -28,6 +28,20 @@
  * status: `available`, `performance_degradation`, `service_disruption`.
  * Nothing else is mapped.
  *
+ * PLANNED EVENTS share the incidents feed (seen live 2026-11-25): entries with
+ * `isPlanned: true` and `type` `maintenance` or `release`, whose status words
+ * are `scheduled`, `in_progress`, `completed` and `canceled`, with a
+ * `beginsAt`/`endsAt` window. Their `impact` is what the vendor expects DURING
+ * the window, so it never votes. A planned event is live when it is
+ * `in_progress`, or still `scheduled` inside its window (the word lags the
+ * clock); a live one votes `maintenance` and leads the card unless something
+ * worse does. Completed or canceled, or still `scheduled` before or after its
+ * window, it is not the row. The window is one span: an event announcing two
+ * nights of downtime under one beginsAt..endsAt reads maintenance between them
+ * while it stays `scheduled`. Before this, three December releases marked `service_disruption`
+ * painted the row Major outage a fortnight early. Components still vote
+ * throughout, so real trouble during a window shows as itself.
+ *
  * Fails closed. A component or active incident using a word outside that
  * vocabulary marks the row UNKNOWN with a warning naming the word — the honest
  * answer to "Docusign changed their feed" is uncertainty, not green (audit
@@ -49,6 +63,65 @@ const STATUS_MAP = Object.freeze({
   performance_degradation: SEVERITY.DEGRADED,
   service_disruption: SEVERITY.MAJOR_OUTAGE,
 });
+
+/** Entry types that mark a planned event even if `isPlanned` goes missing. */
+const PLANNED_TYPES = new Set(['maintenance', 'release']);
+/** Planned-event status words after which the event is over. */
+const PLANNED_OVER = new Set(['completed', 'canceled', 'cancelled']);
+
+/**
+ * Strict ISO-8601 with an explicit offset. `Date.parse` alone accepts far
+ * more: "December 8 03:00 UTC" parses to 2001, and an offset-less string is
+ * read in the host's zone, either of which would pass for a readable window.
+ */
+const ISO_WITH_OFFSET = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-](\d{2}):(\d{2}))$/;
+
+/**
+ * Epoch ms, or NaN unless strict ISO with an offset AND a real calendar
+ * instant: `Date.parse` rolls 2026-02-31 into March 3 rather than refusing it.
+ *
+ * @param {unknown} v
+ * @returns {number}
+ */
+function isoTime(v) {
+  const m = typeof v === 'string' ? ISO_WITH_OFFSET.exec(v) : null;
+  if (!m) return NaN;
+  const [y, mo, d, h, mi, s = '0', oh = '0', om = '0'] = m.slice(1).map((x) => x ?? undefined);
+  const daysInMonth = new Date(Date.UTC(Number(y), Number(mo), 0)).getUTCDate();
+  const ok = Number(mo) >= 1 && Number(mo) <= 12 && Number(d) >= 1 && Number(d) <= daysInMonth &&
+    Number(h) <= 23 && Number(mi) <= 59 && Number(s) <= 59 && Number(oh) <= 23 && Number(om) <= 59;
+  return ok ? Date.parse(v) : NaN;
+}
+
+/** @param {any} i an incidents.json entry; `type` decides only when `isPlanned` is absent */
+function isPlannedEvent(i) {
+  if (typeof i.isPlanned === 'boolean') return i.isPlanned;
+  return typeof i.type === 'string' && PLANNED_TYPES.has(i.type.trim().toLowerCase());
+}
+
+/**
+ * Is a planned event running at `at`? true / false, or a reason string when
+ * it cannot be told (the caller fails that entry closed).
+ *
+ * @param {any} i a planned incidents.json entry
+ * @param {string} status its status word, lower-cased
+ * @param {Date} at
+ * @returns {boolean|string}
+ */
+function plannedLive(i, status, at) {
+  if (status === 'in_progress') return true;
+  if (PLANNED_OVER.has(status)) return false;
+  if (status !== 'scheduled') return `unrecognized planned-event status "${status}"`;
+  const begins = isoTime(i.beginsAt);
+  const ends = isoTime(i.endsAt);
+  // An empty or inverted window is as unreadable as a missing one: it would
+  // otherwise never contain the clock, and the event would never vote.
+  if (!Number.isFinite(begins) || !Number.isFinite(ends) || begins >= ends) {
+    return "a scheduled event's window (beginsAt/endsAt) is unreadable, so it cannot be told whether it is running";
+  }
+  const t = at.getTime();
+  return begins <= t && t < ends;
+}
 
 /**
  * @param {unknown} word a Docusign status/impact word
@@ -166,9 +239,30 @@ export function parseDocusign(payload, options) {
   if (!Array.isArray(incidentList)) {
     warnings.push('incidents.json unavailable; judged on components alone');
   } else {
-    const active = incidentList.filter(
-      (i) => i && typeof i === 'object' && typeof i.status === 'string' && i.status.toLowerCase() !== 'resolved',
-    );
+    const at = now();
+    /** @type {{incident: any, sev: import('../severity.js').Severity}[]} */
+    const active = [];
+    for (const i of incidentList) {
+      if (!(i && typeof i === 'object' && typeof i.status === 'string')) continue;
+      const status = i.status.trim().toLowerCase();
+      if (isPlannedEvent(i)) {
+        const live = plannedLive(i, status, at);
+        if (typeof live === 'string') {
+          warnings.push(live);
+          active.push({ incident: i, sev: SEVERITY.UNKNOWN });
+        } else if (live) {
+          active.push({ incident: i, sev: SEVERITY.MAINTENANCE });
+        }
+        continue;
+      }
+      if (status === 'resolved') continue;
+      let sev = mapWord(i.impact);
+      if (sev === null) {
+        warnings.push(`unrecognized incident impact "${String(i.impact)}" on "${i.title ?? i.id}"`);
+        sev = SEVERITY.UNKNOWN;
+      }
+      active.push({ incident: i, sev });
+    }
     // An incident with no status cannot be told from an active one. It is an
     // unknown vote and a warning, and the incidents beside it still count:
     // refusing the whole list over one bad entry would hide a verified
@@ -186,14 +280,9 @@ export function parseDocusign(payload, options) {
       malformedIncident = SEVERITY.UNKNOWN;
     }
     let lead = null;
-    for (const i of active) {
-      let sev = mapWord(i.impact);
-      if (sev === null) {
-        warnings.push(`unrecognized incident impact "${String(i.impact)}" on "${i.title ?? i.id}"`);
-        sev = SEVERITY.UNKNOWN;
-      }
+    for (const entry of active) {
       // Lead with the worst-impact incident so the headline matches the colour.
-      if (lead === null || rank(sev) > rank(lead.sev)) lead = { incident: i, sev };
+      if (lead === null || rank(entry.sev) > rank(lead.sev)) lead = entry;
     }
     if (lead !== null) {
       incidentSeverity = lead.sev;

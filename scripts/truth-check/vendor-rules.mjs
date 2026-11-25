@@ -164,14 +164,42 @@ export function regionLensVerdict(body, label, regionGroups) {
 
 /* --------------------------------- Docusign ------------------------------- */
 
-/** Docusign: any component not `available`, or any unresolved incident whose impact is not `available`. */
-export function docusignVerdict(components, incidents, label) {
+/**
+ * Docusign: any component not `available`, or any open entry in the incidents
+ * feed. An unplanned incident is open until `resolved` (and only if its impact
+ * is not `available`). A planned one (`isPlanned`, or type maintenance/release)
+ * is open while it runs: anything but completed/canceled, unless it is still
+ * `scheduled` and the clock is outside its beginsAt..endsAt window. Its impact
+ * is the vendor's forecast for the window, so it is not read. An unreadable
+ * (or empty, or inverted) window counts as open: the check fails toward a look.
+ */
+export function docusignVerdict(components, incidents, label, now = Date.now()) {
   if (failed(components) || !Array.isArray(components.components)) return unreadable(label, components?.error ?? 'no component list');
   const badComponents = components.components.filter((c) => c && String(c.status ?? '').toLowerCase() !== 'available');
   const list = !failed(incidents) && Array.isArray(incidents.incidents) ? incidents.incidents : null;
-  const openIncidents = (list ?? []).filter(
-    (i) => i && String(i.status ?? '').toLowerCase() !== 'resolved' && String(i.impact ?? '').toLowerCase() !== 'available',
-  );
+  const plannedOpen = (i, status) => {
+    if (status === 'completed' || status === 'canceled' || status === 'cancelled') return false;
+    if (status !== 'scheduled') return true;
+    // Strict ISO with an offset only: Date.parse reads "December 8" as 2001.
+    // And a real date: it rolls 2026-02-31 into March, so round-trip the day.
+    const iso = /^(\d{4}-\d{2}-\d{2})T([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d+)?)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/;
+    const when = (v) => {
+      const m = iso.exec(String(v ?? ''));
+      if (!m) return NaN;
+      const day = Date.parse(`${m[1]}T00:00:00Z`);
+      return Number.isFinite(day) && new Date(day).toISOString().slice(0, 10) === m[1] ? Date.parse(v) : NaN;
+    };
+    const from = when(i.beginsAt);
+    const to = when(i.endsAt);
+    return !(Number.isFinite(from) && Number.isFinite(to) && from < to) || (from <= now && now < to);
+  };
+  const openIncidents = (list ?? []).filter((i) => {
+    if (!i) return false;
+    const status = String(i.status ?? '').toLowerCase();
+    const planned = typeof i.isPlanned === 'boolean' ? i.isPlanned : ['maintenance', 'release'].includes(String(i.type ?? '').toLowerCase());
+    if (planned) return plannedOpen(i, status);
+    return status !== 'resolved' && String(i.impact ?? '').toLowerCase() !== 'available';
+  });
   const evidence = `${label}: ${badComponents.length} of ${components.components.length} components not available` +
     (badComponents.length ? ` (${badComponents.slice(0, 5).map((c) => `${brief(c.name, 30)}=${c.status}`).join(', ')})` : '') +
     (list ? `; ${openIncidents.length} open incident(s)${openIncidents.length ? `: ${openIncidents.slice(0, 3).map((i) => brief(i.title, 60)).join('; ')}` : ''}` : '; incidents feed unreadable');

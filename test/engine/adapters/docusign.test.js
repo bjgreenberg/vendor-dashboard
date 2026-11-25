@@ -209,6 +209,109 @@ describe('docusign (health.docusign.com components + incidents feeds)', () => {
     expect(r.warnings).toEqual(['1 incident in the list carries no status, so it cannot be told from an active one']);
   });
 
+  // Docusign's incidents feed also carries PLANNED events (`isPlanned: true`,
+  // type `maintenance` or `release`) with their own status words: scheduled,
+  // in_progress, completed, canceled. Captured live 2026-11-25, when three
+  // December releases marked `service_disruption` painted the row Major outage.
+  describe('planned events (maintenance and releases)', () => {
+    const planned = () => structuredClone(fixture('Docusign-incidents-planned'));
+    const at = (iso) => () => new Date(iso);
+    const one = (over) => ({ incidents: [{
+      id: 'p', title: 'Release 9 (Rel 1)', status: 'scheduled', impact: 'service_disruption', type: 'release', isPlanned: true,
+      beginsAt: '2026-12-08T03:00:00Z', endsAt: '2026-12-08T09:00:00Z',
+      events: [{ body: 'Service will be unavailable.', status: 'scheduled', displayAt: '2026-11-25T14:00:00Z' }],
+      ...over,
+    }] });
+
+    it('the live capture of 2026-11-25 reads operational: future releases and finished maintenance are not live', () => {
+      const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: planned(), now: at('2026-11-25T14:50:00Z') }));
+      expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+      expect(r.incidentName).toBe('');
+      expect(r.description).toBe('');
+      expect(r.warnings).toEqual([]);
+    });
+
+    it('a scheduled event that has not begun casts no vote and sets no headline', () => {
+      const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one({}), now: at('2026-12-08T02:59:59Z') }));
+      expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+      expect(r.incidentName).toBe('');
+    });
+
+    it('a scheduled event whose window has passed casts no vote', () => {
+      const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one({}), now: at('2026-12-08T09:00:00Z') }));
+      expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+    });
+
+    it('completed and canceled events cast no vote, whatever their impact', () => {
+      for (const status of ['completed', 'canceled', 'Cancelled']) {
+        const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one({ status }), now: at('2026-12-08T04:00:00Z') }));
+        expect(r.severity, status).toBe(SEVERITY.OPERATIONAL);
+        expect(r.incidentName, status).toBe('');
+      }
+    });
+
+    it('an in-progress event is maintenance, with its title and latest update on the card', () => {
+      const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one({ status: 'in_progress' }), now: at('2026-12-08T04:00:00Z') }));
+      expect(r.severity).toBe(SEVERITY.MAINTENANCE);
+      expect(r.incidentName).toBe('Release 9 (Rel 1)');
+      expect(r.description).toBe('Service will be unavailable.');
+    });
+
+    it('an in-progress event is maintenance even outside its stated window (the vendor says it is running)', () => {
+      const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one({ status: 'in_progress' }), now: at('2026-12-08T10:00:00Z') }));
+      expect(r.severity).toBe(SEVERITY.MAINTENANCE);
+    });
+
+    it('a still-"scheduled" event inside its window is maintenance (the vendor has not flipped the word yet)', () => {
+      const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one({}), now: at('2026-12-08T03:00:00Z') }));
+      expect(r.severity).toBe(SEVERITY.MAINTENANCE);
+      expect(r.incidentName).toBe('Release 9 (Rel 1)');
+    });
+
+    it('a scheduled event whose window cannot be read fails closed to unknown', () => {
+      for (const over of [{ beginsAt: null }, { endsAt: 'soon' }, { beginsAt: undefined, endsAt: undefined }, { endsAt: '2026-12-08T03:00:00Z' }, { beginsAt: '2026-12-08T09:00:00Z' },
+        { beginsAt: 'December 8 03:00 UTC', endsAt: 'December 8 09:00 UTC' }, { beginsAt: '2026-12-08T03:00:00', endsAt: '2026-12-08T09:00:00' },
+        { beginsAt: '2026-02-31T03:00:00Z', endsAt: '2026-03-04T03:00:00Z' }, { beginsAt: '2026-12-08T24:00:00Z' }, { endsAt: '2026-12-08T09:00:00+25:00' }]) {
+        const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one(over), now: at('2026-12-08T04:00:00Z') }));
+        expect(r.severity, JSON.stringify(over)).toBe(SEVERITY.UNKNOWN);
+        expect(r.warnings.join(' '), JSON.stringify(over)).toMatch(/window/);
+      }
+    });
+
+    it('a planned status word never seen before fails closed to unknown, naming the word', () => {
+      const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one({ status: 'postponed' }), now: at('2026-11-25T14:50:00Z') }));
+      expect(r.severity).toBe(SEVERITY.UNKNOWN);
+      expect(r.warnings.join(' ')).toMatch(/postponed/);
+    });
+
+    it('an entry typed maintenance or release is planned even without isPlanned', () => {
+      for (const type of ['maintenance', 'release']) {
+        const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one({ isPlanned: undefined, type }), now: at('2026-11-25T14:50:00Z') }));
+        expect(r.severity, type).toBe(SEVERITY.OPERATIONAL);
+      }
+    });
+
+    it('an entry that says isPlanned: false is an incident, whatever its type: its impact votes', () => {
+      const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one({ isPlanned: false, status: 'investigating' }), now: at('2026-11-25T14:50:00Z') }));
+      expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    });
+
+    it('a real incident beside live maintenance still leads, and outranks it', () => {
+      const incidents = one({ status: 'in_progress' });
+      incidents.incidents.push({ id: 'i', title: 'Slow sends', status: 'investigating', impact: 'performance_degradation', type: 'incident', isPlanned: false, events: [] });
+      const r = parseDocusign(fixture('Docusign-components'), opts({ incidents, now: at('2026-12-08T04:00:00Z') }));
+      expect(r.severity).toBe(SEVERITY.DEGRADED);
+      expect(r.incidentName).toBe('Slow sends');
+    });
+
+    it('components still vote during maintenance: a disrupted site outranks it', () => {
+      const payload = structuredClone(fixture('Docusign-components'));
+      byName(payload, 'NA1').status = 'service_disruption';
+      const r = parseDocusign(payload, opts({ incidents: one({ status: 'in_progress' }), now: at('2026-12-08T04:00:00Z') }));
+      expect(r.severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    });
+  });
+
   it('a missing or malformed incidents feed warns but lets the components decide', () => {
     for (const bad of [undefined, null, 'html', {}, { incidents: 'nope' }]) {
       const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: bad }));

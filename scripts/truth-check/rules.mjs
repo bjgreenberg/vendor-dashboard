@@ -175,7 +175,7 @@ function statuspageVerdict(payload, scope, label) {
  * @param {any} vendor a config/vendors.json entry
  * @param {Record<string, any>} bodies parsed body per probed URL ({error} on failure;
  *   {error, text} for a body that is not JSON — HTML and JavaScript feeds)
- * @param {number} [now] epoch ms, for readers that compare event times (Apple)
+ * @param {number} [now] epoch ms, for readers that compare event times (Apple, Docusign)
  */
 export function secondOpinion(vendor, bodies, now = Date.now()) {
   const urls = probeUrlsFor(vendor);
@@ -239,7 +239,7 @@ export function secondOpinion(vendor, bodies, now = Date.now()) {
       return opinion(r.verdict, r.evidence, urls);
     }
     case 'docusign': {
-      const r = docusignVerdict(body, bodies?.[urls[1]], vendor.name);
+      const r = docusignVerdict(body, bodies?.[urls[1]], vendor.name, now);
       return opinion(r.verdict, r.evidence, urls);
     }
     case 'zscaler': {

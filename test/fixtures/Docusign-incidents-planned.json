@@ -1,0 +1,399 @@
+{
+  "incidents": [
+    {
+      "id": "34b70a2cce7a54a08f7e4147a82fd521",
+      "incidentId": "2ccb450fa8ae7017e85ff66907ea19c6",
+      "title": "Maintenance for CLM customers on November 21, 2026 at 18:00 UTC (Maint 6216)",
+      "status": "completed",
+      "impact": "performance_degradation",
+      "events": [
+        {
+          "id": "ef9f7c1f59dee19cdb2cf99883bc4bfe",
+          "body": "This maintenance has completed. During the maintenance window, some product functions may have been briefly unavailable.",
+          "status": "completed",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-21T18:45:00Z",
+          "createdAt": "2026-11-21T18:45:37.429561Z",
+          "updatedAt": "2026-11-21T18:58:30.402388Z"
+        },
+        {
+          "id": "f3df14124de79862cadc04204261c7ec",
+          "body": "Our primary upgrade has completed and we are actively monitoring.",
+          "status": "in_progress",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-21T18:33:58.991504Z",
+          "createdAt": "2026-11-21T18:33:59.02132Z",
+          "updatedAt": "2026-11-21T18:33:59.02132Z"
+        },
+        {
+          "id": "bf014cd62881185e722545b95105a331",
+          "body": "This planned maintenance is now in progress.",
+          "status": "scheduled",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-21T18:10:08.285823Z",
+          "createdAt": "2026-11-21T18:10:08.317264Z",
+          "updatedAt": "2026-11-21T18:10:08.317264Z"
+        },
+        {
+          "id": "a493f4b2e4e515aff87ae173462adf02",
+          "body": "Docusign will be conducting maintenance for CLM Prod US S1 on Saturday 21st November 2026, from 6 PM UTC to 9 PM UTC.\n\nDuring the maintenance window, some product functions might be briefly unavailable for up to 10 minutes, including:\n\n-   UI previews\n    \n-   Workflow steps\n    \n-   Standard attributions\n    \n-   Party agreement\n    \n\nUsers might also encounter slower response times in the user interface during the window. Workflow processing will continue to function as expected during the maintenance window.\n\nPlease contact [Docusign Support](https://support.docusign.com/s/?language=en_US) if you have any questions or concerns, and check back here for any updates regarding the schedule.",
+          "status": "scheduled",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-11T21:41:00Z",
+          "createdAt": "2026-11-11T21:41:38.374311Z",
+          "updatedAt": "2026-11-11T22:19:43.880564Z"
+        }
+      ],
+      "postmortem": null,
+      "createdAt": "2026-11-11T21:37:56.066285Z",
+      "updatedAt": "2026-11-21T18:58:30.402388Z",
+      "components": [
+        {
+          "id": "b168c06ef95c6967d1fc2a839a3d439a",
+          "name": "S1.US",
+          "status": "performance_degradation"
+        }
+      ],
+      "startedAt": "2026-11-21T18:33:58.991504Z",
+      "monitoringAt": null,
+      "resolvedAt": null,
+      "type": "maintenance",
+      "isPlanned": true,
+      "beginsAt": "2026-11-21T18:00:00Z",
+      "endsAt": "2026-11-21T21:00:00Z",
+      "timelineState": "past"
+    },
+    {
+      "id": "f38eb924dd8aa440856c6365182aee26",
+      "incidentId": "ef69eda56115e7d272679561e9010895",
+      "title": "Maintenance for CLM customers on November 20, 2026 at 03:00 UTC (Maint 6218)",
+      "status": "canceled",
+      "impact": "performance_degradation",
+      "events": [
+        {
+          "id": "58f7706fd4a369f0ea52de678351b709",
+          "body": "This maintenance window has been canceled and will be rescheduled.",
+          "status": "canceled",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-20T03:30:30.167103Z",
+          "createdAt": "2026-11-20T03:30:30.198804Z",
+          "updatedAt": "2026-11-20T03:30:30.198804Z"
+        },
+        {
+          "id": "8d5286d13cbc2d444d62df7ae9537fa4",
+          "body": "Docusign will be conducting maintenance impacting CLM S2.US customers on Friday, November 20, 2026, from 03:00 AM UTC to 04:00 AM UTC.\n\nDuring this time, CLM S2.US customers may experience brief periods of service interruption. If you encounter any disruption, please retry your action or wait until the maintenance window has ended.\n\nPlease contact Docusign Support if you have any questions or concerns, and check back here for any updates regarding the schedule.",
+          "status": "scheduled",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-11T22:37:31.178591Z",
+          "createdAt": "2026-11-11T22:37:31.198467Z",
+          "updatedAt": "2026-11-11T22:37:31.198467Z"
+        }
+      ],
+      "postmortem": null,
+      "createdAt": "2026-11-11T22:36:47.872389Z",
+      "updatedAt": "2026-11-20T03:30:30.198804Z",
+      "components": [
+        {
+          "id": "e3728f42f402c16b549ce4131306cc90",
+          "name": "S2.US",
+          "status": "performance_degradation"
+        }
+      ],
+      "startedAt": null,
+      "monitoringAt": null,
+      "resolvedAt": null,
+      "type": "maintenance",
+      "isPlanned": true,
+      "beginsAt": "2026-11-20T03:00:00Z",
+      "endsAt": "2026-11-20T04:00:00Z",
+      "timelineState": "past"
+    },
+    {
+      "id": "0b98f060952db7c2f3b4fdf7db96cf20",
+      "incidentId": "6327bd1cf2afa7eaf46b4e7b3e8252cf",
+      "title": "Maintenance for CLM customers on November 20, 2026 at 03:00 UTC (Maint 6215)",
+      "status": "canceled",
+      "impact": "performance_degradation",
+      "events": [
+        {
+          "id": "9ef655dbe98453d970b60c3bb6f8f072",
+          "body": "Incorrect date: A new maintenance window will be posted shortly.",
+          "status": "canceled",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-11T22:33:16.481746Z",
+          "createdAt": "2026-11-11T22:33:16.501259Z",
+          "updatedAt": "2026-11-11T22:33:16.501259Z"
+        },
+        {
+          "id": "2149cb83451c8868083a621febb3cefe",
+          "body": "Docusign will be conducting maintenance impacting CLM S2.US customers on Friday, November 20, 2026, from 03:00 AM UTC to 04:00 AM UTC.\n\nDuring this time, CLM S2.US customers may experience brief periods of service interruption. If you encounter any disruption, please retry your action or wait until the maintenance window has ended.\n\nPlease contact [Docusign Support](https://support.docusign.com/s/?language=en_US) if you have any questions or concerns, and check back here for any updates regarding the schedule.",
+          "status": "scheduled",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-11T21:38:00Z",
+          "createdAt": "2026-11-11T21:38:05.785538Z",
+          "updatedAt": "2026-11-11T22:21:38.472599Z"
+        }
+      ],
+      "postmortem": null,
+      "createdAt": "2026-11-11T21:37:00.252259Z",
+      "updatedAt": "2026-11-11T22:33:16.501259Z",
+      "components": [
+        {
+          "id": "e3728f42f402c16b549ce4131306cc90",
+          "name": "S2.US",
+          "status": "performance_degradation"
+        }
+      ],
+      "startedAt": null,
+      "monitoringAt": null,
+      "resolvedAt": null,
+      "type": "maintenance",
+      "isPlanned": true,
+      "beginsAt": "2026-11-21T03:00:00Z",
+      "endsAt": "2026-11-21T04:00:00Z",
+      "timelineState": "past"
+    },
+    {
+      "id": "767b0ca8fd03cfa8fc427c351cc139c7",
+      "incidentId": "c451ceb317433a7717d3fe6b2cc4a290",
+      "title": "Insight (Seal) Release 8.6.0.2 on December 8, 2026 at 03:00 UTC (Rel 6318)",
+      "status": "scheduled",
+      "impact": "service_disruption",
+      "events": [
+        {
+          "id": "e0e94e4370310a3c925ef9c3430e97a0",
+          "body": "Docusign Insight 8.6.0.2 Production Release \n\nDocusign will conduct scheduled maintenance to release Insight 8.6.0.2 to customers in December 2026.  Customers\u2019 service will be unavailable on Tuesday, December 8, and Wednesday, December 9, 2026, from 3:00 AM UTC to 9:00 AM UTC on each day.\n\nWe apologize for any inconvenience this may cause and advise users who encounter errors during these times to retry their activity after the maintenance window has concluded.\n\n\nPlease contact Docusign Support if you have any questions or concerns.",
+          "status": "scheduled",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-25T14:00:12.42035Z",
+          "createdAt": "2026-11-25T14:00:12.452748Z",
+          "updatedAt": "2026-11-25T14:00:12.452748Z"
+        }
+      ],
+      "postmortem": null,
+      "createdAt": "2026-11-21T08:40:04.48064Z",
+      "updatedAt": "2026-11-25T14:00:12.452748Z",
+      "components": [
+        {
+          "id": "fc5704ae014940760abb0462b275533a",
+          "name": "NA.E",
+          "status": "performance_degradation"
+        }
+      ],
+      "startedAt": null,
+      "monitoringAt": null,
+      "resolvedAt": null,
+      "type": "release",
+      "isPlanned": true,
+      "beginsAt": "2026-12-08T03:00:00Z",
+      "endsAt": "2026-12-09T09:00:00Z",
+      "timelineState": "future"
+    },
+    {
+      "id": "b92b4e6b44e129df31a33b983c9ad966",
+      "incidentId": "c0a07eba5709073c95689e8462c0a934",
+      "title": "Insight (Seal) Release 8.6.0.2 on December 7, 2026 at 03:00 UTC (Rel 6314)",
+      "status": "scheduled",
+      "impact": "service_disruption",
+      "events": [
+        {
+          "id": "5d0304655b961fc5fa446ab046bb9c4b",
+          "body": "Docusign Insight 8.6.0.2 Production Release \n\nDocusign will conduct scheduled maintenance to release Insight 8.6.0.2 to customers in December 2026. Customers\u2019 service will be unavailable on Monday, December 7, 2026, from 3:00 AM UTC to 9:00 AM UTC.\n\nWe apologize for any inconvenience this may cause and advise users who encounter errors during these times to retry their activity after the maintenance window has concluded.\n\nPlease contact Docusign Support if you have any questions or concerns.",
+          "status": "scheduled",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-25T13:59:30.208488Z",
+          "createdAt": "2026-11-25T13:59:30.239703Z",
+          "updatedAt": "2026-11-25T13:59:30.239703Z"
+        }
+      ],
+      "postmortem": null,
+      "createdAt": "2026-11-21T08:03:55.692907Z",
+      "updatedAt": "2026-11-25T13:59:30.239703Z",
+      "components": [
+        {
+          "id": "704edb8eab0066016ececcb64804b616",
+          "name": "NA.NE",
+          "status": "performance_degradation"
+        },
+        {
+          "id": "c7381ea9a8a9448006588649badbadd8",
+          "name": "NA.W",
+          "status": "performance_degradation"
+        }
+      ],
+      "startedAt": null,
+      "monitoringAt": null,
+      "resolvedAt": null,
+      "type": "release",
+      "isPlanned": true,
+      "beginsAt": "2026-12-07T03:00:00Z",
+      "endsAt": "2026-12-07T09:00:00Z",
+      "timelineState": "future"
+    },
+    {
+      "id": "8ff113aa4ff7cd5e7ae721f29103218e",
+      "incidentId": "06230139f44fcce093439ee282f09517",
+      "title": "Insight (Seal) Release 8.6.0.2 on December 4, 2026 at 01:00 UTC (Rel 6315)",
+      "status": "scheduled",
+      "impact": "service_disruption",
+      "events": [
+        {
+          "id": "e70c9bcfcd70c54391cc55a985220c2b",
+          "body": "Docusign Insight 8.6.0.2 Production Release \n\nDocusign will conduct scheduled maintenance to release Insight 8.6.0.2 to customers in December 2026. Customers\u2019 service will be unavailable on Friday, December 4, 2026, from 1:00 AM UTC to 7:00 AM UTC.\n\nWe apologize for any inconvenience this may cause and advise users who encounter errors during these times to retry their activity after the maintenance window has concluded.\n\n\nPlease contact Docusign Support if you have any questions or concerns.",
+          "status": "scheduled",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-25T13:58:37.418635Z",
+          "createdAt": "2026-11-25T13:58:37.450164Z",
+          "updatedAt": "2026-11-25T13:58:37.450164Z"
+        }
+      ],
+      "postmortem": null,
+      "createdAt": "2026-11-21T08:18:58.240696Z",
+      "updatedAt": "2026-11-25T13:58:37.450164Z",
+      "components": [
+        {
+          "id": "f13bdc1842f66755cbd42c51c6d6b313",
+          "name": "EU.C",
+          "status": "performance_degradation"
+        },
+        {
+          "id": "43af3a99342d54558e2cff227fb711be",
+          "name": "EU.N",
+          "status": "performance_degradation"
+        },
+        {
+          "id": "54ce2a643cf0063e30234f4f87d62a96",
+          "name": "EU.W",
+          "status": "performance_degradation"
+        }
+      ],
+      "startedAt": null,
+      "monitoringAt": null,
+      "resolvedAt": null,
+      "type": "release",
+      "isPlanned": true,
+      "beginsAt": "2026-12-04T01:00:00Z",
+      "endsAt": "2026-12-04T07:00:00Z",
+      "timelineState": "future"
+    },
+    {
+      "id": "306f45d1a63fda42d1431985f2acf1d2",
+      "incidentId": "f9709b69415236f2a6ad1b2ffe7965ad",
+      "title": "Customers may experience email notification errors for PostFinish and docusignxml (Incident 6334)",
+      "status": "resolved",
+      "impact": "performance_degradation",
+      "events": [
+        {
+          "id": "df89eb0649f25c412473fce70b9b9bc1",
+          "body": "The incident has been resolved. Incident duration and timelines are subject to revision pending the results of any related investigation. Customers may have experienced email notification errors for PostFinish and docusignxml from 2026-11-24 06:50 PM UTC until 2026-11-24 07:48 PM UTC.",
+          "status": "resolved",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-24T19:49:00Z",
+          "createdAt": "2026-11-24T19:49:59.444768Z",
+          "updatedAt": "2026-11-24T20:42:59.856852Z"
+        },
+        {
+          "id": "2e5cf27b1dac7fda7899625aece9b2eb",
+          "body": "A fix has been implemented and we are monitoring the results.",
+          "status": "monitoring",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-24T19:48:59.82675Z",
+          "createdAt": "2026-11-24T19:48:59.859374Z",
+          "updatedAt": "2026-11-24T19:48:59.859374Z"
+        },
+        {
+          "id": "cc4fb93e85c207283437e834950fb27a",
+          "body": "We are actively investigating this issue.",
+          "status": "investigating",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-24T19:32:18.036599Z",
+          "createdAt": "2026-11-24T19:32:18.12288Z",
+          "updatedAt": "2026-11-24T19:32:18.12288Z"
+        }
+      ],
+      "postmortem": null,
+      "createdAt": "2026-11-24T19:32:18.12288Z",
+      "updatedAt": "2026-11-24T20:42:59.856852Z",
+      "components": [
+        {
+          "id": "7f80078ed3cdd3264d8070916c92a821",
+          "name": "NA4",
+          "status": "performance_degradation"
+        },
+        {
+          "id": "cba28e4c0700328a0bd7dbcf2c40cb26",
+          "name": "NA2",
+          "status": "performance_degradation"
+        },
+        {
+          "id": "320a6d6a20274af2d069a435f0e171af",
+          "name": "NA3",
+          "status": "performance_degradation"
+        },
+        {
+          "id": "451aee79c0a7cdf6a294aa19547df818",
+          "name": "NA1",
+          "status": "performance_degradation"
+        }
+      ],
+      "startedAt": "2026-11-24T19:32:18.036599Z",
+      "monitoringAt": "2026-11-24T19:48:59.82675Z",
+      "resolvedAt": "2026-11-24T19:49:00Z",
+      "type": "incident",
+      "isPlanned": false,
+      "beginsAt": null,
+      "endsAt": null,
+      "timelineState": "past"
+    },
+    {
+      "id": "b9b727c767455c30bec9d129c949d354",
+      "incidentId": "4e7ac766c187c953cda15cd5b0409821",
+      "title": "Customers may encounter an error when editing templates (Incident 6276)",
+      "status": "resolved",
+      "impact": "performance_degradation",
+      "events": [
+        {
+          "id": "79c48a42c7802ae45cef2b3d29c4bbbc",
+          "body": "The incident has been resolved. Incident duration and timelines are subject to revision pending the results of any related investigation.  \n  \nThe incident has been resolved. Incident duration and timelines are subject to revision pending the results of any related investigation.  \nCustomers may have experienced errors from 2026-11-17 00:30 AM UTC until 2026-11-19 08:03 AM UTC.",
+          "status": "resolved",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-19T08:06:00Z",
+          "createdAt": "2026-11-19T08:06:57.665087Z",
+          "updatedAt": "2026-11-19T08:56:56.635105Z"
+        },
+        {
+          "id": "a1a0bc63234ce3a718a414650e43149c",
+          "body": "Customers may encounter an error when editing templates.\nThe issue is under investigation.",
+          "status": "investigating",
+          "deliverNotifications": true,
+          "displayAt": "2026-11-19T06:52:59.9787Z",
+          "createdAt": "2026-11-19T06:53:00.039556Z",
+          "updatedAt": "2026-11-19T06:53:00.039556Z"
+        }
+      ],
+      "postmortem": null,
+      "createdAt": "2026-11-19T06:53:00.039556Z",
+      "updatedAt": "2026-11-19T08:56:56.635105Z",
+      "components": [
+        {
+          "id": "4025acee7f9710a23290911cb023d571",
+          "name": "AU",
+          "status": "performance_degradation"
+        },
+        {
+          "id": "320a6d6a20274af2d069a435f0e171af",
+          "name": "NA3",
+          "status": "performance_degradation"
+        }
+      ],
+      "startedAt": "2026-11-19T06:52:59.9787Z",
+      "monitoringAt": null,
+      "resolvedAt": "2026-11-19T08:06:00Z",
+      "type": "incident",
+      "isPlanned": false,
+      "beginsAt": null,
+      "endsAt": null,
+      "timelineState": "past"
+    }
+  ]
+}
