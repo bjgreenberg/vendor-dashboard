@@ -171,7 +171,7 @@ export function regionLensVerdict(body, label, regionGroups) {
  * is open while it runs: anything but completed/canceled, unless it is still
  * `scheduled` and the clock is outside its beginsAt..endsAt window. Its impact
  * is the vendor's forecast for the window, so it is not read. An unreadable
- * window counts as open: the check fails toward a look.
+ * (or empty, or inverted) window counts as open: the check fails toward a look.
  */
 export function docusignVerdict(components, incidents, label, now = Date.now()) {
   if (failed(components) || !Array.isArray(components.components)) return unreadable(label, components?.error ?? 'no component list');
@@ -182,7 +182,7 @@ export function docusignVerdict(components, incidents, label, now = Date.now()) 
     if (status !== 'scheduled') return true;
     const from = Date.parse(String(i.beginsAt ?? ''));
     const to = Date.parse(String(i.endsAt ?? ''));
-    return !(Number.isFinite(from) && Number.isFinite(to)) || (from <= now && now < to);
+    return !(Number.isFinite(from) && Number.isFinite(to) && from < to) || (from <= now && now < to);
   };
   const openIncidents = (list ?? []).filter((i) => {
     if (!i) return false;

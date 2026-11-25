@@ -87,7 +87,9 @@ function plannedLive(i, status, at) {
   if (status !== 'scheduled') return `unrecognized planned-event status "${status}"`;
   const begins = typeof i.beginsAt === 'string' ? Date.parse(i.beginsAt) : NaN;
   const ends = typeof i.endsAt === 'string' ? Date.parse(i.endsAt) : NaN;
-  if (!Number.isFinite(begins) || !Number.isFinite(ends)) {
+  // An empty or inverted window is as unreadable as a missing one: it would
+  // otherwise never contain the clock, and the event would never vote.
+  if (!Number.isFinite(begins) || !Number.isFinite(ends) || begins >= ends) {
     return "a scheduled event's window (beginsAt/endsAt) is unreadable, so it cannot be told whether it is running";
   }
   const t = at.getTime();
