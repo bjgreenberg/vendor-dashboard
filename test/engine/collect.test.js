@@ -341,6 +341,54 @@ describe('collect — optional secondary fetches', () => {
     expect(outcome.records[0].severity).toBe('operational');
   });
 
+  // OpenAI (2026-11-25): its incident.io summary.json leaves the Codex group out; the page's own JSON has it.
+  describe('a statuspage vendor with an incident.io componentsUrl', () => {
+    const vendor = { name: 'OpenAI', type: 'statuspage', url: 'https://p/summary', componentsUrl: 'https://p/proxy' };
+    const serve = (proxyBody) => async (url) => ({
+      ok: true, status: 200,
+      text: async () => (url === 'https://p/proxy' ? proxyBody : fixture('OpenAI-summary-20261125.json')),
+    });
+
+    it('adds the page JSON\'s groups, so the card names the affected Codex component', async () => {
+      const res = await collect(cfg([vendor]), { fetchFn: serve(fixture('OpenAI-incidentio-20261125.json')), now, retryDelayMs: 0 });
+      const r = res.records[0];
+      expect(r.severity).toBe(SEVERITY.DEGRADED);
+      expect(r.components.filter((c) => c.severity !== SEVERITY.OPERATIONAL).map((c) => c.name)).toEqual(['Codex Web']);
+      expect(r.components.map((c) => c.name)).toContain('Codex API');
+      expect(res.incomplete).toEqual([]);
+    });
+
+    it('never reads greener than the summary alone: a summary component down stays down', async () => {
+      const summary = JSON.parse(fixture('OpenAI-summary-20261125.json'));
+      summary.components.find((c) => c.name === 'Files').status = 'major_outage';
+      const res = await collect(cfg([vendor]), {
+        fetchFn: async (url) => ({ ok: true, status: 200,
+          text: async () => (url === 'https://p/proxy' ? fixture('OpenAI-incidentio-20261125.json') : JSON.stringify(summary)) }),
+        now, retryDelayMs: 0,
+      });
+      expect(res.records[0].severity).toBe(SEVERITY.MAJOR_OUTAGE);
+      expect(res.records[0].components.find((c) => c.name === 'Files').severity).toBe(SEVERITY.MAJOR_OUTAGE);
+    });
+
+    it('an unreadable page JSON leaves the summary\'s reading, marked read in part', async () => {
+      const noList = JSON.parse(fixture('OpenAI-incidentio-20261125.json'));
+      noList.summary.affected_components = { '0': { component_id: 'x', status: 'degraded_performance' } };
+      for (const body of ['<html>', '{}', '{"summary":{"components":[],"structure":{"items":[]}}}', JSON.stringify(noList)]) {
+        const res = await collect(cfg([vendor]), { fetchFn: serve(body), now, retryDelayMs: 0 });
+        expect(res.records[0].severity, body).toBe(SEVERITY.DEGRADED);
+        expect(res.incomplete, body).toEqual(['OpenAI']);
+      }
+    });
+
+    it('a component the page marks but does not list is kept and warned about', async () => {
+      const proxy = JSON.parse(fixture('OpenAI-incidentio-20261125.json'));
+      proxy.summary.affected_components.push({ component_id: 'ghost1', status: 'partial_outage' });
+      const res = await collect(cfg([vendor]), { fetchFn: serve(JSON.stringify(proxy)), now, retryDelayMs: 0 });
+      expect(res.records[0].severity).toBe(SEVERITY.PARTIAL_OUTAGE);
+      expect(res.records[0].warnings.join(' ')).toMatch(/ghost1/);
+    });
+  });
+
   it('merges an instatus components endpoint into the payload', async () => {
     const res = await collect(
       cfg([{ name: 'P', type: 'instatus', url: 'https://p/summary', componentsUrl: 'https://p/components' }]),
@@ -929,7 +977,7 @@ describe('collect — which vendors were not read in full (incomplete)', () => {
     const flagged = config.vendors.filter((v) => hasExtraDocuments(v)).map((v) => v.name).sort();
     // These get no re-look. If this list changes, the Worker's re-look
     // changes with it: check that is what you meant.
-    expect(flagged).toEqual(['Coalition (Control)', 'Concur', 'Docusign', 'Google', 'Iorad', 'Stormboard', 'Zscaler']);
+    expect(flagged).toEqual(['Coalition (Control)', 'Concur', 'Docusign', 'Google', 'Iorad', 'OpenAI', 'Stormboard', 'Zscaler']);
     expect(hasExtraDocuments({ name: 'Plain', type: 'statuspage', url: 'https://x' })).toBe(false);
     expect(hasExtraDocuments(undefined)).toBe(false);
     // A composite is one of them when any of its sources is.
