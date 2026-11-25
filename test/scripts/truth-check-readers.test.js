@@ -130,6 +130,30 @@ describe('Docusign — components and open incidents', () => {
     const open = { incidents: [{ title: 'x', status: 'investigating', impact: 'service_disruption' }] };
     expect(judge(ds, (i) => (i === 0 ? comps : open)).verdict).toBe('trouble');
   });
+  // Planned events share the feed (live 2026-11-25): a December release
+  // marked service_disruption must not read as trouble before it starts.
+  const plannedCapture = fixture('Docusign-incidents-planned.json');
+  const release = (over) => ({ incidents: [{
+    title: 'Release', status: 'scheduled', impact: 'service_disruption', type: 'release', isPlanned: true,
+    beginsAt: '2026-12-08T03:00:00Z', endsAt: '2026-12-08T09:00:00Z', ...over,
+  }] });
+  const t = (iso) => Date.parse(iso);
+  it('the live capture of 2026-11-25 (future releases, finished maintenance): fine', () => {
+    expect(judge(ds, (i) => (i === 0 ? comps : plannedCapture), t('2026-11-25T14:50:00Z')).verdict).toBe('fine');
+  });
+  it('a planned event before its window, completed or canceled: fine', () => {
+    expect(judge(ds, (i) => (i === 0 ? comps : release({})), t('2026-12-08T02:00:00Z')).verdict).toBe('fine');
+    for (const status of ['completed', 'canceled']) {
+      expect(judge(ds, (i) => (i === 0 ? comps : release({ status })), t('2026-12-08T04:00:00Z')).verdict, status).toBe('fine');
+    }
+  });
+  it('a planned event in progress, or scheduled and inside its window: trouble', () => {
+    expect(judge(ds, (i) => (i === 0 ? comps : release({ status: 'in_progress' })), t('2026-12-08T04:00:00Z')).verdict).toBe('trouble');
+    expect(judge(ds, (i) => (i === 0 ? comps : release({})), t('2026-12-08T04:00:00Z')).verdict).toBe('trouble');
+  });
+  it('a planned event with a status word it does not know: trouble (fails toward a look)', () => {
+    expect(judge(ds, (i) => (i === 0 ? comps : release({ status: 'postponed' })), t('2026-11-25T14:50:00Z')).verdict).toBe('trouble');
+  });
 });
 
 describe('IBM Cloud — parsed statusItems', () => {
