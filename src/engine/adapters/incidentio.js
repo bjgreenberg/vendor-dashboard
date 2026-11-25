@@ -33,7 +33,10 @@ import { normalizeSeverity, rank } from '../severity.js';
 
 /**
  * Is this a readable incident.io page document? Judges the DOCUMENT: a summary
- * with at least one component and a structure with at least one item.
+ * with at least one component, an affected list (empty is fine), and a structure
+ * that places at least one component (a group's leaf or an ungrouped one). A
+ * structure of nothing readable would add nothing and still count as read
+ * (Codex on #210).
  *
  * @param {unknown} doc
  * @returns {boolean}
@@ -44,11 +47,40 @@ export function isReadableIncidentIo(doc) {
     Array.isArray(s?.components) &&
     s.components.length > 0 &&
     Array.isArray(s?.structure?.items) &&
-    s.structure.items.length > 0 &&
+    s.structure.items.some(
+      (i) =>
+        typeof i?.component?.component_id === 'string' ||
+        (Array.isArray(i?.group?.components) && i.group.components.some((k) => typeof k?.component_id === 'string')),
+    ) &&
     // An empty list is a reading (nothing affected); a missing or non-list one is not, or every component
     // would read operational from a document that says nothing (Codex on #210)
     Array.isArray(s?.affected_components)
   );
+}
+
+/**
+ * The summary's components with the page's added, ONE entry per id (Codex on #210): the two documents share
+ * ids, and a scoped read keeps the first entry an id matches, which could be the summary's stale one. A leaf
+ * both list keeps the summary's place and name, takes the page's group_id, and the WORSE of the two statuses,
+ * so neither document can make it greener. A page component the summary lacks is appended.
+ *
+ * @param {any[]|undefined} summaryList
+ * @param {any[]} page
+ * @returns {any[]}
+ */
+export function addPageComponents(summaryList, page) {
+  const out = (Array.isArray(summaryList) ? summaryList : []).map((c) => ({ ...c }));
+  const byId = new Map(out.filter((c) => c && typeof c.id === 'string').map((c) => [c.id, c]));
+  for (const p of page) {
+    const mine = byId.get(p.id);
+    if (!mine || mine.group || p.group) {
+      out.push(p);
+      continue;
+    }
+    if (rank(normalizeSeverity(p.status)) > rank(normalizeSeverity(mine.status))) mine.status = p.status;
+    if (p.group_id) mine.group_id = p.group_id;
+  }
+  return out;
 }
 
 /**

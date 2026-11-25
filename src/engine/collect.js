@@ -35,7 +35,7 @@ import { parseMetaStatus } from './adapters/metastatus.js';
 import { parseSignal } from './adapters/signal.js';
 import { parseZscaler, isReadableZscalerCloud } from './adapters/zscaler.js';
 import { parseDocusign } from './adapters/docusign.js';
-import { incidentIoComponents, isReadableIncidentIo } from './adapters/incidentio.js';
+import { addPageComponents, incidentIoComponents, isReadableIncidentIo } from './adapters/incidentio.js';
 
 /** Deadline for every try at a URL but the last. A hung status page must not stall the run. */
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -668,7 +668,7 @@ async function collectOne(vendor, ctx) {
       const page = await readExtra(vendor.componentsUrl, { what: 'the full component list' }, isReadableIncidentIo);
       if (page !== undefined) {
         const { components, warnings } = incidentIoComponents(page);
-        payload.components = [...(Array.isArray(payload?.components) ? payload.components : []), ...components];
+        payload.components = addPageComponents(payload.components, components);
         extraWarnings = warnings;
       }
     }

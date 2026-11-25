@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { incidentIoComponents, isReadableIncidentIo } from '../../../src/engine/adapters/incidentio.js';
+import { addPageComponents, incidentIoComponents, isReadableIncidentIo } from '../../../src/engine/adapters/incidentio.js';
 import { parseStatuspage } from '../../../src/engine/adapters/statuspage.js';
 import { SEVERITY } from '../../../src/engine/severity.js';
 
@@ -74,6 +74,33 @@ describe('incident.io page JSON (OpenAI, 2026-11-25)', () => {
     expect(warnings).toEqual(['3 affected entries on the status page name no component, so they are counted as unknown']);
     const r = parseStatuspage({ status: { indicator: 'none' }, components }, { vendor: 'V', now });
     expect(r.severity).toBe(SEVERITY.UNKNOWN);
+  });
+
+  it('reads an ungrouped component, and names a nameless one by its id', () => {
+    const d = { summary: { components: [{ id: 'u' }], affected_components: [{ component_id: 'u', status: 'partial_outage' }],
+      structure: { items: [{ component: { component_id: 'u', name: '  ' } }] } } };
+    const { components } = incidentIoComponents(d);
+    expect(components).toEqual([{ id: 'u', name: 'u', status: 'partial_outage' }]);
+  });
+
+  // Codex on #210: the summary and the page JSON share component ids. Two entries with one id let a scoped read
+  // keep the first (the summary's, possibly stale); one entry per id, with the worse status, never can.
+  it('merges a component both documents list into one entry with the worse status', () => {
+    const summaryList = [{ id: 'a', name: 'A', status: 'major_outage' }, { id: 'b', name: 'B', status: 'operational' }];
+    const page = [{ id: 'g', name: 'G', group: true, status: 'degraded_performance' },
+      { id: 'a', name: 'A', status: 'operational', group_id: 'g' }, { id: 'b', name: 'B', status: 'degraded_performance', group_id: 'g' },
+      { id: 'c', name: 'C', status: 'operational', group_id: 'g' }];
+    const merged = addPageComponents(summaryList, page);
+    expect(merged.filter((c) => c.id === 'a')).toEqual([{ id: 'a', name: 'A', status: 'major_outage', group_id: 'g' }]);
+    expect(merged.filter((c) => c.id === 'b')).toEqual([{ id: 'b', name: 'B', status: 'degraded_performance', group_id: 'g' }]);
+    expect(merged.map((c) => c.id)).toEqual(['a', 'b', 'g', 'c']);
+    expect(addPageComponents(undefined, page)).toHaveLength(4);
+  });
+
+  it('a structure with no readable leaf is not a reading (Codex on #210)', () => {
+    const empty = proxy();
+    empty.summary.structure.items = [{ group: { id: 'g', name: 'G', components: [{}, null] } }, { other: 1 }];
+    expect(isReadableIncidentIo(empty)).toBe(false);
   });
 
   it('is a reading only when it has components, a structure and an affected list (Codex on #210)', () => {
