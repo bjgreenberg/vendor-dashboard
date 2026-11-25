@@ -35,6 +35,7 @@ import { parseMetaStatus } from './adapters/metastatus.js';
 import { parseSignal } from './adapters/signal.js';
 import { parseZscaler, isReadableZscalerCloud } from './adapters/zscaler.js';
 import { parseDocusign } from './adapters/docusign.js';
+import { incidentIoComponents, isReadableIncidentIo } from './adapters/incidentio.js';
 
 /** Deadline for every try at a URL but the last. A hung status page must not stall the run. */
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -656,6 +657,22 @@ async function collectOne(vendor, ctx) {
       if (incidents !== undefined) opts.incidents = incidents;
     }
 
+    // An incident.io page's Statuspage-compatible summary.json can leave components out (OpenAI, 2026-11-25:
+    // 25 of 37, the whole Codex group missing, so the card said "all healthy" under a Degraded badge). The
+    // page's own JSON (/proxy/<host>) lists every group and which component is affected. Its components are
+    // ADDED to the summary's, never instead of them: a component only the summary lists still votes, and the
+    // page indicator still votes, so the row cannot read greener than before. If it fails, the summary alone
+    // decides, and the card says the list was read in part.
+    let extraWarnings = [];
+    if (vendor.type === 'statuspage' && vendor.componentsUrl && payload && typeof payload === 'object') {
+      const page = await readExtra(vendor.componentsUrl, { what: 'the full component list' }, isReadableIncidentIo);
+      if (page !== undefined) {
+        const { components, warnings } = incidentIoComponents(page);
+        payload.components = [...(Array.isArray(payload?.components) ? payload.components : []), ...components];
+        extraWarnings = warnings;
+      }
+    }
+
     if (vendor.type === 'instatus' && vendor.componentsUrl) {
       // If it fails, page.status still decides, on its own. A list with no
       // components the parser would count (it skips group headers) is not a
@@ -774,7 +791,8 @@ async function collectOne(vendor, ctx) {
       if (banner !== undefined) opts.banner = banner;
     }
 
-    return finish(JSON_ADAPTERS[vendor.type](payload, opts));
+    const record = JSON_ADAPTERS[vendor.type](payload, opts);
+    return finish(extraWarnings.length ? { ...record, warnings: [...(record.warnings ?? []), ...extraWarnings] } : record);
   } catch (error) {
     return unknownRecord(name, `adapter threw: ${error?.message ?? String(error)}`, opts);
   }

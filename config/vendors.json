@@ -668,9 +668,11 @@
       "brandDomain": "okta.com"
     },
     {
+      "$comment": "incident.io page. Its Statuspage-compatible summary.json lists 25 of the page's 37 components and leaves the Codex group out (2026-11-25: the card read Degraded above '24 components · all healthy' while Codex Web was degraded). componentsUrl is the page's own JSON (/proxy/<host>), every group and the affected components; its components are ADDED to the summary's, and the page indicator still votes.",
       "name": "OpenAI",
       "type": "statuspage",
       "url": "https://status.openai.com/api/v2/summary.json",
+      "componentsUrl": "https://status.openai.com/proxy/status.openai.com",
       "brandDomain": "openai.com"
     },
     {

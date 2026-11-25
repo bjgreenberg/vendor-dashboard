@@ -99,6 +99,16 @@ a future non-Cloudflare deployment possible.
   from Microsoft's own feed: `status.cloud.microsoft` reports only when the
   admin centre itself is unreachable. Exchange/Entra/Intune/Defender health is
   tenant-scoped by design. Do not go looking again.
+- **OpenAI's summary.json is incomplete; its page JSON is read too.** OpenAI's
+  status page is incident.io. The Statuspage-compatible `summary.json` listed
+  25 of 37 components on 2026-11-25 and left the Codex group out, so the card
+  read Degraded above "all healthy". `componentsUrl` is the page's own JSON
+  (`/proxy/status.openai.com`); `adapters/incidentio.js` turns its groups and
+  `affected_components` into Statuspage-shaped components, which collectOne
+  ADDS to the summary's (never replaces), so the indicator and every summary
+  component still vote. An affected id the structure does not list is kept
+  (stand-in name, its own status) with a warning; an unseen status word fails
+  closed. Perplexity is incident.io too, but its two feeds matched (4 and 4).
 - **Docusign is `type: "docusign"`, not statuspage.** `status.docusign.com`
   began 301-redirecting to the `health.docusign.com` HTML shell on 2026-09-01
   (the row failed closed to `unknown`, as designed). The page's real data is two
@@ -152,7 +162,7 @@ a future non-Cloudflare deployment possible.
     batch failed": Statuspage stalls are correlated and two shards are all
     Statuspage, so that guard skips the case re-looks exist for.
   - **Never a vendor that reads more than one document** (today Coalition,
-    Concur, Docusign, Google, Iorad, Stormboard, Zscaler). Two layers:
+    Concur, Docusign, Google, Iorad, OpenAI, Stormboard, Zscaler). Two layers:
     `hasExtraDocuments` (config keys) keeps them out of the candidates to
     save requests, and `classifyRelook` refuses any vendor in
     `run.usedExtraDocuments`, which `readExtra` sets on every call. The second
@@ -217,7 +227,7 @@ a future non-Cloudflare deployment possible.
   (15 min is the platform limit), and its logs arrive when it ends. Tests drive the waits with fake timers
   (`settle()` in `test/worker/scheduled.test.js`); do not add an env knob.
 - **A vendor read only in part keeps its verified status and SAYS SO**
-  (worklist #132, Brian's decision 2026-10-02). Seven vendors read more than
+  (worklist #132, Brian's decision 2026-10-02). Eight vendors read more than
   one document. When an extra one fails, or answers and holds nothing:
   - The row keeps the status that was verified. `collectOne` puts a note
     FIRST in the record's warnings, written for a reader ("1 of 4 data
