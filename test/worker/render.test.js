@@ -328,6 +328,17 @@ describe('renderDashboard — expandable component list', () => {
     expect(html).toMatch(/1 component · all healthy/);
   });
 
+  // OpenAI, 2026-11-25: the page indicator said degraded (the badge was right) while every component the feed
+  // listed was operational (the affected one, in a Codex group the feed leaves out), and the card said "24
+  // components · all healthy" under a Degraded badge. A row that is not green never says all healthy.
+  it('never says all healthy on a row that is not green, even when no listed component is affected', () => {
+    for (const severity of ['degraded', 'partial_outage', 'major_outage', 'maintenance', 'unknown']) {
+      const html = renderDashboard({ records: [rec([{ name: 'Gmail', severity: 'operational' }], severity)], meta: null });
+      expect(html, severity).not.toContain('all healthy');
+      expect(html, severity).toMatch(/1 component · none listed as affected/);
+    }
+  });
+
   it('omits the disclosure entirely for a vendor with no components', () => {
     const html = renderDashboard({ records: [rec([])], meta: null });
     expect(html).not.toContain('<details');
