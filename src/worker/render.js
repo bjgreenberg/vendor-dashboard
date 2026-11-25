@@ -746,7 +746,12 @@ function renderRow(record) {
   const allList = all.length
     ? `<details class="vs-all">
     <summary>${esc(all.length)} component${all.length === 1 ? '' : 's'}${
-      affected.length ? ` · ${esc(affected.length)} affected` : ' · all healthy'
+      affected.length
+        ? ` · ${esc(affected.length)} affected`
+        // "all healthy" only on a green row: a row the vendor's own indicator marks down while
+        // no LISTED component is (OpenAI 2026-11-25, its feed leaves the Codex group out) must not
+        // read as healthy under its own badge
+        : record.severity === 'operational' ? ' · all healthy' : ' · none listed as affected'
     }</summary>
     <ul class="vs-children">${all.map(childLi).join('')}</ul>
   </details>`
