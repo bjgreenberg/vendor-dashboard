@@ -74,11 +74,23 @@ const PLANNED_OVER = new Set(['completed', 'canceled', 'cancelled']);
  * more: "December 8 03:00 UTC" parses to 2001, and an offset-less string is
  * read in the host's zone, either of which would pass for a readable window.
  */
-const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+const ISO_WITH_OFFSET = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-](\d{2}):(\d{2}))$/;
 
-/** @param {unknown} v @returns {number} epoch ms, or NaN unless strict ISO with an offset */
+/**
+ * Epoch ms, or NaN unless strict ISO with an offset AND a real calendar
+ * instant: `Date.parse` rolls 2026-02-31 into March 3 rather than refusing it.
+ *
+ * @param {unknown} v
+ * @returns {number}
+ */
 function isoTime(v) {
-  return typeof v === 'string' && ISO_WITH_OFFSET.test(v) ? Date.parse(v) : NaN;
+  const m = typeof v === 'string' ? ISO_WITH_OFFSET.exec(v) : null;
+  if (!m) return NaN;
+  const [y, mo, d, h, mi, s = '0', oh = '0', om = '0'] = m.slice(1).map((x) => x ?? undefined);
+  const daysInMonth = new Date(Date.UTC(Number(y), Number(mo), 0)).getUTCDate();
+  const ok = Number(mo) >= 1 && Number(mo) <= 12 && Number(d) >= 1 && Number(d) <= daysInMonth &&
+    Number(h) <= 23 && Number(mi) <= 59 && Number(s) <= 59 && Number(oh) <= 23 && Number(om) <= 59;
+  return ok ? Date.parse(v) : NaN;
 }
 
 /** @param {any} i an incidents.json entry; `type` decides only when `isPlanned` is absent */

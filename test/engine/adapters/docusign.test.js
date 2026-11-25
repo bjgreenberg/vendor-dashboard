@@ -270,7 +270,8 @@ describe('docusign (health.docusign.com components + incidents feeds)', () => {
 
     it('a scheduled event whose window cannot be read fails closed to unknown', () => {
       for (const over of [{ beginsAt: null }, { endsAt: 'soon' }, { beginsAt: undefined, endsAt: undefined }, { endsAt: '2026-12-08T03:00:00Z' }, { beginsAt: '2026-12-08T09:00:00Z' },
-        { beginsAt: 'December 8 03:00 UTC', endsAt: 'December 8 09:00 UTC' }, { beginsAt: '2026-12-08T03:00:00', endsAt: '2026-12-08T09:00:00' }]) {
+        { beginsAt: 'December 8 03:00 UTC', endsAt: 'December 8 09:00 UTC' }, { beginsAt: '2026-12-08T03:00:00', endsAt: '2026-12-08T09:00:00' },
+        { beginsAt: '2026-02-31T03:00:00Z', endsAt: '2026-03-04T03:00:00Z' }, { beginsAt: '2026-12-08T24:00:00Z' }, { endsAt: '2026-12-08T09:00:00+25:00' }]) {
         const r = parseDocusign(fixture('Docusign-components'), opts({ incidents: one(over), now: at('2026-12-08T04:00:00Z') }));
         expect(r.severity, JSON.stringify(over)).toBe(SEVERITY.UNKNOWN);
         expect(r.warnings.join(' '), JSON.stringify(over)).toMatch(/window/);

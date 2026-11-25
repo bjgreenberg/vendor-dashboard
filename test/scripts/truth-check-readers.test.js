@@ -152,7 +152,7 @@ describe('Docusign — components and open incidents', () => {
     expect(judge(ds, (i) => (i === 0 ? comps : release({})), t('2026-12-08T04:00:00Z')).verdict).toBe('trouble');
   });
   it('a scheduled event whose window ends before it begins, or is empty: trouble (fails toward a look)', () => {
-    for (const over of [{ endsAt: '2026-12-08T03:00:00Z' }, { beginsAt: '2026-12-08T09:00:00Z' }, { beginsAt: 'December 8 03:00 UTC', endsAt: 'December 8 09:00 UTC' }, { beginsAt: '2026-12-08T03:00:00', endsAt: '2026-12-08T09:00:00' }]) {
+    for (const over of [{ endsAt: '2026-12-08T03:00:00Z' }, { beginsAt: '2026-12-08T09:00:00Z' }, { beginsAt: 'December 8 03:00 UTC', endsAt: 'December 8 09:00 UTC' }, { beginsAt: '2026-12-08T03:00:00', endsAt: '2026-12-08T09:00:00' }, { beginsAt: '2026-02-31T03:00:00Z', endsAt: '2026-03-04T03:00:00Z' }]) {
       expect(judge(ds, (i) => (i === 0 ? comps : release(over)), t('2026-11-25T14:50:00Z')).verdict, JSON.stringify(over)).toBe('trouble');
     }
   });

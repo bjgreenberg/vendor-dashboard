@@ -181,9 +181,16 @@ export function docusignVerdict(components, incidents, label, now = Date.now()) 
     if (status === 'completed' || status === 'canceled' || status === 'cancelled') return false;
     if (status !== 'scheduled') return true;
     // Strict ISO with an offset only: Date.parse reads "December 8" as 2001.
-    const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
-    const from = iso.test(String(i.beginsAt ?? '')) ? Date.parse(i.beginsAt) : NaN;
-    const to = iso.test(String(i.endsAt ?? '')) ? Date.parse(i.endsAt) : NaN;
+    // And a real date: it rolls 2026-02-31 into March, so round-trip the day.
+    const iso = /^(\d{4}-\d{2}-\d{2})T([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d+)?)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/;
+    const when = (v) => {
+      const m = iso.exec(String(v ?? ''));
+      if (!m) return NaN;
+      const day = Date.parse(`${m[1]}T00:00:00Z`);
+      return Number.isFinite(day) && new Date(day).toISOString().slice(0, 10) === m[1] ? Date.parse(v) : NaN;
+    };
+    const from = when(i.beginsAt);
+    const to = when(i.endsAt);
     return !(Number.isFinite(from) && Number.isFinite(to) && from < to) || (from <= now && now < to);
   };
   const openIncidents = (list ?? []).filter((i) => {
