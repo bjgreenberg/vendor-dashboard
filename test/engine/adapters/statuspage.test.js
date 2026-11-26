@@ -227,3 +227,65 @@ describe('parseStatuspage — Perplexity after its incident.io move (#135)', () 
     expect(r.components.map((c) => c.name)).toEqual(['Website', 'App', 'Computer']);
   });
 });
+
+// Shared status pages, part 2 (2026-11-25). SendGrid rides Twilio's page; a
+// Twilio SMS delay set the page summary to "Partially Degraded Service", and
+// that whole-page text rendered under the green SendGrid pill.
+describe('parseStatuspage — scoped description speaks only for the scope', () => {
+  const sharedPage = () => ({
+    page: { id: 'p', name: 'Twilio', url: 'https://status.twilio.com' },
+    status: { indicator: 'minor', description: 'Partially Degraded Service' },
+    components: [
+      { id: 'g1', name: 'SendGrid Mail Sending', status: 'operational', group: true, components: ['c1'] },
+      { id: 'c1', name: 'Mail Sending', status: 'operational', group_id: 'g1' },
+      { id: 'c2', name: 'SendGrid API', status: 'operational' },
+      { id: 'c3', name: 'SMS', status: 'degraded_performance' },
+    ],
+    incidents: [
+      {
+        name: 'Delay In Outbound SMS Send',
+        status: 'investigating',
+        impact: 'minor',
+        components: [{ id: 'c3', name: 'SMS' }],
+        incident_updates: [{ body: 'Users may experience delay in sending outbound SMS.' }],
+      },
+    ],
+  });
+  const scope = { groups: ['SendGrid Mail Sending'], components: ['SendGrid API'] };
+
+  it('REGRESSION: a healthy scope never shows the whole page summary', () => {
+    const r = parseStatuspage(sharedPage(), opts({ vendor: 'SendGrid', scope }));
+    expect(r.severity).toBe(SEVERITY.OPERATIONAL);
+    expect(r.description).not.toContain('Partially Degraded');
+    expect(r.description).toBe('All 2 monitored components operational.');
+  });
+
+  it('the live SendGrid config reads tonight-shaped data the same way', () => {
+    const sg = vendorsConfig.vendors.find((v) => v.name === 'SendGrid');
+    const r = parseStatuspage(sharedPage(), opts({ vendor: 'SendGrid', scope: sg.scope }));
+    expect(r.description).not.toContain('Partially Degraded');
+  });
+
+  it('an unhealthy in-scope component keeps its own wording', () => {
+    const p = sharedPage();
+    p.components[2].status = 'partial_outage';
+    const r = parseStatuspage(p, opts({ vendor: 'SendGrid', scope }));
+    expect(r.severity).toBe(SEVERITY.PARTIAL_OUTAGE);
+    expect(r.description).toBe('Affected: SendGrid API.');
+  });
+
+  it('an empty scoped selection fails closed and says so, never healthy', () => {
+    const r = parseStatuspage(sharedPage(), opts({ vendor: 'SendGrid', scope: { components: ['Gone'] } }));
+    expect(r.severity).toBe(SEVERITY.UNKNOWN);
+    expect(r.description).toBe('None of the configured components were found on the vendor page.');
+  });
+
+  it('an unscoped vendor keeps the page summary unchanged', () => {
+    const p = sharedPage();
+    p.components = p.components.map((c) => ({ ...c, status: 'operational' }));
+    p.incidents = [];
+    const r = parseStatuspage(p, opts({ vendor: 'Twilio' }));
+    expect(r.severity).not.toBe(SEVERITY.OPERATIONAL); // the minor indicator votes
+    expect(r.description).toBe('Partially Degraded Service');
+  });
+});

@@ -344,6 +344,22 @@ export function parseStatuspage(payload, options) {
     const names = unhealthy.slice(0, 3).map((c) => c.name).join(', ');
     const more = unhealthy.length > 3 ? ` (+${unhealthy.length - 3} more)` : '';
     description = `Affected: ${names}${more}.`;
+  } else if (scoped) {
+    // SHARED STATUS PAGES, part 2 (2026-11-25): payload.status.description is
+    // the WHOLE page's summary. SendGrid rides Twilio's page, so a Twilio SMS
+    // delay put "Partially Degraded Service" under a green SendGrid pill. With
+    // a scope, the text speaks only for the scoped components. Unhealthy and
+    // incident wording is handled above; what is left here is all-healthy, or
+    // an empty selection, which fails closed (severity is UNKNOWN). Never
+    // healthier-sounding than the scoped severity.
+    const n = leafSelection.selected.length;
+    if (n === 0) {
+      description = 'None of the configured components were found on the vendor page.';
+    } else if (severity === SEVERITY.OPERATIONAL) {
+      description = `All ${n} monitored components operational.`;
+    } else {
+      description = 'Monitored components report a problem.';
+    }
   } else if (severity === SEVERITY.OPERATIONAL) {
     description = toPlainText(payload?.status?.description) || 'Systems operational.';
   } else {
