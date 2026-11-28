@@ -1,0 +1,48 @@
+# Changelog check for a PUBLIC repo (#214 step 2, docs/adr/0005-one-reusable-changelog-check.md).
+#
+# A public repo cannot call developer-handbook's private reusable workflow, so it
+# runs a pinned copy of changelog.py instead:
+#
+#   1. Copy developer-handbook's changelog.py at a merged commit to scripts/changelog.py.
+#      This copy: developer-handbook 658ac1c30d67.
+#   2. Put that file's SHA-256 (`shasum -a 256 scripts/changelog.py`) in CHANGELOG_PY_SHA256 below.
+#   3. Copy this file to .github/workflows/changelog-check.yml.
+#
+# The checksum makes a changed copy fail red: a bump is a deliberate PR that
+# updates both the file and the hash. Start in report mode (MODE: report),
+# then block, then make the check required.
+
+name: changelog-check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    name: Changelog check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check the change against the changelog standard
+        shell: bash
+        env:
+          CHANGELOG_PY_SHA256: 74bcc1d5977fe2c51ce16c8397985d5aa8a6596cbbf3e7ad668e2a22b30cea4d
+          MODE: report
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          echo "${CHANGELOG_PY_SHA256}  scripts/changelog.py" | sha256sum -c -
+          report=()
+          [[ "$MODE" == "report" ]] && report=(--report)
+          python3 scripts/changelog.py --check "$PR_BASE_SHA" "$PR_HEAD_SHA" \
+            --author "$PR_AUTHOR" --branch "$PR_BRANCH" "${report[@]+"${report[@]}"}"
